@@ -65,6 +65,100 @@ html{scroll-behavior:smooth} body{letter-spacing:-.01em;overflow-x:hidden}.app{g
 .brand .brand-copy strong{font-size:15px;white-space:nowrap}
 .brand .brand-copy small{font-size:8.5px;letter-spacing:.10em;white-space:nowrap}
 </style>
+
+<style id="lepneus-clean-final">
+/* ===== Le Pneus • revisão visual clean ===== */
+:root{
+  --bg:#f6f8fb;
+  --panel:#ffffff;
+  --panel2:#f8fafc;
+  --text:#172033;
+  --muted:#748096;
+  --line:#e8edf4;
+  --primary:#3f5fe7;
+  --primary2:#334fd0;
+  --primary-soft:#eef2ff;
+  --ok:#169b63;
+  --warn:#d98a1d;
+  --danger:#d94b4b;
+  --shadow:0 6px 22px rgba(28,39,66,.055);
+  --shadow-lg:0 18px 50px rgba(28,39,66,.12);
+}
+body.dark{
+  --bg:#0d1422;
+  --panel:#121c2d;
+  --panel2:#0f1828;
+  --text:#eff4fb;
+  --muted:#94a0b4;
+  --line:#263249;
+  --primary-soft:#202b52;
+}
+body{background:var(--bg);font-size:14px}
+.sidebar{width:auto;background:#111827;padding:18px 13px;border-right:1px solid rgba(255,255,255,.045)}
+.brand{margin-bottom:14px;padding:5px 9px 18px}
+.brand img{filter:drop-shadow(0 6px 12px rgba(0,0,0,.16))}
+.brand-copy strong{font-size:15px;letter-spacing:-.02em}
+.brand-copy small{font-size:9px;color:#7f8ba0}
+.nav-label{font-size:9px;padding:0 11px 7px;color:#5e6b80}
+.nav button{min-height:42px;padding:10px 11px;border-radius:10px;font-size:13px;color:#9aa5b7}
+.nav button:hover{transform:none;background:rgba(255,255,255,.05)}
+.nav button.active{background:rgba(79,99,230,.16);box-shadow:inset 3px 0 #667cff}
+.topbar{height:70px;padding:0 26px;background:color-mix(in srgb,var(--panel) 94%,transparent)}
+.search input{height:42px;background:var(--panel2);border-radius:12px}
+.content{padding:26px 30px 44px;max-width:1580px}
+.heading{margin-bottom:18px}
+.heading h1{font-size:25px;font-weight:800;letter-spacing:-.035em}
+.heading p{font-size:13px;max-width:760px}
+.cards{gap:13px}
+.card{
+  border-radius:14px;
+  border:1px solid var(--line);
+  padding:16px;
+  box-shadow:var(--shadow);
+}
+.metric .value{font-size:24px;letter-spacing:-.04em}
+.metric .label{font-size:12px}
+.metric .delta{font-size:11px}
+.grid2{gap:13px;margin-top:13px}
+.btn{min-height:38px;border-radius:9px;padding:8px 13px;font-size:13px}
+.btn.primary{background:var(--primary);box-shadow:none}
+.btn.primary:hover{background:var(--primary2);transform:none}
+.btn.ghost:hover{background:var(--panel2);transform:none}
+.toolbar{gap:8px;margin-bottom:12px}
+.toolbar input,.toolbar select,.form input,.form select,.form textarea,
+.form-grid input,.form-grid select,.form-grid textarea{
+  border-radius:9px!important;
+  border:1px solid var(--line)!important;
+  background:var(--panel)!important;
+  min-height:40px;
+}
+table{min-width:760px}
+th{font-size:10px;letter-spacing:.055em;background:var(--panel2);position:sticky;top:0;z-index:1}
+th,td{padding:11px 10px}
+tbody tr:hover{background:color-mix(in srgb,var(--primary-soft) 34%,transparent)}
+.badge{padding:4px 7px;font-size:10px}
+.notice{border-radius:11px!important;padding:12px 13px!important}
+.alert{border-radius:9px;padding:11px}
+.modal{backdrop-filter:blur(3px)}
+.modal-card{border-radius:16px;box-shadow:var(--shadow-lg);padding:19px}
+.section-title{font-size:16px}
+.summary-list>div{padding:10px 0}
+.soft-chip{font-size:10px;padding:5px 8px}
+.table-wrap{border-radius:10px}
+#backup .grid2 .card,#planilhas .settings-grid .card{min-height:190px}
+@media(max-width:1100px){
+  .content{padding:22px}
+}
+@media(max-width:800px){
+  .content{padding:16px 13px 34px}
+  .topbar{height:64px;padding:0 12px}
+  .heading{align-items:flex-start;flex-direction:column}
+  .heading h1{font-size:22px}
+  .actions{flex-wrap:wrap}
+  .btn{min-height:40px}
+}
+</style>
+
 </head>
 <body>
 <div id="login" class="login">
@@ -102,16 +196,18 @@ html{scroll-behavior:smooth} body{letter-spacing:-.01em;overflow-x:hidden}.app{g
     <div class="page" id="fornecedores"></div>
     <div class="page" id="os"></div>
     <div class="page" id="relatorios"></div>
+    <div class="page" id="fechamento"></div>
     <div class="page" id="agenda"></div>
     <div class="page" id="whatsapp"></div>
     <div class="page" id="usuarios"></div>
+    <div class="page" id="backup"></div>
   </section>
 </main>
 </div>
 <div class="modal" id="modal"><div class="modal-card"><div id="modalBody"></div></div></div>
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-const menu=[['dashboard','📊','Dashboard'],['estoque','📦','Estoque'],['planilhas','🔗','Conexão Planilhas'],['vendas','🛒','Vendas'],['catalogo','🌐','Catálogo LePneus'],['mercadolivre','🟡','Mercado Livre'],['caixa','🏦','Caixa'],['compras','🚚','Compras'],['clientes','👥','Clientes'],['fornecedores','🏭','Fornecedores'],['os','🛠️','Serviços'],['agenda','📅','Agenda e Lembretes'],['whatsapp','💬','WhatsApp'],['relatorios','📈','Relatórios'],['usuarios','🔐','Usuários']];
+const menu=[['dashboard','📊','Dashboard'],['estoque','📦','Estoque'],['planilhas','🔗','Conexão Planilhas'],['vendas','🛒','Vendas'],['catalogo','🌐','Catálogo LePneus'],['mercadolivre','🟡','Mercado Livre'],['caixa','🏦','Caixa'],['compras','🚚','Compras'],['clientes','👥','Clientes'],['fornecedores','🏭','Fornecedores'],['os','🛠️','Serviços'],['agenda','📅','Agenda e Lembretes'],['whatsapp','💬','WhatsApp'],['fechamento','🧾','Fechamento Mensal'],['relatorios','📈','Relatórios'],['backup','💾','Backup e Restauração'],['usuarios','🔐','Usuários']];
 let data=JSON.parse(localStorage.getItem('gestaoData')||'null')||{
  products:[{id:1,code:'P001',name:'Produto Exemplo',category:'Geral',brand:'Marca A',qty:12,min:5,cost:80,price:120},{id:2,code:'P002',name:'Produto Baixo Estoque',category:'Geral',brand:'Marca B',qty:2,min:5,cost:45,price:79.9}],
  customers:[{id:1,name:'Cliente Exemplo',doc:'000.000.000-00',phone:'(45) 99999-9999',email:'cliente@email.com'}],
@@ -119,7 +215,7 @@ let data=JSON.parse(localStorage.getItem('gestaoData')||'null')||{
  sales:[], purchases:[], finance:[], cash:[], quotes:[], serviceOrders:[], history:[], reminders:[], whatsappMessages:[], whatsappTemplates:[{id:1,name:'Confirmação de horário',text:'Olá, {nome}! Passando para confirmar seu horário em {data} às {hora}. Qualquer dúvida, estamos à disposição.'},{id:2,name:'Orçamento disponível',text:'Olá, {nome}! Seu orçamento está pronto. Se precisar de alguma informação, pode responder por aqui.'},{id:3,name:'Agradecimento',text:'Olá, {nome}! Agradecemos pela preferência. Conte com a gente sempre que precisar!'}], users:[{id:1,name:'Administrador',role:'ADMINISTRADOR'}], settings:{company:'Minha Empresa',fantasy:'',cnpj:'',phone:'',whatsapp:'',email:'',address:'',city:'',currency:'BRL',defaultPayment:'PIX',defaultMinStock:5,commission:0,dateFormat:'DD/MM/AAAA',timezone:'America/Sao_Paulo',sessionMinutes:480,confirmCritical:true,autoBackup:false,browserNotifications:true,reminderMinutes:30,whatsappAuto:false,whatsappWebhook:'',whatsappSignature:'',theme:'system'}
 };
 function ensureData(){
- data.reminders=data.reminders||[];data.whatsappMessages=data.whatsappMessages||[];data.whatsappTemplates=data.whatsappTemplates||[];data.catalogItems=data.catalogItems||[];data.mercadoLivreItems=data.mercadoLivreItems||[];data.pendingExcelSync=data.pendingExcelSync||[];data.spreadsheetConnections=data.spreadsheetConnections||{};data.settings=data.settings||{};
+ data.reminders=data.reminders||[];data.whatsappMessages=data.whatsappMessages||[];data.whatsappTemplates=data.whatsappTemplates||[];data.catalogItems=data.catalogItems||[];data.mercadoLivreItems=data.mercadoLivreItems||[];data.pendingExcelSync=data.pendingExcelSync||[];data.spreadsheetConnections=data.spreadsheetConnections||{};data.monthlyClosings=data.monthlyClosings||[];data.settings=data.settings||{};
  const defaults={company:'Minha Empresa',fantasy:'',cnpj:'',phone:'',whatsapp:'',email:'',address:'',city:'',currency:'BRL',defaultPayment:'PIX',defaultMinStock:5,commission:0,dateFormat:'DD/MM/AAAA',timezone:'America/Sao_Paulo',sessionMinutes:480,confirmCritical:true,autoBackup:false,browserNotifications:true,reminderMinutes:30,whatsappAuto:false,whatsappWebhook:'',whatsappSignature:'',theme:'system'};
  Object.keys(defaults).forEach(k=>{if(data.settings[k]===undefined)data.settings[k]=defaults[k]});
 }
@@ -171,7 +267,7 @@ function renderPlanilhas(){
  }).join('');
  const connected=Object.keys(data.spreadsheetConnections||{}).filter(k=>['carro','moto','acessorios'].includes(k)).length;
  $('#planilhas').innerHTML=heading('Conexão Planilhas','Selecione somente as três planilhas que serão usadas no estoque')+
- `<div class="notice"><b>Importante:</b> esta tela já deixa Carro, Moto e Acessórios definidos como as três fontes. Selecionar um arquivo aqui ainda não cria sincronização permanente com o Excel do computador. Para mudanças aparecerem automaticamente nos dois lados, vamos conectar o local onde os arquivos originais ficam salvos.</div>
+ `<div class="notice"><b>Status da conexão:</b> Carro, Moto e Acessórios estão definidos como as três fontes. Nesta versão, selecionar um arquivo registra a escolha, mas a importação/sincronização automática com o Excel original ainda será configurada. Para mudanças aparecerem automaticamente nos dois lados, vamos conectar o local onde os arquivos originais ficam salvos.</div>
  <div class="cards">${metric('Planilhas previstas','3','Carro • Moto • Acessórios','green')}${metric('Selecionadas',connected,'neste navegador',connected===3?'green':'red')}${metric('Fluxo Usados','Fora','não será utilizado','green')}</div>
  <div class="settings-grid" style="margin-top:16px">${cards}</div>`;
 }
@@ -186,32 +282,121 @@ function sendToMercadoLivre(id){ensureData();let p=data.products.find(x=>x.id===
 function sendToCatalogo(id){ensureData();let p=data.products.find(x=>x.id===id);if(!p)return;let exists=data.catalogItems.find(x=>String(x.productId)===String(id));if(exists){Object.assign(exists,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,updatedAt:new Date().toLocaleString('pt-BR')});alert('Produto atualizado no Catálogo LePneus.');}else{data.catalogItems.unshift({id:Date.now(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Ativo',importedAt:new Date().toLocaleString('pt-BR')});log('Enviou produto ao Catálogo LePneus: '+p.name);alert('Produto adicionado à aba Catálogo LePneus.');}save();renderAll()}
 function removeFromML(id){if(!confirm('Remover este produto da área Mercado Livre?'))return;data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>x.id!==id);save();renderAll()}
 function removeFromCatalog(id){if(!confirm('Remover este produto do Catálogo LePneus?'))return;data.catalogItems=data.catalogItems.filter(x=>x.id!==id);save();renderAll()}
-function renderEstoque(){ensureData();let rows=data.products.map(p=>{let inML=data.mercadoLivreItems.some(x=>String(x.productId)===String(p.id)),inCat=data.catalogItems.some(x=>String(x.productId)===String(p.id));return `<tr><td>${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(p.category)}</td><td>${esc(p.brand)}</td><td>${p.qty}</td><td>${money(p.cost)}</td><td>${money(p.price)}</td><td>${p.qty<=p.min?'<span class="badge danger">Baixo</span>':'<span class="badge ok">Normal</span>'}</td><td class="actions"><button class="btn ghost small" onclick="editProduct(${p.id})">Editar</button><button class="btn ghost small" onclick="sendToCatalogo(${p.id})">${inCat?'Atualizar catálogo':'Enviar ao catálogo'}</button><button class="btn primary small" onclick="sendToMercadoLivre(${p.id})">${inML?'Atualizar ML':'Importar p/ Mercado Livre'}</button><button class="btn ghost small" onclick="deleteProduct(${p.id})">Excluir</button></td></tr>`}).join('');$('#estoque').innerHTML=heading('Estoque','Central de produtos: escolha manualmente o que vai para o Catálogo e para o Mercado Livre',`<button class="btn primary" onclick="productModal()">+ Adicionar produto</button>`)+`<div class="notice"><b>Mercado Livre:</b> o botão “Importar p/ Mercado Livre” apenas leva o produto para a nova aba de preparação. Ele não publica o anúncio automaticamente.</div><div class="card"><div class="toolbar"><input id="stockSearch" placeholder="Pesquisar produto" oninput="filterTable('stockSearch','stockTable')"><select onchange="sortStock(this.value)"><option value="name">Ordenar por nome</option><option value="qtyasc">Menor estoque</option><option value="qtydesc">Maior estoque</option><option value="pricedesc">Maior preço</option></select></div><div class="table-wrap"><table id="stockTable"><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum produto.</td></tr>'}</tbody></table></div></div>`}
+function renderEstoque(){ensureData();let rows=data.products.map(p=>{let inML=data.mercadoLivreItems.some(x=>String(x.productId)===String(p.id)),inCat=data.catalogItems.some(x=>String(x.productId)===String(p.id));return `<tr><td>${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(p.category)}</td><td>${esc(p.brand)}</td><td>${p.qty}</td><td>${money(p.cost)}</td><td>${money(p.price)}</td><td>${p.qty<=p.min?'<span class="badge danger">Baixo</span>':'<span class="badge ok">Normal</span>'}</td><td class="actions"><button class="btn ghost small" onclick="editProduct(${p.id})">Editar</button><button class="btn ghost small" onclick="sendToCatalogo(${p.id})">${inCat?'Atualizar catálogo':'Enviar ao catálogo'}</button><button class="btn primary small" onclick="sendToMercadoLivre(${p.id})">${inML?'Atualizar controle ML':'Adicionar ao controle ML'}</button><button class="btn ghost small" onclick="deleteProduct(${p.id})">Excluir</button></td></tr>`}).join('');$('#estoque').innerHTML=heading('Estoque','Central de produtos: escolha manualmente o que vai para o Catálogo e para o Mercado Livre',`<button class="btn primary" onclick="productModal()">+ Adicionar produto</button>`)+`<div class="notice"><b>Mercado Livre:</b> o botão “Adicionar ao controle ML” apenas leva o produto para a nova aba de preparação. Ele não publica o anúncio automaticamente.</div><div class="card"><div class="toolbar"><input id="stockSearch" placeholder="Pesquisar produto" oninput="filterTable('stockSearch','stockTable')"><select onchange="sortStock(this.value)"><option value="name">Ordenar por nome</option><option value="qtyasc">Menor estoque</option><option value="qtydesc">Maior estoque</option><option value="pricedesc">Maior preço</option></select></div><div class="table-wrap"><table id="stockTable"><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum produto.</td></tr>'}</tbody></table></div></div>`}
 function renderCatalogo(){ensureData();let rows=data.catalogItems.map(x=>{let p=data.products.find(p=>String(p.id)===String(x.productId));if(p)Object.assign(x,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price});return `<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(x.category)}</td><td>${esc(x.brand)}</td><td>${x.qty}</td><td>${money(x.price)}</td><td><span class="badge ok">${esc(x.status||'Ativo')}</span></td><td><button class="btn ghost small" onclick="removeFromCatalog(${x.id})">Remover</button></td></tr>`}).join('');$('#catalogo').innerHTML=heading('Catálogo LePneus','Produtos escolhidos para aparecer no catálogo público',`<div class="lepneus-logo">LE <span>PNEUS</span></div>`)+`<div class="cards">${metric('Produtos no catálogo',data.catalogItems.length,'selecionados no estoque','green')}${metric('Unidades disponíveis',data.catalogItems.reduce((a,x)=>a+Number(x.qty||0),0),'estoque atual','green')}</div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum produto enviado ao catálogo. Vá em Estoque e escolha “Enviar ao catálogo”.</td></tr>'}</tbody></table></div>`}
-function renderMercadoLivre(){ensureData();let rows=data.mercadoLivreItems.map(x=>{let p=data.products.find(p=>String(p.id)===String(x.productId));if(p){x.qty=p.qty;x.price=p.price;x.name=p.name;x.code=p.code;x.brand=p.brand}return `<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(x.brand)}</td><td>${x.qty}</td><td>${money(x.price)}</td><td>${mlStatusBadge(x.status)}</td><td>${Number(x.sales||0)}</td><td>${esc(x.orderStatus||'Aguardando publicação')}</td><td><button class="btn ghost small" onclick="removeFromML(${x.id})">Remover</button></td></tr>`}).join('');let sold=data.mercadoLivreItems.filter(x=>x.status==='Vendido').length,published=data.mercadoLivreItems.filter(x=>x.status==='Publicado').length;$('#mercadolivre').innerHTML=heading('Mercado Livre','Área de preparação e acompanhamento dos produtos escolhidos no estoque')+`<div class="notice"><b>Etapa atual:</b> esta área organiza os produtos importados do estoque. A publicação real, vendas e andamento dos pedidos serão conectados à API oficial do Mercado Livre na próxima etapa.</div><div class="cards">${metric('Importados',data.mercadoLivreItems.length,'selecionados manualmente','green')}${metric('Publicados',published,'quando a API estiver conectada','green')}${metric('Vendidos',sold,'acompanhamento de vendas','green')}${metric('Unidades',data.mercadoLivreItems.reduce((a,x)=>a+Number(x.qty||0),0),'estoque dos selecionados','green')}</div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Marca</th><th>Estoque</th><th>Preço</th><th>Status anúncio</th><th>Vendas</th><th>Andamento</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum produto importado. Vá em Estoque e clique em “Importar p/ Mercado Livre”.</td></tr>'}</tbody></table></div>`}
-function renderVendas(){let rows=data.sales.map(s=>`<tr><td>#${s.id}</td><td>${s.date}</td><td>${s.customer||'Consumidor'}</td><td>${s.items.length}</td><td>${money(s.total)}</td><td><span class="badge ok">Concluída</span></td></tr>`).join('');$('#vendas').innerHTML=heading('Vendas','Registro de vendas e baixa automática no estoque',`<button class="btn primary" onclick="saleModal()">+ Nova venda</button>`)+`<div class="card table-wrap"><table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">Nenhuma venda registrada.</td></tr>'}</tbody></table></div>`}
-function saleModal(){let opts=data.products.filter(p=>p.qty>0).map(p=>`<option value="${p.id}">${p.name} — ${money(p.price)} (estoque ${p.qty})</option>`).join('');showModal(`<h2>Nova venda</h2><div class="form"><label class="full">Cliente<select id="scustomer"><option value="">Consumidor</option>${data.customers.map(c=>`<option>${c.name}</option>`).join('')}</select></label><label>Produto<select id="sproduct">${opts}</select></label><label>Quantidade<input id="sqty" type="number" value="1" min="1"></label><label>Desconto<input id="sdiscount" type="number" value="0" step="0.01"></label><label>Pagamento<select id="spayment"><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option><option>Boleto</option><option>Transferência</option></select></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="finishSale()">Concluir venda</button></div>`)}
-function finishSale(){let p=data.products.find(x=>x.id==$('#sproduct').value),q=+$('#sqty').value,disc=+$('#sdiscount').value;if(!p)return alert('Selecione um produto');if(q<=0||q>p.qty)return alert('Quantidade inválida');let total=p.price*q-disc,profit=(p.price-p.cost)*q-disc;data.sales.unshift({id:Date.now(),date:new Date().toLocaleString('pt-BR'),customer:$('#scustomer').value,items:[{id:p.id,name:p.name,qty:q}],total,profit,payment:$('#spayment').value});p.qty-=q;data.finance.unshift({id:Date.now()+1,type:'Receita',desc:'Venda '+p.name,value:total,status:'Pago',date:new Date().toLocaleDateString('pt-BR')});data.cash.unshift({id:Date.now()+2,type:'Entrada',desc:'Venda',value:total,payment:$('#spayment').value,date:new Date().toLocaleString('pt-BR')});log('Registrou venda de '+p.name+' e baixou '+q+' unidade(s) do estoque');save();closeModal();renderAll()}
-function genericTablePage(id,title,sub,fields,type){let arr=data[id]||[];let rows=arr.map(x=>`<tr>${fields.map(f=>`<td>${f.money?money(x[f.k]):(x[f.k]??'-')}</td>`).join('')}<td><span class="badge ${x.status==='Vencido'?'danger':x.status==='Pendente'?'warn':'ok'}">${x.status||'Ativo'}</span></td></tr>`).join('');$('#'+id).innerHTML=heading(title,sub)+`<div class="card table-wrap"><table><thead><tr>${fields.map(f=>`<th>${f.l}</th>`).join('')}<th>Status</th></tr></thead><tbody>${rows||`<tr><td colspan="${fields.length+1}" class="empty">Nenhum registro.</td></tr>`}</tbody></table></div>`}
-function renderFinanceiro(){let rec=data.finance.filter(f=>f.type==='Receita').reduce((a,b)=>a+b.value,0),des=data.finance.filter(f=>f.type==='Despesa').reduce((a,b)=>a+b.value,0);$('#financeiro').innerHTML=heading('Financeiro','Receitas, despesas, contas a pagar e receber',`<button class="btn primary" onclick="financeModal()">+ Novo lançamento</button>`)+`<div class="cards">${metric('Receitas',money(rec),'total lançado','green')}${metric('Despesas',money(des),'total lançado','red')}${metric('Saldo',money(rec-des),'receitas - despesas',rec-des>=0?'green':'red')}${metric('Lançamentos',data.finance.length,'registros financeiros','green')}</div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Data</th><th>Status</th></tr></thead><tbody>${data.finance.map(f=>`<tr><td>${f.type}</td><td>${f.desc}</td><td>${money(f.value)}</td><td>${f.date}</td><td><span class="badge ${f.status==='Vencido'?'danger':f.status==='Pendente'?'warn':'ok'}">${f.status}</span></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Nenhum lançamento.</td></tr>'}</tbody></table></div>`}
-function financeModal(){showModal(`<h2>Novo lançamento</h2><div class="form"><label>Tipo<select id="ftype"><option>Receita</option><option>Despesa</option></select></label><label>Status<select id="fstatus"><option>Pago</option><option>Pendente</option><option>Vencido</option></select></label><label class="full">Descrição<input id="fdesc"></label><label>Valor<input id="fvalue" type="number" step="0.01"></label><label>Data<input id="fdate" type="date"></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveFinance()">Salvar</button></div>`)}
-function saveFinance(){let f={id:Date.now(),type:$('#ftype').value,desc:$('#fdesc').value,value:+$('#fvalue').value,date:$('#fdate').value||new Date().toLocaleDateString('pt-BR'),status:$('#fstatus').value};data.finance.unshift(f);if(f.status==='Pago')data.cash.unshift({id:Date.now()+1,type:f.type==='Receita'?'Entrada':'Saída',desc:f.desc,value:f.value,payment:'Manual',date:new Date().toLocaleString('pt-BR')});log('Criou lançamento financeiro: '+f.desc);save();closeModal();renderAll()}
-function renderClientes(){let rows=data.customers.map(c=>`<tr><td>${c.name}</td><td>${c.doc}</td><td>${c.phone}</td><td>${c.email||'-'}</td><td><button class="btn ghost small" onclick="deleteCustomer(${c.id})">Excluir</button></td></tr>`).join('');$('#clientes').innerHTML=heading('Clientes','Cadastro e histórico comercial',`<button class="btn primary" onclick="customerModal()">+ Novo cliente</button>`)+`<div class="card table-wrap"><table><thead><tr><th>Nome</th><th>CPF/CNPJ</th><th>Telefone</th><th>E-mail</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Nenhum cliente.</td></tr>'}</tbody></table></div>`}
-function customerModal(){showModal(`<h2>Novo cliente</h2><div class="form"><label class="full">Nome<input id="cname"></label><label>CPF/CNPJ<input id="cdoc"></label><label>Telefone<input id="cphone"></label><label class="full">E-mail<input id="cemail"></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveCustomer()">Salvar</button></div>`)}
-function saveCustomer(){let c={id:Date.now(),name:$('#cname').value,doc:$('#cdoc').value,phone:$('#cphone').value,email:$('#cemail').value};if(!c.name)return alert('Informe o nome');data.customers.push(c);log('Cadastrou cliente '+c.name);save();closeModal();renderAll()} function deleteCustomer(id){if(confirm('Excluir cliente?')){data.customers=data.customers.filter(c=>c.id!==id);save();renderAll()}}
-function renderFornecedores(){genericTablePage('fornecedores','Fornecedores','Cadastro e histórico de fornecedores',[{k:'name',l:'Empresa'},{k:'doc',l:'CNPJ/CPF'},{k:'phone',l:'Telefone'}]);}
-function renderCaixa(){let ent=data.cash.filter(c=>c.type==='Entrada').reduce((a,b)=>a+b.value,0),sai=data.cash.filter(c=>c.type==='Saída').reduce((a,b)=>a+b.value,0);$('#caixa').innerHTML=heading('Caixa','Entradas, saídas e conferência')+`<div class="cards">${metric('Entradas',money(ent),'movimentações','green')}${metric('Saídas',money(sai),'movimentações','red')}${metric('Saldo do caixa',money(ent-sai),'saldo registrado',ent-sai>=0?'green':'red')}</div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody>${data.cash.map(c=>`<tr><td>${c.date}</td><td>${c.type}</td><td>${c.desc}</td><td>${c.payment}</td><td>${money(c.value)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">Sem movimentações.</td></tr>'}</tbody></table></div>`}
-function simplePage(id,title,sub,text){$('#'+id).innerHTML=heading(title,sub)+`<div class="card"><h3 class="section-title">${title}</h3><p style="color:var(--muted)">${text}</p></div>`}
-function renderHistorico(){genericTablePage('historico','Histórico e Auditoria','Registro das ações importantes',[{k:'date',l:'Data/Hora'},{k:'user',l:'Usuário'},{k:'action',l:'Ação'}]);}
-function renderAlertas(){let low=data.products.filter(p=>p.qty<=p.min);$('#alertas').innerHTML=heading('Central de Alertas','Itens que precisam de atenção')+`<div class="card"><div class="alert-list">${low.map(p=>`<div class="alert">📦 Estoque baixo: <b>${p.name}</b> — ${p.qty} unidade(s).</div>`).join('')||'<div class="empty">Nenhum alerta de estoque.</div>'}</div></div>`}
-function renderRelatorios(){let rev=data.sales.reduce((a,s)=>a+s.total,0),profit=data.sales.reduce((a,s)=>a+s.profit,0);$('#relatorios').innerHTML=heading('Relatórios','Indicadores consolidados')+`<div class="cards">${metric('Vendas',data.sales.length,'operações concluídas','green')}${metric('Faturamento',money(rev),'acumulado','green')}${metric('Lucro estimado',money(profit),'acumulado','green')}${metric('Produtos',data.products.length,'cadastrados','green')}</div>`}
-function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function renderAgenda(){
- const now=new Date(); const items=[...data.reminders].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
- const today=items.filter(r=>new Date(r.datetime).toDateString()===now.toDateString()&&r.status!=='Concluído').length;
- const pending=items.filter(r=>r.status!=='Concluído').length; const done=items.filter(r=>r.status==='Concluído').length;
- const rows=items.map(r=>{let d=new Date(r.datetime),cls=r.priority==='Alta'?'priority-high':r.priority==='Baixa'?'priority-low':'priority-medium';return `<div class="agenda-item ${cls}"><div class="agenda-date"><strong>${String(d.getDate()).padStart(2,'0')}</strong><small>${d.toLocaleDateString('pt-BR',{month:'short'})}</small></div><div><h4>${esc(r.title)} <span class="badge ${r.status==='Concluído'?'ok':'warn'}">${r.status||'Pendente'}</span></h4><p>🕒 ${d.toLocaleString('pt-BR')} ${r.customer?' • 👤 '+esc(r.customer):''}</p>${r.notes?`<p style="margin-top:5px">${esc(r.notes)}</p>`:''}</div><div class="actions"><button class="btn ghost small" onclick="completeReminder(${r.id})">✓</button><button class="btn ghost small" onclick="deleteReminder(${r.id})">Excluir</button></div></div>`}).join('');
- $('#agenda').innerHTML=heading('Agenda e Lembretes','Compromissos, tarefas, retornos e avisos importantes',`<button class="btn primary" onclick="reminderModal()">+ Novo compromisso</button>`)+`<div class="agenda-layout"><div class="card"><div class="toolbar"><select onchange="filterAgenda(this.value)"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="done">Concluídos</option></select><button class="btn ghost" onclick="requestNotifications()">🔔 Ativar avisos do navegador</button></div><div id="agendaList" class="agenda-list">${rows||'<div class="empty">Nenhum compromisso na agenda.</div>'}</div></div><div class="card"><h3 class="section-title">Resumo da agenda</h3><div class="quick-stat"><span>Compromissos hoje</span><b>${today}</b></div><div class="quick-stat"><span>Pendentes</span><b>${pending}</b></div><div class="quick-stat"><span>Concluídos</span><b>${done}</b></div><div class="quick-stat"><span>Aviso antecipado</span><b>${data.settings.reminderMinutes} min</b></div><div class="notice" style="margin-top:14px">Os lembretes são verificados enquanto o sistema estiver aberto. Para avisos mesmo com o navegador fechado, seria necessário um servidor de notificações.</div></div></div>`
+
+function mlManualSave(){
+ ensureData();
+ const pid=Number($('#mlProduct')?.value||0);
+ const p=data.products.find(x=>Number(x.id)===pid);
+ if(!p)return alert('Escolha um produto do estoque.');
+ const advertised=Number($('#mlPrice')?.value||0);
+ const fee=Number($('#mlFee')?.value||0);
+ const freight=Number($('#mlFreight')?.value||0);
+ const other=Number($('#mlOther')?.value||0);
+ const qty=Number($('#mlQty')?.value||1);
+ const listingId=String($('#mlListingId')?.value||'').trim();
+ if(advertised<=0)return alert('Informe o preço anunciado no Mercado Livre.');
+ let item=data.mercadoLivreItems.find(x=>String(x.productId)===String(pid));
+ if(!item){
+   item={id:Date.now(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,sales:0};
+   data.mercadoLivreItems.unshift(item);
+ }
+ item.price=p.price;
+ item.mlAdvertisedPrice=advertised;
+ item.mlFee=fee;
+ item.mlFreight=freight;
+ item.mlOtherCost=other;
+ item.mlQty=qty>0?qty:1;
+ item.mlListingId=listingId;
+ item.status='Publicado manualmente';
+ item.orderStatus='Controle manual';
+ item.updatedAt=new Date().toLocaleString('pt-BR');
+ save();renderAll();
+ alert('Dados do anúncio do Mercado Livre salvos no controle.');
+}
+function editMLManual(id){
+ ensureData();
+ const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));
+ if(!x)return;
+ const p=data.products.find(p=>String(p.id)===String(x.productId));
+ const advertised=prompt('Preço anunciado no Mercado Livre:',x.mlAdvertisedPrice??x.price??p?.price??0);
+ if(advertised===null)return;
+ const fee=prompt('Taxas/comissão do Mercado Livre (R$):',x.mlFee??0); if(fee===null)return;
+ const freight=prompt('Custo de frete que ficou por sua conta (R$):',x.mlFreight??0); if(freight===null)return;
+ const other=prompt('Outros custos do anúncio/venda (R$):',x.mlOtherCost??0); if(other===null)return;
+ const listing=prompt('Código/ID do anúncio no Mercado Livre (opcional):',x.mlListingId??''); if(listing===null)return;
+ x.mlAdvertisedPrice=Number(advertised)||0;
+ x.mlFee=Number(fee)||0;
+ x.mlFreight=Number(freight)||0;
+ x.mlOtherCost=Number(other)||0;
+ x.mlListingId=listing.trim();
+ x.status='Publicado manualmente';
+ x.orderStatus='Controle manual';
+ x.updatedAt=new Date().toLocaleString('pt-BR');
+ save();renderAll();
+}
+function mlCalc(x,p){
+ const price=Number(x.mlAdvertisedPrice??x.price??0);
+ const fee=Number(x.mlFee||0);
+ const freight=Number(x.mlFreight||0);
+ const other=Number(x.mlOtherCost||0);
+ const cost=Number(p?.cost||0);
+ const net=price-fee-freight-other;
+ const profit=net-cost;
+ const margin=price>0?(profit/price*100):0;
+ return {price,fee,freight,other,cost,net,profit,margin};
+}
+
+function renderMercadoLivre(){
+ ensureData();
+ const opts=data.products.map(p=>`<option value="${p.id}">${esc(p.code)} — ${esc(p.name)}</option>`).join('');
+ let rows=data.mercadoLivreItems.map(x=>{
+   let p=data.products.find(p=>String(p.id)===String(x.productId));
+   if(p){x.qty=p.qty;x.name=p.name;x.code=p.code;x.brand=p.brand}
+   const c=mlCalc(x,p);
+   return `<tr>
+   <td>${esc(x.code)}</td>
+   <td>${esc(x.name)}${x.mlListingId?`<small class="cell-sub">Anúncio: ${esc(x.mlListingId)}</small>`:''}</td>
+   <td>${x.qty}</td>
+   <td>${money(c.cost)}</td>
+   <td>${money(c.price)}</td>
+   <td>${money(c.fee)}</td>
+   <td>${money(c.freight)}</td>
+   <td>${money(c.other)}</td>
+   <td><b>${money(c.net)}</b></td>
+   <td><b>${money(c.profit)}</b><small class="cell-sub">${c.margin.toFixed(1)}% margem</small></td>
+   <td>${mlStatusBadge(x.status||'Controle manual')}</td>
+   <td><div class="actions"><button class="btn ghost small" onclick="editMLManual(${x.id})">Editar</button><button class="btn ghost small" onclick="removeFromML(${x.id})">Remover</button></div></td>
+   </tr>`
+ }).join('');
+ const totalRevenue=data.mercadoLivreItems.reduce((a,x)=>{const p=data.products.find(p=>String(p.id)===String(x.productId));return a+mlCalc(x,p).price},0);
+ const totalCosts=data.mercadoLivreItems.reduce((a,x)=>{const p=data.products.find(p=>String(p.id)===String(x.productId));const c=mlCalc(x,p);return a+c.cost+c.fee+c.freight+c.other},0);
+ const totalProfit=totalRevenue-totalCosts;
+ $('#mercadolivre').innerHTML=heading('Mercado Livre','Controle manual dos anúncios e custos do Mercado Livre')+
+ `<div class="notice"><b>Modo manual:</b> você publica o anúncio diretamente no Mercado Livre e registra aqui os dados para acompanhar preço, custo do produto, comissão/taxas, frete, outros custos e lucro estimado. Esta tela não publica nem altera anúncios no Mercado Livre.</div>
+ <div class="cards">
+ ${metric('Anúncios controlados',data.mercadoLivreItems.length,'registrados manualmente','green')}
+ ${metric('Valor anunciado',money(totalRevenue),'soma dos preços informados','green')}
+ ${metric('Custos estimados',money(totalCosts),'produto + taxas + frete + outros','red')}
+ ${metric('Lucro estimado',money(totalProfit),'antes de outros impostos/despesas','green')}
+ </div>
+ <div class="card" style="margin-top:16px">
+   <div class="panel-head"><div><h3 class="section-title" style="margin:0">Registrar anúncio manual</h3><small class="cell-sub">Escolha um produto que já existe no estoque</small></div></div>
+   <div class="form-grid">
+     <label class="field"><span>Produto do estoque</span><select id="mlProduct"><option value="">Selecione...</option>${opts}</select></label>
+     <label class="field"><span>Preço anunciado (R$)</span><input id="mlPrice" type="number" step="0.01" min="0" placeholder="0,00"></label>
+     <label class="field"><span>Taxas / comissão ML (R$)</span><input id="mlFee" type="number" step="0.01" min="0" value="0"></label>
+     <label class="field"><span>Frete por sua conta (R$)</span><input id="mlFreight" type="number" step="0.01" min="0" value="0"></label>
+     <label class="field"><span>Outros custos (R$)</span><input id="mlOther" type="number" step="0.01" min="0" value="0"></label>
+     <label class="field"><span>Quantidade anunciada</span><input id="mlQty" type="number" min="1" value="1"></label>
+     <label class="field"><span>ID/código do anúncio (opcional)</span><input id="mlListingId" placeholder="Ex.: MLB..."></label>
+   </div>
+   <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="mlManualSave()">Salvar no controle</button></div>
+ </div>
+ <div class="card table-wrap" style="margin-top:16px"><table>
+ <thead><tr><th>Código</th><th>Produto</th><th>Estoque</th><th>Custo produto</th><th>Preço ML</th><th>Taxas ML</th><th>Frete</th><th>Outros</th><th>Líquido</th><th>Lucro estimado</th><th>Status</th><th>Ação</th></tr></thead>
+ <tbody>${rows||'<tr><td colspan="12" class="empty">Nenhum anúncio registrado ainda.</td></tr>'}</tbody></table></div>`;
 }
 function reminderModal(){let now=new Date(Date.now()+60*60*1000);now.setMinutes(now.getMinutes()-now.getTimezoneOffset());showModal(`<h2>Novo compromisso</h2><div class="form"><label class="full">Título<input id="rtitle" placeholder="Ex.: Retornar para cliente"></label><label>Data e hora<input id="rdatetime" type="datetime-local" value="${now.toISOString().slice(0,16)}"></label><label>Prioridade<select id="rpriority"><option>Média</option><option>Alta</option><option>Baixa</option></select></label><label>Cliente/Contato<input id="rcustomer" placeholder="Opcional"></label><label>Tipo<select id="rtype"><option>Compromisso</option><option>Ligação</option><option>Cobrança</option><option>Venda</option><option>Orçamento</option><option>Ordem de Serviço</option><option>Outro</option></select></label><label class="full">Observações<textarea id="rnotes" rows="3"></textarea></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveReminder()">Salvar lembrete</button></div>`)}
 function saveReminder(){let title=$('#rtitle').value.trim(),datetime=$('#rdatetime').value;if(!title||!datetime)return alert('Informe o título e a data/hora.');data.reminders.push({id:Date.now(),title,datetime,priority:$('#rpriority').value,customer:$('#rcustomer').value.trim(),type:$('#rtype').value,notes:$('#rnotes').value.trim(),status:'Pendente',notified:false});log('Criou lembrete: '+title);save();closeModal();renderAll()}
@@ -555,10 +740,357 @@ function renderOS(){
  enhanceData();let rows=data.serviceOrders.map(o=>`<tr><td><b>${esc(o.number)}</b></td><td>${esc(o.date)}</td><td>${esc(findCustomerName(o.customerId))}</td><td>${esc(o.service)}</td><td>${o.qty||'-'}</td><td>${money(o.serviceValue||o.total||0)}</td><td>${statusBadge(o.status)}</td><td class="actions"><button class="btn ghost small" onclick="changeOSStatus(${o.id})">Status</button>${o.status==='Concluída'&&!o.received?`<button class="btn primary small" onclick="receiveOSModal(${o.id})">Receber</button>`:''}</td></tr>`).join('');
  $('#os').innerHTML=heading('Serviços','Cadastre mão de obra e serviços realizados',`<button class="btn primary" onclick="osModal()">+ Novo serviço</button>`)+`<div class="cards">${metric('Serviços abertos',data.serviceOrders.filter(o=>!['Concluída','Entregue','Cancelada'].includes(o.status)).length,'em andamento','green')}${metric('Serviços recebidos',data.serviceOrders.filter(o=>o.received).length,'finalizados','green')}${metric('Valor em serviços',money(data.serviceOrders.filter(o=>o.status!=='Cancelada').reduce((a,o)=>a+Number(o.serviceValue||0),0)),'mão de obra registrada','green')}</div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Número</th><th>Data</th><th>Cliente</th><th>Serviço realizado</th><th>Qtd.</th><th>Mão de obra</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum serviço registrado.</td></tr>'}</tbody></table></div>`;
 }
-function renderAll(){ensureData();enhanceData();renderDashboard();renderEstoque();renderPlanilhas();renderCatalogo();renderMercadoLivre();renderVendas();renderCaixa();renderCompras();renderClientes();renderFornecedores();renderOS();renderAgenda();renderWhatsApp();renderRelatorios();renderUsuarios();}
+
+function monthKeyFromDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function monthLabel(key){
+ const [y,m]=String(key).split('-').map(Number);
+ return new Date(y,m-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());
+}
+function eventDate(v){
+ if(!v)return null;
+ if(v instanceof Date)return v;
+ if(/^\d{4}-\d{2}-\d{2}/.test(String(v))){const d=new Date(String(v).slice(0,10)+'T12:00:00');return isNaN(d)?null:d}
+ if(typeof parseBRDateTime==='function'){const d=parseBRDateTime(v);if(d&&!isNaN(d))return d}
+ const s=String(v).trim(), m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+ if(m){const d=new Date(+m[3],+m[2]-1,+m[1],+(m[4]||12),+(m[5]||0),+(m[6]||0));return isNaN(d)?null:d}
+ const d=new Date(v);return isNaN(d)?null:d;
+}
+function inMonth(item,key,fields=['date']){
+ for(const f of fields){const d=eventDate(item?.[f]);if(d&&monthKeyFromDate(d)===key)return true}
+ return false;
+}
+function safeNum(v){v=Number(v||0);return Number.isFinite(v)?v:0}
+function buildMonthClosing(key){
+ enhanceData(); ensureData();
+ const sales=(data.sales||[]).filter(s=>s.status!=='Cancelada'&&inMonth(s,key,['date','createdAt']));
+ const finance=(data.finance||[]).filter(f=>f.status!=='Cancelado'&&inMonth(f,key,['date','createdAt']));
+ const purchases=(data.purchases||[]).filter(p=>inMonth(p,key,['date','createdAt']));
+ const services=(data.serviceOrders||[]).filter(o=>o.status!=='Cancelada'&&inMonth(o,key,['date','createdAt']));
+ const cash=(data.cash||[]).filter(c=>inMonth(c,key,['date','createdAt']));
+ const revenue=sales.reduce((a,s)=>a+safeNum(s.total),0);
+ const profit=sales.reduce((a,s)=>a+safeNum(s.profit),0);
+ const productCost=Math.max(0,revenue-profit);
+ const serviceRevenue=services.filter(o=>o.received||['Concluída','Entregue'].includes(o.status)).reduce((a,o)=>a+safeNum(o.serviceValue||o.total),0);
+ const purchaseTotal=purchases.reduce((a,p)=>a+safeNum(p.total),0);
+ const financeRevenue=finance.filter(f=>f.type==='Receita').reduce((a,f)=>a+safeNum(f.value),0);
+ const financeExpense=finance.filter(f=>f.type==='Despesa').reduce((a,f)=>a+safeNum(f.value),0);
+ const cashIn=cash.filter(c=>c.type==='Entrada').reduce((a,c)=>a+safeNum(c.value),0);
+ const cashOut=cash.filter(c=>c.type==='Saída').reduce((a,c)=>a+safeNum(c.value),0);
+ const payments={};
+ sales.forEach(s=>{const k=s.payment||'Não informado';payments[k]=(payments[k]||0)+safeNum(s.total)});
+ const itemsSold=sales.reduce((a,s)=>a+(s.items||[]).reduce((b,i)=>b+safeNum(i.qty||1),0),0);
+ const ml=(data.mercadoLivreItems||[]).map(x=>{const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));const c=typeof mlCalc==='function'?mlCalc(x,p):{};return {id:x.id,productId:x.productId,code:x.code,name:x.name,listingId:x.mlListingId||'',advertisedPrice:safeNum(c.price||x.mlAdvertisedPrice),fee:safeNum(c.fee||x.mlFee),freight:safeNum(c.freight||x.mlFreight),other:safeNum(c.other||x.mlOtherCost),status:x.status||'Controle manual'}});
+ return {
+  id:'FM-'+key, month:key, label:monthLabel(key), closedAt:new Date().toLocaleString('pt-BR'),
+  summary:{salesCount:sales.length,itemsSold,revenue,productCost,profit,serviceCount:services.length,serviceRevenue,purchaseCount:purchases.length,purchaseTotal,financeRevenue,financeExpense,cashIn,cashOut,cashBalance:cashIn-cashOut,netResult:financeRevenue-financeExpense,payments},
+  details:{
+   sales:sales.map(s=>({id:s.id,date:s.date,customer:s.customer||findCustomerName?.(s.customerId)||'',total:safeNum(s.total),profit:safeNum(s.profit),payment:s.payment||'',items:s.items||[]})),
+   services:services.map(o=>({id:o.id,number:o.number,date:o.date,customer:typeof findCustomerName==='function'?findCustomerName(o.customerId):'',service:o.service,status:o.status,value:safeNum(o.serviceValue||o.total)})),
+   purchases:purchases.map(p=>({id:p.id,number:p.number,date:p.date,product:p.productName,qty:p.qty,total:safeNum(p.total),status:p.status})),
+   finance:finance.map(f=>({id:f.id,date:f.date,type:f.type,category:f.category,desc:f.desc,value:safeNum(f.value),status:f.status,payment:f.payment||''})),
+   cash:cash.map(c=>({id:c.id,date:c.date,type:c.type,desc:c.desc,value:safeNum(c.value),payment:c.payment||''})),
+   mercadoLivre:ml
+  }
+ };
+}
+function closeMonth(key,automatic=false){
+ ensureData();
+ if(!/^\d{4}-\d{2}$/.test(key))return alert('Selecione um mês válido.');
+ if(data.monthlyClosings.some(c=>c.month===key))return automatic?null:alert('Esse mês já está fechado.');
+ const current=monthKeyFromDate(new Date());
+ if(key>current)return automatic?null:alert('Não é possível fechar um mês futuro.');
+ if(key===current&&!automatic&&!confirm('Este é o mês atual. Deseja fechar agora mesmo? O resumo ficará salvo como uma fotografia deste momento.'))return;
+ const closing=buildMonthClosing(key);
+ data.monthlyClosings.unshift(closing);
+ log('Fechamento mensal criado: '+closing.label+(automatic?' (automático)':''));
+ save();
+ if(!automatic){renderAll();alert('Fechamento de '+closing.label+' salvo com sucesso.');}
+ return closing;
+}
+function autoClosePreviousMonth(){
+ ensureData();
+ const now=new Date(), prev=new Date(now.getFullYear(),now.getMonth()-1,1), key=monthKeyFromDate(prev);
+ if(!data.monthlyClosings.some(c=>c.month===key))closeMonth(key,true);
+}
+function closingDetail(month){
+ const c=data.monthlyClosings.find(x=>x.month===month);if(!c)return;
+ const s=c.summary,pays=Object.entries(s.payments||{}).map(([k,v])=>`<div><span>${esc(k)}</span><b>${money(v)}</b></div>`).join('')||'<div><span>Sem vendas</span><b>-</b></div>';
+ const sales=(c.details?.sales||[]).map(x=>`<tr><td>${esc(x.date||'-')}</td><td>${esc(x.customer||'Consumidor')}</td><td>${money(x.total)}</td><td>${money(x.profit)}</td><td>${esc(x.payment||'-')}</td></tr>`).join('');
+ showModal(`<h2>${esc(c.label)}</h2>
+ <div class="notice">Fechado em <b>${esc(c.closedAt)}</b>. Este registro é uma fotografia do mês e não é alterado quando dados antigos são editados depois.</div>
+ <div class="cards" style="margin-top:14px">${metric('Faturamento',money(s.revenue),s.salesCount+' venda(s)','green')}${metric('Lucro vendas',money(s.profit),'estimado','green')}${metric('Despesas',money(s.financeExpense),'financeiro','red')}${metric('Resultado financeiro',money(s.netResult),'receitas - despesas',s.netResult>=0?'green':'red')}</div>
+ <div class="grid2" style="margin-top:14px"><div class="card"><h3 class="section-title">Resumo do mês</h3><div class="summary-list">
+ <div><span>Itens vendidos</span><b>${s.itemsSold}</b></div><div><span>Custo dos produtos vendidos</span><b>${money(s.productCost)}</b></div><div><span>Serviços</span><b>${s.serviceCount} • ${money(s.serviceRevenue)}</b></div><div><span>Compras de mercadoria</span><b>${s.purchaseCount} • ${money(s.purchaseTotal)}</b></div><div><span>Entradas no caixa</span><b>${money(s.cashIn)}</b></div><div><span>Saídas do caixa</span><b>${money(s.cashOut)}</b></div><div><span>Saldo movimentado no caixa</span><b>${money(s.cashBalance)}</b></div></div></div>
+ <div class="card"><h3 class="section-title">Vendas por pagamento</h3><div class="summary-list">${pays}</div></div></div>
+ <div class="card table-wrap" style="margin-top:14px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Venda</th><th>Lucro</th><th>Pagamento</th></tr></thead><tbody>${sales||'<tr><td colspan="5" class="empty">Sem vendas registradas neste fechamento.</td></tr>'}</tbody></table></div>
+ <div class="modal-actions"><button class="btn ghost" onclick="exportClosingJSON('${c.month}')">Exportar dados</button><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+}
+function downloadText(name,text,type='application/json'){
+ const blob=new Blob([text],{type:type+';charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
+}
+function exportClosingJSON(month){
+ const c=data.monthlyClosings.find(x=>x.month===month);if(!c)return;
+ downloadText('fechamento-'+month+'.json',JSON.stringify(c,null,2));
+}
+function renderFechamento(){
+ ensureData();
+ const now=new Date(), prev=new Date(now.getFullYear(),now.getMonth()-1,1), defaultKey=monthKeyFromDate(prev);
+ const rows=[...data.monthlyClosings].sort((a,b)=>b.month.localeCompare(a.month)).map(c=>{const s=c.summary;return `<tr><td><b>${esc(c.label)}</b><small class="cell-sub">Fechado: ${esc(c.closedAt)}</small></td><td>${s.salesCount}</td><td>${money(s.revenue)}</td><td>${money(s.productCost)}</td><td>${money(s.profit)}</td><td>${money(s.financeExpense)}</td><td>${money(s.netResult)}</td><td><div class="actions"><button class="btn primary small" onclick="closingDetail('${c.month}')">Ver detalhes</button><button class="btn ghost small" onclick="exportClosingJSON('${c.month}')">Exportar</button></div></td></tr>`}).join('');
+ const currentPreview=buildMonthClosing(monthKeyFromDate(now)).summary;
+ $('#fechamento').innerHTML=heading('Fechamento Mensal','Histórico mensal de vendas, lucros, custos, serviços, compras, financeiro e caixa')+
+ `<div class="notice"><b>Fechamento automático:</b> ao abrir o sistema em um novo mês, o mês anterior é fechado uma única vez e fica guardado aqui. Os dados não são apagados nem zerados.</div>
+ <div class="cards">${metric('Mês atual',monthLabel(monthKeyFromDate(now)),currentPreview.salesCount+' venda(s)','green')}${metric('Faturamento atual',money(currentPreview.revenue),'prévia do mês','green')}${metric('Lucro atual',money(currentPreview.profit),'prévia das vendas','green')}${metric('Meses fechados',data.monthlyClosings.length,'histórico salvo','green')}</div>
+ <div class="card" style="margin-top:16px"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Fechar um mês manualmente</h3><small class="cell-sub">Útil para conferir ou registrar um período específico</small></div></div>
+ <div class="actions" style="margin-top:12px"><input id="closingMonth" type="month" value="${defaultKey}" style="max-width:220px"><button class="btn primary" onclick="closeMonth($('#closingMonth').value)">Fechar mês agora</button></div></div>
+ <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Mês</th><th>Vendas</th><th>Faturamento</th><th>Custo produtos</th><th>Lucro vendas</th><th>Despesas</th><th>Resultado financeiro</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum mês fechado ainda.</td></tr>'}</tbody></table></div>`;
+}
 
 
-initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); $('#login').classList.add('hidden'); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
+/* ===== Melhorias de segurança e conferência do estoque ===== */
+function productWarnings(p){
+ const w=[];
+ if(!String(p.code||'').trim())w.push('Sem código');
+ if(Number(p.qty||0)<=0)w.push('Zerado');
+ else if(Number(p.qty||0)<=Number(p.min||0))w.push('Estoque baixo');
+ if(Number(p.cost||0)<=0)w.push('Sem custo');
+ if(Number(p.price||0)<=0)w.push('Sem preço');
+ if(Number(p.cost||0)>0&&Number(p.price||0)>0&&Number(p.price)<=Number(p.cost))w.push('Preço ≤ custo');
+ const code=String(p.code||'').trim().toLowerCase();
+ if(code&&data.products.filter(x=>String(x.code||'').trim().toLowerCase()===code).length>1)w.push('Código duplicado');
+ return w;
+}
+function stockAttention(){
+ const ps=data.products||[];
+ return {
+  zero:ps.filter(p=>Number(p.qty||0)<=0),
+  low:ps.filter(p=>Number(p.qty||0)>0&&Number(p.qty||0)<=Number(p.min||0)),
+  noCost:ps.filter(p=>Number(p.cost||0)<=0),
+  noPrice:ps.filter(p=>Number(p.price||0)<=0),
+  belowCost:ps.filter(p=>Number(p.cost||0)>0&&Number(p.price||0)>0&&Number(p.price)<=Number(p.cost||0)),
+  duplicate:ps.filter((p,i,a)=>{const c=String(p.code||'').trim().toLowerCase();return c&&a.findIndex(x=>String(x.code||'').trim().toLowerCase()===c)!==i})
+ };
+}
+function categoryStockSummary(){
+ const groups={};
+ (data.products||[]).forEach(p=>{
+  const k=p.category||'Sem categoria';
+  groups[k]=groups[k]||{products:0,qty:0,cost:0,sale:0};
+  groups[k].products++;
+  groups[k].qty+=Number(p.qty||0);
+  groups[k].cost+=Number(p.qty||0)*Number(p.cost||0);
+  groups[k].sale+=Number(p.qty||0)*Number(p.price||0);
+ });
+ return groups;
+}
+function inventoryModal(productId){
+ const p=data.products.find(x=>String(x.id)===String(productId));if(!p)return;
+ showModal(`<h2>Conferência de estoque</h2>
+ <div class="notice"><b>${esc(p.name)}</b><br>Quantidade no sistema: <b>${Number(p.qty||0)}</b></div>
+ <div class="form">
+  <label>Quantidade contada<input id="invqty" type="number" min="0" step="1" value="${Number(p.qty||0)}"></label>
+  <label>Motivo<select id="invreason"><option>Inventário / contagem física</option><option>Correção de lançamento</option><option>Avaria / perda</option><option>Diferença de estoque</option><option>Outro</option></select></label>
+  <label class="full">Observação<input id="invnote" placeholder="Opcional"></label>
+ </div>
+ <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveInventory(${p.id})">Salvar conferência</button></div>`);
+}
+function saveInventory(productId){
+ const p=data.products.find(x=>String(x.id)===String(productId));if(!p)return;
+ const q=Number($('#invqty')?.value);
+ if(!Number.isFinite(q)||q<0)return alert('Informe uma quantidade válida.');
+ const reason=$('#invreason')?.value||'Inventário / contagem física';
+ const note=$('#invnote')?.value.trim()||'';
+ if(q===Number(p.qty||0)){closeModal();return alert('A quantidade contada é igual ao estoque do sistema. Nenhum ajuste foi necessário.');}
+ if(!confirm(`Confirmar ajuste de ${p.qty} para ${q} unidade(s) de ${p.name}?`))return;
+ const before=Number(p.qty||0);
+ if(!addStockMovement(p.id,'Ajuste',q,reason,note||'Conferência física'))return alert('Não foi possível ajustar o estoque.');
+ syncProductChannels(p);
+ queueExcelSync(p,'Inventário / conferência');
+ log(`Conferência de estoque: ${p.name} ${before} → ${q}`);
+ save();closeModal();renderAll();
+}
+function stockAttentionModal(){
+ const a=stockAttention();
+ const all=[
+  ...a.zero.map(p=>['Zerado',p]),
+  ...a.low.map(p=>['Estoque baixo',p]),
+  ...a.noCost.map(p=>['Sem custo',p]),
+  ...a.noPrice.map(p=>['Sem preço',p]),
+  ...a.belowCost.map(p=>['Preço menor/igual ao custo',p])
+ ];
+ const unique=[]; const seen=new Set();
+ all.forEach(([t,p])=>{const k=t+'|'+p.id;if(!seen.has(k)){seen.add(k);unique.push([t,p])}});
+ const rows=unique.map(([t,p])=>`<tr><td>${statusBadge(t)}</td><td><b>${esc(p.code||'-')}</b></td><td>${esc(p.name)}</td><td>${p.qty}</td><td>${money(p.cost)}</td><td>${money(p.price)}</td><td><button class="btn ghost small" onclick="closeModal();productModal(${p.id})">Corrigir</button></td></tr>`).join('');
+ showModal(`<h2>Atenções do estoque</h2><div class="table-wrap"><table><thead><tr><th>Problema</th><th>Código</th><th>Produto</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhuma inconsistência encontrada.</td></tr>'}</tbody></table></div><div class="modal-actions"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+}
+function saveProductV2(id){
+ let old=id?data.products.find(x=>String(x.id)===String(id)):null;
+ const code=$('#pcode').value.trim()||('P'+Date.now().toString().slice(-5));
+ const dup=data.products.find(x=>String(x.id)!==String(id||'')&&String(x.code||'').trim().toLowerCase()===code.toLowerCase());
+ if(dup)return alert(`Já existe outro produto com o código ${code}: ${dup.name}. Use um código diferente.`);
+ let obj={id:id||Date.now(),code,name:$('#pname').value.trim(),category:$('#pcat').value.trim()||'Geral',brand:$('#pbrand').value.trim(),qty:id?old.qty:(+$('#pqty').value||0),min:+$('#pmin').value||0,cost:+$('#pcost').value||0,price:+$('#pprice').value||0,location:$('#plocation').value.trim()};
+ if(!obj.name)return alert('Informe o nome do produto.');
+ if(obj.cost<0||obj.price<0)return alert('Custo e preço não podem ser negativos.');
+ if(obj.cost>0&&obj.price>0&&obj.price<=obj.cost&&!confirm('O preço de venda está menor ou igual ao custo. Deseja salvar mesmo assim?'))return;
+ if(id){
+   data.products[data.products.findIndex(x=>String(x.id)===String(id))]=obj;
+   syncProductChannels(obj); queueExcelSync(obj,'Edição de produto');
+ }else{
+   data.products.push(obj);
+   if(obj.qty>0)data.stockMovements.unshift({id:Date.now()+Math.random(),date:nowBR(),productId:obj.id,product:obj.name,type:'Entrada',qty:obj.qty,before:0,after:obj.qty,reason:'Estoque inicial',ref:'Cadastro',user:'Administrador'});
+   queueExcelSync(obj,'Cadastro de produto');
+ }
+ log((id?'Editou':'Cadastrou')+' produto '+obj.name);save();closeModal();renderAll();
+}
+function renderEstoque(){
+ enhanceData();ensureData();
+ const att=stockAttention(),groups=categoryStockSummary();
+ let rows=data.products.map(p=>{
+  const warns=productWarnings(p);
+  const status=warns.length?`<span class="badge danger">${esc(warns[0])}</span>${warns.length>1?`<small class="cell-sub">+${warns.length-1} atenção(ões)</small>`:''}`:'<span class="badge ok">Normal</span>';
+  return `<tr><td><b>${esc(p.code)}</b></td><td>${esc(p.name)}</td><td>${esc(p.category)}</td><td>${esc(p.brand)}</td><td><b>${p.qty}</b></td><td>${money(p.cost)}</td><td>${money(p.price)}</td><td>${status}</td><td class="actions"><button class="btn ghost small" onclick="inventoryModal(${p.id})">Conferir</button><button class="btn ghost small" onclick="stockMovementModal(${p.id})">Movimentar</button><button class="btn ghost small" onclick="productModal(${p.id})">Editar</button><button class="btn ghost small" onclick="sendToCatalogo(${p.id})">Catálogo</button><button class="btn ghost small" onclick="deleteProduct(${p.id})">Excluir</button></td></tr>`
+ }).join('');
+ const groupRows=Object.entries(groups).map(([k,g])=>`<tr><td><b>${esc(k)}</b></td><td>${g.products}</td><td>${g.qty}</td><td>${money(g.cost)}</td><td>${money(g.sale)}</td></tr>`).join('');
+ const issues=att.zero.length+att.low.length+att.noCost.length+att.noPrice.length+att.belowCost.length+att.duplicate.length;
+ $('#estoque').innerHTML=heading('Estoque','Controle por movimentações, conferência física e validações',`<div class="actions"><button class="btn ghost" onclick="stockHistoryModal()">Histórico</button><button class="btn ghost" onclick="stockAttentionModal()">⚠️ Atenções (${issues})</button><button class="btn primary" onclick="productModal()">+ Produto</button></div>`)+
+ `<div class="cards">${metric('Produtos',data.products.length,'cadastrados','green')}${metric('Unidades',data.products.reduce((a,p)=>a+Number(p.qty||0),0),'em estoque','green')}${metric('Estoque zerado',att.zero.length,'produto(s)',att.zero.length?'red':'green')}${metric('Problemas de preço/custo',att.noCost.length+att.noPrice.length+att.belowCost.length,'para revisar',(att.noCost.length+att.noPrice.length+att.belowCost.length)?'red':'green')}</div>
+ <div class="card" style="margin-top:16px"><div class="toolbar"><input id="stockSearch" placeholder="Pesquisar por código, produto, marca, medida ou categoria" oninput="filterTable('stockSearch','stockTable')"><select onchange="sortStock(this.value)"><option value="name">Ordenar por nome</option><option value="qtyasc">Menor estoque</option><option value="qtydesc">Maior estoque</option><option value="pricedesc">Maior preço</option></select></div><div class="table-wrap"><table id="stockTable"><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum produto cadastrado.</td></tr>'}</tbody></table></div></div>
+ <div class="card table-wrap" style="margin-top:16px"><div class="panel-head"><h3 class="section-title">Resumo por categoria</h3><span class="soft-chip">Valor aproximado do estoque</span></div><table><thead><tr><th>Categoria</th><th>Produtos</th><th>Unidades</th><th>Valor a custo</th><th>Valor de venda</th></tr></thead><tbody>${groupRows||'<tr><td colspan="5" class="empty">Sem dados.</td></tr>'}</tbody></table></div>`;
+}
+function renderDashboard(){
+ enhanceData();
+ const day=dashboardSalesIn('day'),month=dashboardSalesIn('month'),year=dashboardSalesIn('year'),sum=a=>a.reduce((t,s)=>t+Number(s.total||0),0);
+ const serviceSales=activeSales().filter(s=>s.origin==='OS'||s.originType==='OS'||String(s.origin||'').toLowerCase().includes('serv'));
+ const serviceValue=serviceSales.reduce((a,s)=>a+Number(s.total||0),0);
+ const entries=data.cash.filter(c=>c.type==='Entrada').reduce((a,c)=>a+Number(c.value||0),0),exits=data.cash.filter(c=>c.type==='Saída').reduce((a,c)=>a+Number(c.value||0),0);
+ const a=stockAttention(),stockIssues=a.zero.length+a.low.length+a.noCost.length+a.noPrice.length+a.belowCost.length+a.duplicate.length;
+ const alerts=[
+  a.zero.length?`<div class="alert"><b>${a.zero.length}</b> produto(s) com estoque zerado.</div>`:'',
+  a.low.length?`<div class="alert"><b>${a.low.length}</b> produto(s) em estoque baixo.</div>`:'',
+  a.noCost.length?`<div class="alert"><b>${a.noCost.length}</b> produto(s) sem custo preenchido.</div>`:'',
+  a.noPrice.length?`<div class="alert"><b>${a.noPrice.length}</b> produto(s) sem preço de venda.</div>`:'',
+  a.belowCost.length?`<div class="alert"><b>${a.belowCost.length}</b> produto(s) com preço menor ou igual ao custo.</div>`:'',
+  a.duplicate.length?`<div class="alert"><b>${a.duplicate.length}</b> código(s) duplicado(s).</div>`:''
+ ].filter(Boolean).join('');
+ $('#dashboard').innerHTML=heading('Dashboard','Faturamento, operação e alertas importantes da Le Pneus')+`<div class="cards">
+ ${metric('Faturamento hoje',money(sum(day)),day.length+' venda(s) hoje','green')}
+ ${metric('Faturamento mensal',money(sum(month)),month.length+' venda(s) no mês','green')}
+ ${metric('Faturamento anual',money(sum(year)),year.length+' venda(s) no ano','green')}
+ ${metric('Serviços realizados',money(serviceValue),serviceSales.length+' serviço(s) recebido(s)','green')}
+ ${metric('Saldo do caixa',money(entries-exits),'entradas menos saídas',(entries-exits)>=0?'green':'red')}
+ ${metric('Atenções do estoque',stockIssues,'itens para revisar',stockIssues?'red':'green')}
+ </div><div class="grid2"><div class="card"><div class="panel-head"><h3 class="section-title">Faturamento recente</h3><span class="soft-chip">Últimas vendas</span></div><canvas id="chartSales" height="105"></canvas></div><div class="card"><div class="panel-head"><h3 class="section-title">⚠️ Atenção</h3><button class="btn ghost small" onclick="openPage('estoque');setTimeout(stockAttentionModal,50)">Ver estoque</button></div><div class="alert-list">${alerts||'<div class="empty">Nenhuma inconsistência importante encontrada.</div>'}</div></div></div>`;
+ setTimeout(()=>{let ctx=$('#chartSales');if(!ctx)return;let sales=activeSales().slice(0,10).reverse();new Chart(ctx,{type:'bar',data:{labels:sales.map(s=>s.customer||'#'+String(s.id).slice(-5)),datasets:[{label:'Faturamento',data:sales.map(s=>Number(s.total||0)),borderRadius:7}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}})},0)
+}
+
+
+function createFullBackup(){
+ ensureData(); enhanceData();
+ const payload={
+   app:'Le Pneus - Controle de Mercadorias',
+   version:1,
+   exportedAt:new Date().toISOString(),
+   exportedAtBR:new Date().toLocaleString('pt-BR'),
+   data:JSON.parse(JSON.stringify(data))
+ };
+ const filename='Backup-LePneus-'+new Date().toLocaleDateString('pt-BR').replaceAll('/','-')+'.json';
+ downloadText(filename,JSON.stringify(payload,null,2));
+ log('Backup completo exportado');
+ save();
+ alert('Backup criado com sucesso. Guarde o arquivo em um local seguro.');
+}
+function restoreFullBackup(){
+ const input=document.getElementById('restoreBackupFile');
+ if(!input||!input.files||!input.files[0])return alert('Escolha um arquivo de backup .json.');
+ const file=input.files[0];
+ if(!confirm('A restauração substituirá os dados atuais pelos dados do arquivo selecionado. Deseja continuar?'))return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+   try{
+     const parsed=JSON.parse(reader.result);
+     const incoming=parsed&&parsed.data?parsed.data:parsed;
+     if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))throw new Error('Formato inválido');
+     const required=['products','sales','customers','cash'];
+     if(!required.some(k=>Array.isArray(incoming[k])))throw new Error('O arquivo não parece ser um backup válido do Controle de Mercadorias.');
+     const safety={
+       app:'Le Pneus - Controle de Mercadorias',
+       version:1,
+       exportedAt:new Date().toISOString(),
+       exportedAtBR:new Date().toLocaleString('pt-BR'),
+       data:JSON.parse(JSON.stringify(data))
+     };
+     localStorage.setItem('lepneus_pre_restore_backup',JSON.stringify(safety));
+     data=JSON.parse(JSON.stringify(incoming));
+     ensureData();enhanceData();
+     log('Backup restaurado: '+file.name);
+     save();
+     alert('Backup restaurado com sucesso. O sistema será atualizado agora.');
+     renderAll();
+   }catch(e){
+     alert('Não foi possível restaurar este arquivo. '+(e?.message||'Backup inválido.'));
+   }
+ };
+ reader.onerror=()=>alert('Não foi possível ler o arquivo de backup.');
+ reader.readAsText(file,'utf-8');
+}
+function restorePreRestoreBackup(){
+ const raw=localStorage.getItem('lepneus_pre_restore_backup');
+ if(!raw)return alert('Não existe uma cópia automática anterior à última restauração neste navegador.');
+ if(!confirm('Deseja voltar para a cópia criada automaticamente antes da última restauração?'))return;
+ try{
+   const parsed=JSON.parse(raw);
+   if(!parsed?.data)throw new Error('Cópia inválida');
+   data=JSON.parse(JSON.stringify(parsed.data));
+   ensureData();enhanceData();
+   log('Dados restaurados da cópia de segurança anterior à restauração');
+   save();renderAll();
+   alert('Cópia anterior restaurada com sucesso.');
+ }catch(e){alert('Não foi possível recuperar a cópia anterior.');}
+}
+function renderBackup(){
+ ensureData();
+ const counts={
+   products:(data.products||[]).length,
+   sales:(data.sales||[]).length,
+   customers:(data.customers||[]).length,
+   closings:(data.monthlyClosings||[]).length
+ };
+ const pre=localStorage.getItem('lepneus_pre_restore_backup');
+ $('#backup').innerHTML=heading('Backup e Restauração','Cópia de segurança completa dos dados do Controle de Mercadorias')+
+ `<div class="notice"><b>O backup inclui os dados salvos no sistema:</b> produtos, estoque, vendas, clientes, caixa, serviços, compras, fornecedores, Mercado Livre manual, fechamentos mensais, histórico de estoque e demais configurações armazenadas neste controle.</div>
+ <div class="cards">
+ ${metric('Produtos',counts.products,'incluídos no backup','green')}
+ ${metric('Vendas',counts.sales,'registros atuais','green')}
+ ${metric('Clientes',counts.customers,'cadastros atuais','green')}
+ ${metric('Meses fechados',counts.closings,'histórico mensal','green')}
+ </div>
+ <div class="grid2" style="margin-top:16px">
+  <div class="card">
+   <h3 class="section-title">💾 Fazer backup</h3>
+   <p style="color:var(--muted);font-size:13px">Gera um arquivo <b>.json</b> com uma cópia completa dos dados atuais. Guarde esse arquivo no computador, pendrive, OneDrive ou outro local seguro.</p>
+   <button class="btn primary" onclick="createFullBackup()">Fazer backup agora</button>
+  </div>
+  <div class="card">
+   <h3 class="section-title">♻️ Restaurar backup</h3>
+   <p style="color:var(--muted);font-size:13px">Escolha um backup criado por este sistema. Antes de substituir os dados atuais, o navegador cria automaticamente uma cópia de segurança do estado atual.</p>
+   <input id="restoreBackupFile" type="file" accept=".json,application/json" style="width:100%;margin:10px 0 12px">
+   <div class="actions"><button class="btn primary" onclick="restoreFullBackup()">Restaurar backup</button>${pre?'<button class="btn ghost" onclick="restorePreRestoreBackup()">Voltar para antes da última restauração</button>':''}</div>
+  </div>
+ </div>
+ <div class="card" style="margin-top:16px">
+  <h3 class="section-title">Recomendação</h3>
+  <div class="summary-list">
+   <div><span>Backup completo</span><b>1 vez por semana</b></div>
+   <div><span>Antes de alterações grandes</span><b>Faça um backup</b></div>
+   <div><span>Antes de restaurar</span><b>Cópia automática criada</b></div>
+   <div><span>Fechamento mensal</span><b>Continua separado do backup</b></div>
+  </div>
+ </div>`;
+}
+
+function renderAll(){ensureData();enhanceData();renderDashboard();renderEstoque();renderPlanilhas();renderCatalogo();renderMercadoLivre();renderVendas();renderCaixa();renderCompras();renderClientes();renderFornecedores();renderOS();renderAgenda();renderWhatsApp();renderFechamento();renderRelatorios();renderBackup();renderUsuarios();}
+
+
+initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); $('#login').classList.add('hidden'); autoClosePreviousMonth(); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
 </script>
 </body>
 </html>
