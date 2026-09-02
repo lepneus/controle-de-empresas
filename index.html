@@ -207,7 +207,7 @@ tbody tr:hover{background:color-mix(in srgb,var(--primary-soft) 34%,transparent)
 <div class="modal" id="modal"><div class="modal-card"><div id="modalBody"></div></div></div>
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-const menu=[['dashboard','📊','Dashboard'],['estoque','📦','Estoque'],['planilhas','🔗','Conexão Planilhas'],['vendas','🛒','Vendas'],['catalogo','🌐','Catálogo LePneus'],['mercadolivre','🟡','Mercado Livre'],['caixa','🏦','Caixa'],['compras','🚚','Compras'],['clientes','👥','Clientes'],['fornecedores','🏭','Fornecedores'],['os','🛠️','Serviços'],['agenda','📅','Agenda e Lembretes'],['whatsapp','💬','WhatsApp'],['fechamento','🧾','Fechamento Mensal'],['relatorios','📈','Relatórios'],['backup','💾','Backup e Restauração'],['usuarios','🔐','Usuários']];
+const menu=[['dashboard','📊','Dashboard'],['estoque','📦','Estoque'],['planilhas','🔗','Conexão Planilhas'],['vendas','🛒','Vendas'],['catalogo','🌐','Catálogo LePneus'],['mercadolivre','🟡','Mercado Livre'],['caixa','🏦','Caixa'],['compras','🚚','Compras'],['clientes','👥','Clientes'],['fornecedores','🏭','Fornecedores'],['os','🛠️','Serviços'],['agenda','📅','Agenda e Lembretes'],['fechamento','🧾','Fechamento Mensal'],['backup','💾','Backup e Restauração'],['usuarios','🔐','Usuários']];
 let data=JSON.parse(localStorage.getItem('gestaoData')||'null')||{
  products:[{id:1,code:'P001',name:'Produto Exemplo',category:'Geral',brand:'Marca A',qty:12,min:5,cost:80,price:120},{id:2,code:'P002',name:'Produto Baixo Estoque',category:'Geral',brand:'Marca B',qty:2,min:5,cost:45,price:79.9}],
  customers:[{id:1,name:'Cliente Exemplo',doc:'000.000.000-00',phone:'(45) 99999-9999',email:'cliente@email.com'}],
@@ -733,7 +733,7 @@ function quickSell(productId){
 }
 function renderClientes(){
  enhanceData();
- const rows=data.customers.map(c=>{const sales=activeSales().filter(s=>String(s.customerId)===String(c.id)||String(s.customer||'').toLowerCase()===String(c.name||'').toLowerCase());const spent=sales.reduce((a,s)=>a+Number(s.total||0),0);let last=null;sales.forEach(s=>{const d=parseBRDateTime(s.date);if(d&&(!last||d>last))last=d});const days=last?Math.max(0,Math.floor((Date.now()-last.getTime())/86400000)):null;return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone||'-')}</td><td>${sales.length}</td><td>${money(spent)}</td><td>${days===null?'Nunca comprou':days===0?'Hoje':days+' dia(s)'}</td><td><button class="btn ghost small" onclick="customerModalV2(${c.id})">Editar</button></td></tr>`}).join('');
+ const rows=(data.customers||[]).map(c=>{c=c||{};const sales=activeSales().filter(s=>String(s.customerId)===String(c.id)||String(s.customer||'').toLowerCase()===String(c.name||'').toLowerCase());const spent=sales.reduce((a,s)=>a+Number(s.total||0),0);let last=null;sales.forEach(s=>{const d=parseBRDateTime(s.date);if(d&&(!last||d>last))last=d});const days=last?Math.max(0,Math.floor((Date.now()-last.getTime())/86400000)):null;return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone||'-')}</td><td>${sales.length}</td><td>${money(spent)}</td><td>${days===null?'Nunca comprou':days===0?'Hoje':days+' dia(s)'}</td><td><button class="btn ghost small" onclick="customerModalV2(${c.id})">Editar</button></td></tr>`}).join('');
  $('#clientes').innerHTML=heading('Clientes','Veja quem comprou, quanto gastou e há quantos dias foi a última compra',`<button class="btn primary" onclick="customerModalV2()">+ Novo cliente</button>`)+`<div class="card table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Compras</th><th>Total gasto</th><th>Última compra</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">Nenhum cliente.</td></tr>'}</tbody></table></div>`;
 }
 function renderOS(){
@@ -1087,9 +1087,76 @@ function renderBackup(){
  </div>`;
 }
 
-function renderAll(){ensureData();enhanceData();renderDashboard();renderEstoque();renderPlanilhas();renderCatalogo();renderMercadoLivre();renderVendas();renderCaixa();renderCompras();renderClientes();renderFornecedores();renderOS();renderAgenda();renderWhatsApp();renderFechamento();renderRelatorios();renderBackup();renderUsuarios();}
+
+function safeRenderPage(pageId, fn){
+  try{
+    fn();
+  }catch(err){
+    console.error('Erro ao renderizar '+pageId, err);
+    const el=document.getElementById(pageId);
+    if(el){
+      el.innerHTML=heading('Erro nesta área','Esta página encontrou um problema ao carregar.')+
+      `<div class="card"><div class="notice"><b>Não foi possível carregar esta seção.</b><br>Atualize a página. Se continuar, use a versão corrigida deste HTML.</div></div>`;
+    }
+  }
+}
 
 
+
+function renderAgenda(){
+ ensureData();enhanceData();
+ const reminders=[...(data.reminders||[])].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+ const pending=reminders.filter(r=>r.status!=='Concluído').length;
+ const done=reminders.filter(r=>r.status==='Concluído').length;
+ const todayKey=new Date().toLocaleDateString('pt-BR');
+ const today=reminders.filter(r=>new Date(r.datetime).toLocaleDateString('pt-BR')===todayKey && r.status!=='Concluído').length;
+ const rows=reminders.map(r=>{
+   const d=new Date(r.datetime);
+   const invalid=isNaN(d);
+   const day=invalid?'--':String(d.getDate()).padStart(2,'0');
+   const mon=invalid?'---':d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
+   const when=invalid?'Data inválida':d.toLocaleString('pt-BR');
+   const cls=r.priority==='Alta'?'priority-high':r.priority==='Baixa'?'priority-low':'priority-medium';
+   return `<div class="agenda-item ${cls}">
+    <div class="agenda-date"><strong>${day}</strong><small>${mon}</small></div>
+    <div><h4>${esc(r.title||'Lembrete')}</h4><p>${esc(when)}${r.customer?' • '+esc(r.customer):''}${r.type?' • '+esc(r.type):''}</p>${r.notes?`<p style="margin-top:5px">${esc(r.notes)}</p>`:''}</div>
+    <div class="actions"><span class="badge ${r.status==='Concluído'?'ok':'warn'}">${esc(r.status||'Pendente')}</span><button class="btn ghost small" onclick="completeReminder(${r.id})">${r.status==='Concluído'?'Reabrir':'Concluir'}</button><button class="btn ghost small" onclick="deleteReminder(${r.id})">Excluir</button></div>
+   </div>`;
+ }).join('');
+ $('#agenda').innerHTML=heading('Agenda e Lembretes','Compromissos, retornos e tarefas importantes',`<button class="btn primary" onclick="reminderModal()">+ Novo lembrete</button>`)+
+ `<div class="cards">${metric('Pendentes',pending,'aguardando conclusão',pending?'red':'green')}${metric('Hoje',today,'compromisso(s) pendente(s)','green')}${metric('Concluídos',done,'histórico','green')}</div>
+ <div class="card" style="margin-top:16px"><div class="toolbar"><select onchange="filterAgenda(this.value)"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="done">Concluídos</option></select><button class="btn ghost" onclick="requestNotifications()">Ativar notificações</button></div><div id="agendaList" class="agenda-list">${rows||'<div class="empty">Nenhum lembrete cadastrado.</div>'}</div></div>`;
+}
+
+function renderPageById(id){
+ ensureData();enhanceData();
+ const map={
+  dashboard:renderDashboard,estoque:renderEstoque,planilhas:renderPlanilhas,
+  vendas:renderVendas,catalogo:renderCatalogo,mercadolivre:renderMercadoLivre,
+  caixa:renderCaixa,compras:renderCompras,clientes:renderClientes,
+  fornecedores:renderFornecedores,os:renderOS,agenda:renderAgenda,
+  fechamento:renderFechamento,backup:renderBackup,usuarios:renderUsuarios
+ };
+ const fn=map[id];
+ if(!fn)return;
+ safeRenderPage(id,fn);
+}
+function renderAll(){
+ renderPageById(document.querySelector('.page.active')?.id||'dashboard');
+}
+
+
+
+function openPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const page=$('#'+id); if(!page)return;
+  page.classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+  const label=document.querySelector(`.nav button[data-page="${id}"]`)?.textContent?.trim()||id;
+  $('#pageName').textContent=label;
+  renderPageById(id);
+  if(innerWidth<=980)document.body.classList.remove('menu-open');
+}
 initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); $('#login').classList.add('hidden'); autoClosePreviousMonth(); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
 </script>
 </body>
