@@ -159,6 +159,71 @@ tbody tr:hover{background:color-mix(in srgb,var(--primary-soft) 34%,transparent)
 }
 </style>
 
+
+<style id="lepneus-sidebar-polish">
+.sidebar{
+  padding:20px 14px 24px!important;
+  background:linear-gradient(180deg,#111a2b 0%,#0e1727 100%)!important;
+  border-right:1px solid rgba(255,255,255,.055)!important;
+}
+.brand{
+  padding:7px 9px 20px!important;
+  margin-bottom:16px!important;
+  border-bottom:1px solid rgba(255,255,255,.07)!important;
+}
+.brand-copy strong{
+  font-size:16px!important;
+  font-weight:800!important;
+  letter-spacing:-.02em!important;
+}
+.brand-copy small{
+  font-size:9px!important;
+  letter-spacing:.11em!important;
+}
+.nav-label{
+  font-size:9px!important;
+  letter-spacing:.16em!important;
+  margin:7px 0 8px!important;
+  color:#71809a!important;
+}
+.nav{
+  gap:4px!important;
+}
+.nav button{
+  position:relative!important;
+  min-height:46px!important;
+  padding:11px 13px!important;
+  border-radius:12px!important;
+  font-size:14px!important;
+  font-weight:650!important;
+  letter-spacing:-.01em!important;
+  color:#b7c2d4!important;
+  transition:background .18s ease,color .18s ease,transform .18s ease!important;
+}
+.nav button:hover{
+  background:rgba(255,255,255,.055)!important;
+  color:#fff!important;
+}
+.nav button.active{
+  background:linear-gradient(90deg,rgba(82,103,239,.28),rgba(82,103,239,.13))!important;
+  color:#fff!important;
+  box-shadow:inset 3px 0 #7586ff,0 7px 20px rgba(17,24,39,.16)!important;
+}
+.nav button.active::after{
+  content:''!important;
+  position:absolute!important;
+  right:12px!important;
+  width:7px!important;
+  height:7px!important;
+  border-radius:50%!important;
+  background:#8793ff!important;
+  box-shadow:0 0 0 4px rgba(135,147,255,.12)!important;
+}
+.nav button span:first-child{
+  font-size:15px!important;
+}
+</style>
+
 </head>
 <body>
 <div id="login" class="login">
@@ -215,12 +280,23 @@ let data=JSON.parse(localStorage.getItem('gestaoData')||'null')||{
  sales:[], purchases:[], finance:[], cash:[], quotes:[], serviceOrders:[], history:[], reminders:[], whatsappMessages:[], whatsappTemplates:[{id:1,name:'Confirmação de horário',text:'Olá, {nome}! Passando para confirmar seu horário em {data} às {hora}. Qualquer dúvida, estamos à disposição.'},{id:2,name:'Orçamento disponível',text:'Olá, {nome}! Seu orçamento está pronto. Se precisar de alguma informação, pode responder por aqui.'},{id:3,name:'Agradecimento',text:'Olá, {nome}! Agradecemos pela preferência. Conte com a gente sempre que precisar!'}], users:[{id:1,name:'Administrador',role:'ADMINISTRADOR'}], settings:{company:'Minha Empresa',fantasy:'',cnpj:'',phone:'',whatsapp:'',email:'',address:'',city:'',currency:'BRL',defaultPayment:'PIX',defaultMinStock:5,commission:0,dateFormat:'DD/MM/AAAA',timezone:'America/Sao_Paulo',sessionMinutes:480,confirmCritical:true,autoBackup:false,browserNotifications:true,reminderMinutes:30,whatsappAuto:false,whatsappWebhook:'',whatsappSignature:'',theme:'system'}
 };
 function ensureData(){
+ data.products=data.products||[];data.customers=data.customers||[];data.suppliers=data.suppliers||[];data.sales=data.sales||[];data.purchases=data.purchases||[];data.finance=data.finance||[];data.cash=data.cash||[];data.quotes=data.quotes||[];data.serviceOrders=data.serviceOrders||[];data.users=data.users||[];data.history=data.history||[];
  data.reminders=data.reminders||[];data.whatsappMessages=data.whatsappMessages||[];data.whatsappTemplates=data.whatsappTemplates||[];data.catalogItems=data.catalogItems||[];data.mercadoLivreItems=data.mercadoLivreItems||[];data.pendingExcelSync=data.pendingExcelSync||[];data.spreadsheetConnections=data.spreadsheetConnections||{};data.monthlyClosings=data.monthlyClosings||[];data.settings=data.settings||{};
  const defaults={company:'Minha Empresa',fantasy:'',cnpj:'',phone:'',whatsapp:'',email:'',address:'',city:'',currency:'BRL',defaultPayment:'PIX',defaultMinStock:5,commission:0,dateFormat:'DD/MM/AAAA',timezone:'America/Sao_Paulo',sessionMinutes:480,confirmCritical:true,autoBackup:false,browserNotifications:true,reminderMinutes:30,whatsappAuto:false,whatsappWebhook:'',whatsappSignature:'',theme:'system'};
  Object.keys(defaults).forEach(k=>{if(data.settings[k]===undefined)data.settings[k]=defaults[k]});
 }
 ensureData();
 function save(){localStorage.setItem('gestaoData',JSON.stringify(data))}
+
+function esc(value){
+  return String(value ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+
 function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function log(action){data.history.unshift({date:new Date().toLocaleString('pt-BR'),user:'Administrador',action});save()}
 function initNav(){ $('#nav').innerHTML=menu.map(([id,icon,label],i)=>`<button class="${i===0?'active':''}" onclick="openPage('${id}',this)">${icon}<span>${label}</span></button>`).join('') }
@@ -1147,16 +1223,19 @@ function renderAll(){
 
 
 
-function openPage(id){
+
+function openPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  const page=$('#'+id); if(!page)return;
+  const page=document.getElementById(id);
+  if(!page)return;
   page.classList.add('active');
-  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
-  const label=document.querySelector(`.nav button[data-page="${id}"]`)?.textContent?.trim()||id;
-  $('#pageName').textContent=label;
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
   renderPageById(id);
-  if(innerWidth<=980)document.body.classList.remove('menu-open');
+  const sidebar=document.getElementById('sidebar');
+  if(sidebar)sidebar.classList.remove('open');
 }
+
 initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); $('#login').classList.add('hidden'); autoClosePreviousMonth(); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
 </script>
 </body>
