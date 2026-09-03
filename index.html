@@ -3027,5 +3027,327 @@ window.lePneusMarketStrategy = {
   }
 };
 </script>
+
+<style>
+.ml-v6-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ml-v6-toolbar input,.ml-v6-toolbar select{min-width:160px}
+.ml-signal{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;padding:6px 9px;border-radius:999px;white-space:nowrap}
+.ml-signal.good{background:#dcfce7;color:#166534}
+.ml-signal.mid{background:#fef3c7;color:#92400e}
+.ml-signal.bad{background:#fee2e2;color:#991b1b}
+.ml-signal.neutral{background:#e5e7eb;color:#374151}
+.ml-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.ml-price-main{font-size:17px;font-weight:900}
+.ml-mini{font-size:11px;color:#64748b;display:block;margin-top:3px}
+.ml-profit-pos{color:#15803d;font-weight:800}
+.ml-profit-neg{color:#b91c1c;font-weight:800}
+.ml-top-card{border:1px solid #e5e7eb;border-radius:14px;padding:14px;background:#fff;margin:10px 0}
+.ml-rank{width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#111827;color:#fff;font-weight:900}
+.ml-history-row{display:grid;grid-template-columns:150px 1fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #eee;font-size:13px}
+@media(max-width:800px){.ml-history-row{grid-template-columns:1fr 1fr}.ml-v6-toolbar>*{width:100%}}
+</style>
+<script>
+/* ===== Mercado Livre V6: preço competitivo, mínimo, Clássico/Premium, ranking, histórico e semáforo ===== */
+(function(){
+  function mlV6Ensure(){
+    lpEnsureV3();
+    data.settings=data.settings||{};
+    if(data.settings.mlMinMarginPct===undefined)data.settings.mlMinMarginPct=5;
+    if(data.settings.mlClassicFeePct===undefined)data.settings.mlClassicFeePct=Number(data.settings.mlDefaultFeePct??16);
+    if(data.settings.mlPremiumFeePct===undefined)data.settings.mlPremiumFeePct=Math.min(95,Number(data.settings.mlClassicFeePct||16)+5);
+    if(data.settings.mlPsychologicalPrice===undefined)data.settings.mlPsychologicalPrice=true;
+    if(data.settings.mlCompetitiveDiscountPct===undefined)data.settings.mlCompetitiveDiscountPct=1;
+    data.mercadoLivreItems=data.mercadoLivreItems||[];
+    data.mercadoLivreItems.forEach(x=>{
+      if(!Array.isArray(x.mlPriceHistory))x.mlPriceHistory=[];
+      if(!x.mlListingStatus)x.mlListingStatus=x.status||'Preparando';
+      if(x.mlMarketMin===undefined)x.mlMarketMin=0;
+      if(x.mlMarketAvg===undefined)x.mlMarketAvg=0;
+      if(x.mlSimilarListings===undefined)x.mlSimilarListings=0;
+      if(x.mlMarketNote===undefined)x.mlMarketNote='';
+    });
+  }
+  function n(v){v=Number(v);return Number.isFinite(v)?v:0}
+  function pct(v){return Math.max(0,Math.min(95,n(v)))}
+  function psych(v){
+    v=Math.max(0,n(v));
+    if(!data.settings.mlPsychologicalPrice)return Number(v.toFixed(2));
+    let r=Math.ceil(v)-0.10;
+    if(r+1e-9<v)r+=1;
+    return Number(Math.max(0,r).toFixed(2));
+  }
+  function minPriceFor(p,x,feePct){
+    const margin=pct(data.settings.mlMinMarginPct)/100;
+    const fee=pct(feePct)/100;
+    const base=n(p?.cost)+n(x?.mlFreight??data.settings.mlDefaultFreight)+n(x?.mlOtherCost??data.settings.mlDefaultOther);
+    const den=1-fee-margin;
+    return den>0?base/den:0;
+  }
+  function calcAt(p,x,price,feePct){
+    price=n(price); feePct=pct(feePct);
+    const fee=price*(feePct/100);
+    const freight=n(x?.mlFreight??data.settings.mlDefaultFreight);
+    const other=n(x?.mlOtherCost??data.settings.mlDefaultOther);
+    const cost=n(p?.cost);
+    const profit=price-cost-fee-freight-other;
+    const margin=price>0?profit/price*100:0;
+    return {price,feePct,fee,freight,other,cost,expenses:cost+fee+freight+other,profit,margin};
+  }
+  function marketTarget(p,x,feePct){
+    const minimum=minPriceFor(p,x,feePct);
+    const minMarket=n(x.mlMarketMin), avg=n(x.mlMarketAvg);
+    const discount=pct(data.settings.mlCompetitiveDiscountPct)/100;
+    let raw=0, source='';
+    if(avg>0 && minMarket>0){
+      raw=Math.min(avg*(1-discount),minMarket*1.02);
+      source='concorrência';
+    }else if(avg>0){
+      raw=avg*(1-discount); source='média concorrentes';
+    }else if(minMarket>0){
+      raw=minMarket*1.02; source='menor concorrente';
+    }else if(n(p.price)>0){
+      raw=n(p.price); source='preço da planilha';
+    }else{
+      raw=minimum; source='preço mínimo';
+    }
+    let target=Math.max(minimum,raw);
+    target=psych(target);
+    return {minimum:psych(minimum),raw,target,source};
+  }
+  function bestPlan(p,x){
+    const classicFee=pct(data.settings.mlClassicFeePct);
+    const premiumFee=pct(data.settings.mlPremiumFeePct);
+    const tc=marketTarget(p,x,classicFee), tp=marketTarget(p,x,premiumFee);
+    const cc=calcAt(p,x,tc.target,classicFee), cp=calcAt(p,x,tp.target,premiumFee);
+    /* escolhe pelo lucro líquido; benefício de exposição do Premium não é presumido */
+    const chosen=cc.profit>=cp.profit?{type:'Clássico',calc:cc,target:tc}:{type:'Premium',calc:cp,target:tp};
+    return {classic:{calc:cc,target:tc},premium:{calc:cp,target:tp},chosen};
+  }
+  function competitiveness(p,x,plan){
+    const avg=n(x.mlMarketAvg), min=n(x.mlMarketMin), price=plan.chosen.calc.price, margin=plan.chosen.calc.margin;
+    if(plan.chosen.calc.profit<0 || margin<0)return {cls:'bad',text:'Não compensa'};
+    if(avg<=0 && min<=0){
+      if(margin>=pct(data.settings.mlMinMarginPct))return {cls:'mid',text:'Falta comparar'};
+      return {cls:'bad',text:'Margem baixa'};
+    }
+    let ref=avg||min;
+    const delta=ref>0?(price-ref)/ref*100:0;
+    if(delta<=1.5 && margin>=pct(data.settings.mlMinMarginPct))return {cls:'good',text:'Competitivo'};
+    if(delta<=6 && margin>=pct(data.settings.mlMinMarginPct))return {cls:'mid',text:'Pode competir'};
+    return {cls:'bad',text:'Preço alto'};
+  }
+  function marketSignal(x){
+    const count=n(x.mlSimilarListings), avg=n(x.mlMarketAvg), min=n(x.mlMarketMin);
+    if(!count && !avg && !min)return {cls:'neutral',text:'Sem dados de mercado'};
+    /* não chama isso de demanda real: é apenas sinal manual baseado nos dados registrados */
+    if(count>=5 && avg>0)return {cls:'good',text:'Mercado ativo*'};
+    if(count>=2 || avg>0 || min>0)return {cls:'mid',text:'Alguns comparáveis*'};
+    return {cls:'neutral',text:'Poucos dados*'};
+  }
+  function opportunityScore(p,x,plan){
+    const c=plan.chosen.calc;
+    if(c.profit<=0)return 0;
+    const stock=Math.min(20,n(p.qty));
+    const margin=Math.max(0,Math.min(30,c.margin));
+    let comp=10;
+    const avg=n(x.mlMarketAvg);
+    if(avg>0){
+      const d=Math.abs(c.price-avg)/avg*100;
+      comp=Math.max(0,30-d*4);
+    }
+    const costBonus=n(p.cost)>0?Math.max(0,20-Math.min(20,n(p.cost)/50)):0;
+    return Math.round(stock*1.5+margin*2+comp+costBonus);
+  }
+  function signalHTML(s){return `<span class="ml-signal ${s.cls}"><span class="ml-dot"></span>${esc(s.text)}</span>`}
+  window.mlV6CompetitorModal=function(id){
+    mlV6Ensure();
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+    showModal(`<h2>Comparação de anúncios</h2>
+      <div class="notice"><b>${esc(p.name)}</b><br>Pesquise anúncios iguais e registre aqui os valores encontrados. Isso permite ao sistema calcular um preço competitivo. Os dados não são coletados automaticamente sem integração oficial.</div>
+      <div class="form-grid">
+        <label class="field"><span>Menor preço semelhante (R$)</span><input id="mlv6Min" type="number" min="0" step="0.01" value="${n(x.mlMarketMin)||''}"></label>
+        <label class="field"><span>Preço médio observado (R$)</span><input id="mlv6Avg" type="number" min="0" step="0.01" value="${n(x.mlMarketAvg)||''}"></label>
+        <label class="field"><span>Quantidade de anúncios semelhantes</span><input id="mlv6Count" type="number" min="0" step="1" value="${n(x.mlSimilarListings)||''}"></label>
+        <label class="field"><span>Observação</span><input id="mlv6Note" value="${esc(x.mlMarketNote||'')}" placeholder="Ex.: maioria com frete grátis"></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="searchMLSimilar(${x.id})">Abrir busca no Mercado Livre</button>
+        <button class="btn primary" onclick="mlV6SaveCompetitors(${x.id})">Salvar comparação</button>
+      </div>`);
+  };
+  window.mlV6SaveCompetitors=function(id){
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    x.mlMarketMin=Math.max(0,n($('#mlv6Min')?.value));
+    x.mlMarketAvg=Math.max(0,n($('#mlv6Avg')?.value));
+    x.mlSimilarListings=Math.max(0,Math.round(n($('#mlv6Count')?.value)));
+    x.mlMarketNote=String($('#mlv6Note')?.value||'').trim();
+    x.updatedAt=nowBR();save();closeModal();renderMercadoLivre();
+  };
+  window.mlV6SaveDefaults=function(){
+    mlV6Ensure();
+    data.settings.mlClassicFeePct=pct($('#mlV6Classic')?.value);
+    data.settings.mlPremiumFeePct=pct($('#mlV6Premium')?.value);
+    data.settings.mlMinMarginPct=pct($('#mlV6MinMargin')?.value);
+    data.settings.mlCompetitiveDiscountPct=pct($('#mlV6Discount')?.value);
+    data.settings.mlDefaultFreight=Math.max(0,n($('#mlV6Freight')?.value));
+    data.settings.mlDefaultOther=Math.max(0,n($('#mlV6Other')?.value));
+    data.settings.mlPsychologicalPrice=!!$('#mlV6Psych')?.checked;
+    save();renderMercadoLivre();alert('Estratégia do Mercado Livre salva e recalculada.');
+  };
+  window.mlV6ApplyPrice=function(id){
+    mlV6Ensure();
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+    const plan=bestPlan(p,x), c=plan.chosen.calc;
+    x.mlPriceHistory.unshift({date:nowBR(),price:c.price,profit:c.profit,margin:c.margin,type:plan.chosen.type,reason:'Preço competitivo aplicado'});
+    x.mlPriceHistory=x.mlPriceHistory.slice(0,50);
+    x.mlAdvertisedPrice=c.price;x.mlFeePct=c.feePct;x.mlFee=c.fee;
+    x.mlListingType=plan.chosen.type;x.mlListingStatus='Preparado';x.status='Preço competitivo aplicado';x.updatedAt=nowBR();
+    save();renderMercadoLivre();
+  };
+  window.mlV6Status=function(id){
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    const status=prompt('Status do anúncio:\\nNão anunciado / Preparado / Publicado / Pausado / Vendido',x.mlListingStatus||'Preparado');
+    if(status===null)return;
+    x.mlListingStatus=status.trim()||'Preparado';x.updatedAt=nowBR();save();renderMercadoLivre();
+  };
+  window.mlV6Details=function(id){
+    mlV6Ensure();
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+    const plan=bestPlan(p,x), c=plan.chosen.calc, sig=competitiveness(p,x,plan), market=marketSignal(x);
+    showModal(`<h2>Estratégia completa • Mercado Livre</h2>
+      <div class="notice"><b>${esc(p.name)}</b><br>O preço recomendado tenta ficar competitivo sem passar abaixo da margem mínima configurada.</div>
+      <div class="cards" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px">
+        ${metric('Preço recomendado',money(c.price),plan.chosen.type,'green')}
+        ${metric('Lucro líquido',money(c.profit),c.margin.toFixed(1).replace('.',',')+'% de margem',c.profit>=0?'green':'red')}
+        ${metric('Preço mínimo',money(plan.chosen.target.minimum),data.settings.mlMinMarginPct+'% margem mínima','green')}
+        ${metric('Concorrência média',n(x.mlMarketAvg)?money(x.mlMarketAvg):'Não informada',n(x.mlSimilarListings)+' anúncio(s) registrado(s)','green')}
+      </div>
+      <div class="card table-wrap" style="margin-top:12px"><table><thead><tr><th></th><th>Clássico</th><th>Premium</th></tr></thead><tbody>
+        <tr><th>Taxa estimada</th><td>${plan.classic.calc.feePct.toFixed(1)}%</td><td>${plan.premium.calc.feePct.toFixed(1)}%</td></tr>
+        <tr><th>Preço competitivo</th><td>${money(plan.classic.calc.price)}</td><td>${money(plan.premium.calc.price)}</td></tr>
+        <tr><th>Taxa em R$</th><td>${money(plan.classic.calc.fee)}</td><td>${money(plan.premium.calc.fee)}</td></tr>
+        <tr><th>Frete</th><td>${money(plan.classic.calc.freight)}</td><td>${money(plan.premium.calc.freight)}</td></tr>
+        <tr><th>Outros custos</th><td>${money(plan.classic.calc.other)}</td><td>${money(plan.premium.calc.other)}</td></tr>
+        <tr><th>Lucro</th><td>${money(plan.classic.calc.profit)}</td><td>${money(plan.premium.calc.profit)}</td></tr>
+        <tr><th>Margem</th><td>${plan.classic.calc.margin.toFixed(1)}%</td><td>${plan.premium.calc.margin.toFixed(1)}%</td></tr>
+      </tbody></table></div>
+      <div style="margin-top:12px">${signalHTML(sig)} ${signalHTML(market)}</div>
+      <small class="cell-sub" style="margin-top:10px;display:block">* “Mercado ativo” é apenas um sinal baseado nos anúncios que você registrou, não uma medição real de vendas/demanda.</small>
+      <div class="modal-actions"><button class="btn ghost" onclick="mlV6CompetitorModal(${x.id})">Atualizar concorrência</button><button class="btn primary" onclick="mlV6ApplyPrice(${x.id});closeModal()">Aplicar preço recomendado</button></div>`);
+  };
+  window.mlV6History=function(id){
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    const rows=(x.mlPriceHistory||[]).map(h=>`<div class="ml-history-row"><b>${esc(h.date)}</b><span>${money(h.price)}</span><span>Lucro ${money(h.profit)}</span><span>${n(h.margin).toFixed(1)}% • ${esc(h.type||'')}</span></div>`).join('');
+    showModal(`<h2>Histórico de preço</h2><div class="notice">Guarda os preços que você aplicou pelo controle.</div>${rows||'<div class="empty">Nenhum preço aplicado ainda.</div>'}`);
+  };
+  window.mlV6Top10=function(){
+    mlV6Ensure();
+    const arr=data.mercadoLivreItems.map(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));
+      if(!p||n(p.qty)<=0)return null;
+      const plan=bestPlan(p,x),score=opportunityScore(p,x,plan),sig=competitiveness(p,x,plan);
+      return {x,p,plan,score,sig};
+    }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,10);
+    const body=arr.map((r,i)=>`<div class="ml-top-card"><div style="display:flex;gap:12px;align-items:flex-start"><span class="ml-rank">${i+1}</span><div style="flex:1"><b>${esc(r.p.name)}</b><small class="cell-sub">${esc(r.p.code)} • estoque ${n(r.p.qty)}</small><div style="margin-top:8px">${signalHTML(r.sig)}</div><div class="ml-market-grid" style="margin-top:10px"><div class="ml-market-box"><b>Preço sugerido</b>${money(r.plan.chosen.calc.price)}</div><div class="ml-market-box"><b>Lucro</b>${money(r.plan.chosen.calc.profit)} (${r.plan.chosen.calc.margin.toFixed(1)}%)</div><div class="ml-market-box"><b>Tipo</b>${r.plan.chosen.type}</div><div class="ml-market-box"><b>Pontuação</b>${r.score}/100+</div></div><div class="actions" style="margin-top:10px"><button class="btn ghost small" onclick="searchMLSimilar(${r.x.id})">Buscar anúncios</button><button class="btn ghost small" onclick="mlV6CompetitorModal(${r.x.id})">Registrar preços</button><button class="btn primary small" onclick="mlV6ApplyPrice(${r.x.id});closeModal()">Aplicar preço</button></div></div></div></div>`).join('');
+    showModal(`<h2>Top 10 para preparar anúncio</h2><div class="notice">Ranking interno por estoque, margem e proximidade do preço concorrente informado. Não representa garantia de venda.</div>${body||'<div class="empty">Importe produtos com estoque para gerar o ranking.</div>'}`);
+  };
+
+  const oldRender=window.renderMercadoLivre;
+  window.renderMercadoLivre=function(){
+    mlV6Ensure();
+    data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));
+      return !x.mlAutoDraft || !p || n(p.qty)>0;
+    });
+    const filter=String(window.__mlV6Filter||'todos');
+    let list=data.mercadoLivreItems.map(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return null;
+      const plan=bestPlan(p,x),sig=competitiveness(p,x,plan),market=marketSignal(x),score=opportunityScore(p,x,plan);
+      return {x,p,plan,sig,market,score};
+    }).filter(Boolean);
+    if(filter==='bons')list=list.filter(r=>r.sig.cls==='good');
+    if(filter==='atencao')list=list.filter(r=>r.sig.cls==='mid');
+    if(filter==='ruins')list=list.filter(r=>r.sig.cls==='bad');
+    list.sort((a,b)=>b.score-a.score);
+
+    const rows=list.map(r=>{
+      const {x,p,plan,sig,market,score}=r,c=plan.chosen.calc;
+      const applied=n(x.mlAdvertisedPrice);
+      const ac=applied?calcAt(p,x,applied,n(x.mlFeePct||c.feePct)):null;
+      return `<tr>
+        <td><b>${esc(p.code)}</b></td>
+        <td>${esc(p.name)}<small class="cell-sub">${esc(p.brand||'')} • estoque ${n(p.qty)}</small></td>
+        <td>${money(p.cost)}<small class="ml-mini">planilha</small></td>
+        <td>${n(x.mlMarketMin)?money(x.mlMarketMin):'-'}<small class="ml-mini">menor</small></td>
+        <td>${n(x.mlMarketAvg)?money(x.mlMarketAvg):'-'}<small class="ml-mini">média</small></td>
+        <td><span class="ml-price-main">${money(c.price)}</span><small class="ml-mini">${plan.chosen.type} • mínimo ${money(plan.chosen.target.minimum)}</small></td>
+        <td>${money(c.fee)}<small class="ml-mini">${c.feePct.toFixed(1)}%</small></td>
+        <td>${money(c.freight)}<small class="ml-mini">frete</small></td>
+        <td>${money(c.other)}<small class="ml-mini">outros</small></td>
+        <td class="${c.profit>=0?'ml-profit-pos':'ml-profit-neg'}">${money(c.profit)}<small class="ml-mini">${c.margin.toFixed(1)}% margem</small></td>
+        <td>${signalHTML(sig)}<small class="ml-mini">${signalHTML(market)} • score ${score}</small></td>
+        <td>${esc(x.mlListingStatus||'Preparando')}<small class="ml-mini">${applied?`Aplicado ${money(applied)} • lucro ${money(ac.profit)}`:'Preço ainda não aplicado'}</small></td>
+        <td class="actions">
+          <button class="btn primary small" onclick="mlV6Details(${x.id})">Detalhes</button>
+          <button class="btn ghost small" onclick="searchMLSimilar(${x.id})">Buscar</button>
+          <button class="btn ghost small" onclick="mlV6CompetitorModal(${x.id})">Concorrência</button>
+          ${typeof showMLDescription==='function'?`<button class="btn ghost small" onclick="showMLDescription(${x.id})">Descrição</button>`:''}
+          <button class="btn ghost small" onclick="mlV6History(${x.id})">Histórico</button>
+          <button class="btn ghost small" onclick="mlV6Status(${x.id})">Status</button>
+          <button class="btn primary small" onclick="mlV6ApplyPrice(${x.id})">Aplicar preço</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const all=data.mercadoLivreItems.map(x=>{const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return null;const plan=bestPlan(p,x);return {x,p,plan,sig:competitiveness(p,x,plan)}}).filter(Boolean);
+    const good=all.filter(r=>r.sig.cls==='good').length;
+    const bad=all.filter(r=>r.sig.cls==='bad').length;
+    const totalPotential=all.reduce((a,r)=>a+Math.max(0,r.plan.chosen.calc.profit),0);
+    const avgMargin=all.length?all.reduce((a,r)=>a+r.plan.chosen.calc.margin,0)/all.length:0;
+
+    $('#mercadolivre').innerHTML=heading('Mercado Livre','Preço competitivo, despesas, margem e preparação de anúncios',`<button class="btn primary" onclick="mlV6Top10()">🏆 Top 10 para anunciar</button>`)+
+    `<div class="notice"><b>Estratégia:</b> o sistema não força mais R$ 40 de lucro. Ele calcula um <b>preço mínimo</b> para preservar sua margem e, quando você registra preços de anúncios semelhantes, tenta recomendar um valor competitivo. Taxas e frete continuam configuráveis porque variam conforme o anúncio. A comparação automática real e a demanda real exigem integração oficial com o Mercado Livre.</div>
+    <div class="cards">
+      ${metric('Oportunidades verdes',good,'preço competitivo + margem mínima','green')}
+      ${metric('Precisam atenção',all.length-good-bad,'revisar concorrência ou margem','green')}
+      ${metric('Não compensam',bad,'pelo cenário informado',bad?'red':'green')}
+      ${metric('Lucro potencial',money(totalPotential),'1 unidade de cada produto','green')}
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Regras de preço</h3><small class="cell-sub">Use as taxas reais do seu anúncio quando souber</small></div></div>
+      <div class="form-grid">
+        <label class="field"><span>Taxa estimada Clássico (%)</span><input id="mlV6Classic" type="number" min="0" max="95" step="0.1" value="${data.settings.mlClassicFeePct}"></label>
+        <label class="field"><span>Taxa estimada Premium (%)</span><input id="mlV6Premium" type="number" min="0" max="95" step="0.1" value="${data.settings.mlPremiumFeePct}"></label>
+        <label class="field"><span>Margem mínima (%)</span><input id="mlV6MinMargin" type="number" min="0" max="95" step="0.1" value="${data.settings.mlMinMarginPct}"></label>
+        <label class="field"><span>Abaixo da média concorrente (%)</span><input id="mlV6Discount" type="number" min="0" max="20" step="0.1" value="${data.settings.mlCompetitiveDiscountPct}"></label>
+        <label class="field"><span>Frete médio (R$)</span><input id="mlV6Freight" type="number" min="0" step="0.01" value="${data.settings.mlDefaultFreight||0}"></label>
+        <label class="field"><span>Outros custos (R$)</span><input id="mlV6Other" type="number" min="0" step="0.01" value="${data.settings.mlDefaultOther||0}"></label>
+        <label class="field" style="justify-content:flex-end"><span>Preço psicológico</span><input id="mlV6Psych" type="checkbox" ${data.settings.mlPsychologicalPrice?'checked':''} style="width:auto"></label>
+      </div>
+      <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="mlV6SaveDefaults()">Salvar e recalcular</button><button class="btn ghost" onclick="mlV6Top10()">Ver ranking Top 10</button></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="ml-v6-toolbar">
+        <b style="margin-right:auto">Produtos preparados</b>
+        <select onchange="window.__mlV6Filter=this.value;renderMercadoLivre()">
+          <option value="todos" ${filter==='todos'?'selected':''}>Todos</option>
+          <option value="bons" ${filter==='bons'?'selected':''}>Somente verdes</option>
+          <option value="atencao" ${filter==='atencao'?'selected':''}>Atenção</option>
+          <option value="ruins" ${filter==='ruins'?'selected':''}>Não compensam</option>
+        </select>
+      </div>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr>
+        <th>Código</th><th>Produto</th><th>Custo</th><th>Menor concorrente</th><th>Média concorrentes</th><th>Preço recomendado</th><th>Taxa</th><th>Frete</th><th>Outros</th><th>Lucro/margem</th><th>Sinal</th><th>Status</th><th>Ações</th>
+      </tr></thead><tbody>${rows||'<tr><td colspan="13" class="empty">Importe a planilha de Carro ou Moto para preparar os anúncios.</td></tr>'}</tbody></table></div>
+    </div>
+    <small class="cell-sub" style="display:block;margin-top:10px">* O indicador “Mercado ativo” usa somente a quantidade de anúncios semelhantes que você registrou. Ele não mede vendas reais.</small>`;
+  };
+  mlV6Ensure();
+})();
+</script>
+
 </body>
 </html>
