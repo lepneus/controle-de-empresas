@@ -424,6 +424,54 @@ function mlCalc(x,p){
  return {price,fee,freight,other,cost,net,profit,margin};
 }
 
+
+function mlPriceCalculator(){
+ showModal(`<h2>Calculadora de preço • Mercado Livre</h2>
+ <div class="notice">Informe seu custo e os custos da venda. O sistema calcula um preço mínimo para atingir a margem de lucro desejada. Use como referência — taxas e frete podem variar conforme anúncio e modalidade.</div>
+ <div class="form">
+  <label>Custo do produto (R$)<input id="calcCost" type="number" step="0.01" min="0" placeholder="0,00"></label>
+  <label>Comissão / taxa ML (%)<input id="calcFeePct" type="number" step="0.01" min="0" max="100" value="16"></label>
+  <label>Frete por sua conta (R$)<input id="calcFreight" type="number" step="0.01" min="0" value="0"></label>
+  <label>Outros custos (R$)<input id="calcOther" type="number" step="0.01" min="0" value="0"></label>
+  <label>Margem de lucro desejada (%)<input id="calcMargin" type="number" step="0.01" min="0" max="80" value="20"></label>
+ </div>
+ <div class="card" style="margin-top:14px;background:var(--panel2)">
+   <div class="summary-list">
+    <div><span>Preço sugerido</span><b id="calcSuggested">R$ 0,00</b></div>
+    <div><span>Taxa estimada ML</span><b id="calcFeeValue">R$ 0,00</b></div>
+    <div><span>Lucro estimado</span><b id="calcProfit">R$ 0,00</b></div>
+    <div><span>Margem sobre a venda</span><b id="calcMarginResult">0,0%</b></div>
+   </div>
+ </div>
+ <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button><button class="btn primary" onclick="applyMLSuggestedPrice()">Usar preço sugerido</button></div>`);
+ ['calcCost','calcFeePct','calcFreight','calcOther','calcMargin'].forEach(id=>document.getElementById(id)?.addEventListener('input',updateMLPriceCalculator));
+ updateMLPriceCalculator();
+}
+function updateMLPriceCalculator(){
+ const cost=Math.max(0,Number($('#calcCost')?.value||0));
+ const feePct=Math.max(0,Math.min(99,Number($('#calcFeePct')?.value||0)))/100;
+ const freight=Math.max(0,Number($('#calcFreight')?.value||0));
+ const other=Math.max(0,Number($('#calcOther')?.value||0));
+ const targetMargin=Math.max(0,Math.min(80,Number($('#calcMargin')?.value||0)))/100;
+ const denom=1-feePct-targetMargin;
+ let price=denom>0?(cost+freight+other)/denom:0;
+ if(!Number.isFinite(price)||price<0)price=0;
+ const fee=price*feePct;
+ const profit=price-fee-freight-other-cost;
+ const margin=price>0?(profit/price*100):0;
+ if($('#calcSuggested'))$('#calcSuggested').textContent=money(price);
+ if($('#calcFeeValue'))$('#calcFeeValue').textContent=money(fee);
+ if($('#calcProfit'))$('#calcProfit').textContent=money(profit);
+ if($('#calcMarginResult'))$('#calcMarginResult').textContent=margin.toFixed(1)+'%';
+ window.__mlSuggestedPrice=price;
+}
+function applyMLSuggestedPrice(){
+ const p=Number(window.__mlSuggestedPrice||0);
+ closeModal();
+ const input=$('#mlPrice');
+ if(input&&p>0){input.value=p.toFixed(2);input.focus();}
+}
+
 function renderMercadoLivre(){
  ensureData();
  const opts=data.products.map(p=>`<option value="${p.id}">${esc(p.code)} — ${esc(p.name)}</option>`).join('');
@@ -449,7 +497,7 @@ function renderMercadoLivre(){
  const totalRevenue=data.mercadoLivreItems.reduce((a,x)=>{const p=data.products.find(p=>String(p.id)===String(x.productId));return a+mlCalc(x,p).price},0);
  const totalCosts=data.mercadoLivreItems.reduce((a,x)=>{const p=data.products.find(p=>String(p.id)===String(x.productId));const c=mlCalc(x,p);return a+c.cost+c.fee+c.freight+c.other},0);
  const totalProfit=totalRevenue-totalCosts;
- $('#mercadolivre').innerHTML=heading('Mercado Livre','Controle manual dos anúncios e custos do Mercado Livre')+
+ $('#mercadolivre').innerHTML=heading('Mercado Livre','Controle manual dos anúncios e custos do Mercado Livre',`<button class="btn primary" onclick="mlPriceCalculator()">🧮 Calculadora de preço</button>`)+
  `<div class="notice"><b>Modo manual:</b> você publica o anúncio diretamente no Mercado Livre e registra aqui os dados para acompanhar preço, custo do produto, comissão/taxas, frete, outros custos e lucro estimado. Esta tela não publica nem altera anúncios no Mercado Livre.</div>
  <div class="cards">
  ${metric('Anúncios controlados',data.mercadoLivreItems.length,'registrados manualmente','green')}
