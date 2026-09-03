@@ -796,7 +796,7 @@ tbody tr:hover{background:#fbfcff!important}
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 
 </head>
-<body>
+<body class="dark">
 <div id="login" class="login">
   <div class="login-card">
     <div class="login-logo">LP</div><h2>Le Pneus • Administrador</h2><p>Entre com a mesma conta administrativa usada no Catálogo LePneus</p>
@@ -1190,7 +1190,19 @@ function renderConfig(){let s=data.settings; $('#configuracoes').innerHTML=headi
 function saveSettings(){let s=data.settings;s.company=$('#companyName').value;s.fantasy=$('#companyFantasy').value;s.cnpj=$('#companyDoc').value;s.phone=$('#companyPhone').value;s.whatsapp=$('#companyWhatsapp').value;s.email=$('#companyEmail').value;s.address=$('#companyAddress').value;s.city=$('#companyCity').value;s.currency=$('#currency').value;s.defaultPayment=$('#defaultPayment').value;s.commission=+$('#commission').value||0;s.defaultMinStock=+$('#defaultMinStock').value||0;s.confirmCritical=$('#confirmCritical').checked;s.reminderMinutes=+$('#reminderMinutes').value||0;s.browserNotifications=$('#browserNotifications').checked;s.whatsapp=$('#waBusiness').value;s.whatsappWebhook=$('#waWebhook').value.trim();s.whatsappSignature=$('#waSignature').value;s.whatsappAuto=$('#waAuto').checked;s.sessionMinutes=+$('#sessionMinutes').value||480;s.timezone=$('#timezone').value;s.autoBackup=$('#autoBackup').checked;log('Atualizou configurações da empresa');save();if(s.autoBackup)localStorage.setItem('gestaoBackupAuto',JSON.stringify({date:new Date().toISOString(),data}));alert('Configurações salvas com sucesso.');renderAll()}
 function exportBackup(){let blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='controle-de-empresas-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(a.href)}
 function importBackup(){let i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=()=>{let f=i.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let obj=JSON.parse(r.result),d=obj.data||obj;if(!d.products||!d.settings)throw new Error();if(confirm('Substituir os dados atuais pelo backup selecionado?')){data=d;ensureData();save();renderAll();alert('Backup restaurado.')}}catch(e){alert('Arquivo de backup inválido.')}};r.readAsText(f)};i.click()}
-function showModal(html){$('#modalBody').innerHTML=html;$('#modal').classList.add('show')}function closeModal(){$('#modal').classList.remove('show')}
+function showModal(html){
+  const modal=$('#modal'), body=$('#modalBody');
+  if(!modal||!body)return;
+  body.innerHTML='<button class="modal-close-x" type="button" aria-label="Fechar" title="Fechar" onclick="closeModal()">×</button>'+html;
+  modal.classList.add('show');
+  document.body.classList.add('modal-open');
+  setTimeout(()=>{ const f=body.querySelector('input:not([type="hidden"]),select,textarea,button'); if(f) try{f.focus({preventScroll:true})}catch(e){} },20);
+}
+function closeModal(){
+  const modal=$('#modal');
+  if(modal)modal.classList.remove('show');
+  document.body.classList.remove('modal-open');
+}
 function filterTable(inputId,tableId){let q=$('#'+inputId).value.toLowerCase();$('#'+tableId).querySelectorAll('tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none')}
 function sortStock(v){if(v==='qtyasc')data.products.sort((a,b)=>a.qty-b.qty);else if(v==='qtydesc')data.products.sort((a,b)=>b.qty-a.qty);else if(v==='pricedesc')data.products.sort((a,b)=>b.price-a.price);else data.products.sort((a,b)=>a.name.localeCompare(b.name));renderEstoque()}
 function globalSearch(){let q=$('#globalSearch').value.toLowerCase();if(q.length<2)return;let p=data.products.find(x=>x.name.toLowerCase().includes(q)||x.code.toLowerCase().includes(q));let c=data.customers.find(x=>x.name.toLowerCase().includes(q));if(p){openPage('estoque');setTimeout(()=>{$('#stockSearch').value=q;filterTable('stockSearch','stockTable')},50)}else if(c)openPage('clientes')}
@@ -3346,6 +3358,420 @@ window.lePneusMarketStrategy = {
     <small class="cell-sub" style="display:block;margin-top:10px">* O indicador “Mercado ativo” usa somente a quantidade de anúncios semelhantes que você registrou. Ele não mede vendas reais.</small>`;
   };
   mlV6Ensure();
+})();
+</script>
+
+
+<style id="lepneus-final-ui-fix">
+/* ===== Le Pneus • revisão final de legibilidade e acabamento ===== */
+:root{
+  --lp-bg:#08111f;
+  --lp-sidebar:#071321;
+  --lp-panel:#0f1b2b;
+  --lp-panel-2:#121f31;
+  --lp-line:#223249;
+  --lp-line-soft:#1a293d;
+  --lp-text:#f5f8fc;
+  --lp-muted:#9aabc0;
+  --lp-red:#ef3340;
+  --lp-green:#20c77a;
+  --lp-yellow:#f4ae2b;
+  --lp-blue:#56a7ff;
+}
+body.dark{
+  --bg:var(--lp-bg)!important;
+  --panel:var(--lp-panel)!important;
+  --panel2:var(--lp-panel-2)!important;
+  --text:var(--lp-text)!important;
+  --muted:var(--lp-muted)!important;
+  --line:var(--lp-line)!important;
+  --primary:var(--lp-red)!important;
+  --primary2:#d92734!important;
+  --primary-soft:rgba(239,51,64,.12)!important;
+  --shadow:0 8px 28px rgba(0,0,0,.16)!important;
+  --shadow-lg:0 24px 70px rgba(0,0,0,.38)!important;
+}
+html,body{background:var(--lp-bg)}
+body{overflow-x:hidden}
+body.modal-open{overflow:hidden}
+
+/* Sidebar e logomarca: sem corte */
+.sidebar{
+  background:linear-gradient(180deg,#071321 0%,#081524 55%,#07111d 100%)!important;
+  border-right:1px solid #19283c!important;
+  padding:16px 12px!important;
+}
+.brand{
+  display:flex!important;
+  align-items:center!important;
+  gap:11px!important;
+  min-height:66px!important;
+  padding:7px 8px 15px!important;
+  margin:0 0 8px!important;
+  overflow:visible!important;
+}
+.brand .brand-logo{
+  width:48px!important;
+  height:48px!important;
+  min-width:48px!important;
+  padding:3px!important;
+  border-radius:12px!important;
+  overflow:visible!important;
+  background:#091421!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.brand .brand-logo img{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  border-radius:8px!important;
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.25))!important;
+}
+.brand-copy{min-width:0!important;overflow:visible!important}
+.brand-copy strong{
+  color:#fff!important;
+  display:block!important;
+  font-size:16px!important;
+  line-height:1.1!important;
+  white-space:nowrap!important;
+}
+.brand-copy small{
+  color:#a9bed7!important;
+  display:block!important;
+  margin-top:5px!important;
+  font-size:8.5px!important;
+  font-weight:800!important;
+  letter-spacing:.10em!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+}
+.nav-label{color:#60758f!important}
+.nav button{color:#b9c8da!important}
+.nav button:hover{background:#111f31!important;color:#fff!important}
+.nav button.active{
+  background:#162338!important;
+  color:#fff!important;
+  box-shadow:inset 3px 0 var(--lp-red)!important;
+}
+
+/* Cabeçalho e cartões: contorno mais discreto */
+.topbar{
+  background:rgba(8,17,31,.94)!important;
+  border-bottom:1px solid #1b2a3e!important;
+  backdrop-filter:blur(14px)!important;
+}
+.content{max-width:none!important}
+.card,.metric,.settings-section{
+  background:linear-gradient(180deg,#0f1b2b,#0d1928)!important;
+  border:1px solid #203047!important;
+  box-shadow:0 7px 20px rgba(0,0,0,.10)!important;
+}
+.card:hover{border-color:#2b3e58!important}
+.metric .label{color:#90a4bc!important}
+.metric .value{color:#fff!important}
+.heading h1,.section-title,.panel-head h3{color:#fff!important}
+.heading p,.cell-sub,.ml-mini{color:#91a4bc!important}
+.table-wrap{
+  border-radius:12px!important;
+  scrollbar-gutter:stable both-edges;
+}
+table{background:transparent!important}
+thead th{
+  color:#8ea2bb!important;
+  background:#0b1726!important;
+  position:sticky;
+  top:0;
+  z-index:2;
+}
+tbody td{color:#e7edf5!important}
+tbody tr:hover{background:#132239!important}
+input,select,textarea{
+  color-scheme:dark;
+}
+.toolbar input,.toolbar select,.form input,.form select,.form textarea,
+.form-grid input,.form-grid select,.form-grid textarea,
+.ml-v6-toolbar input,.ml-v6-toolbar select{
+  background:#0b1726!important;
+  color:#eef5ff!important;
+  border:1px solid #2a3b52!important;
+}
+input::placeholder,textarea::placeholder{color:#667c96!important}
+
+/* Modal: contraste forte, X sempre visível e conteúdo rolável */
+.modal{
+  background:rgba(2,8,18,.76)!important;
+  backdrop-filter:blur(8px)!important;
+  padding:18px!important;
+  z-index:9999!important;
+}
+.modal-card{
+  position:relative!important;
+  width:min(920px,96vw)!important;
+  max-height:88vh!important;
+  overflow:auto!important;
+  padding:26px 26px 22px!important;
+  background:#0d1928!important;
+  color:#f4f8fd!important;
+  border:1px solid #2a3a50!important;
+  border-radius:18px!important;
+  box-shadow:0 30px 95px rgba(0,0,0,.52)!important;
+}
+.modal-card *{color:inherit}
+.modal-card h1,.modal-card h2,.modal-card h3,.modal-card h4{
+  color:#fff!important;
+}
+.modal-card .notice{
+  background:#111f31!important;
+  color:#dbe7f4!important;
+  border:1px solid #2a3c53!important;
+}
+.modal-card .cell-sub,.modal-card small,.modal-card label,.modal-card p{
+  color:#a8b8ca!important;
+}
+.modal-card th{color:#9eb0c5!important}
+.modal-card td{color:#edf4fb!important}
+.modal-close-x{
+  position:sticky!important;
+  top:0!important;
+  float:right!important;
+  z-index:20!important;
+  width:38px!important;
+  height:38px!important;
+  margin:-12px -12px 6px 14px!important;
+  border:1px solid #364a64!important;
+  border-radius:10px!important;
+  background:#132238!important;
+  color:#fff!important;
+  font-size:25px!important;
+  line-height:32px!important;
+  font-weight:500!important;
+  cursor:pointer!important;
+}
+.modal-close-x:hover{background:var(--lp-red)!important;border-color:var(--lp-red)!important}
+.modal-actions{
+  position:sticky!important;
+  bottom:-22px!important;
+  padding:14px 0 2px!important;
+  background:linear-gradient(180deg,rgba(13,25,40,0),#0d1928 25%)!important;
+  border-top:1px solid #24364d!important;
+  z-index:5!important;
+}
+.modal-card .btn.ghost{background:#132238!important;color:#eef5ff!important;border-color:#31455e!important}
+.modal-card .btn.primary{background:var(--lp-red)!important;color:#fff!important}
+
+/* Mercado Livre: blocos e filtros mais separados */
+#mercadolivre .notice{
+  border-left:3px solid var(--lp-red)!important;
+  background:#0d1b2b!important;
+  color:#c9d7e7!important;
+}
+#mercadolivre>.cards{
+  margin:14px 0 18px!important;
+}
+#mercadolivre>.card{
+  margin-top:18px!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+#mercadolivre>.card .panel-head,
+#mercadolivre>.card>.ml-v6-toolbar{
+  padding:16px 18px!important;
+  margin:0!important;
+  background:#101e30!important;
+  border-bottom:1px solid #23354c!important;
+}
+#mercadolivre .form-grid{
+  padding:16px 18px!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(150px,1fr))!important;
+  gap:12px!important;
+}
+#mercadolivre .form-grid .field{
+  background:#0b1726!important;
+  border:1px solid #22354d!important;
+  border-radius:11px!important;
+  padding:10px!important;
+}
+#mercadolivre .form-grid .field span{
+  color:#8fa4bd!important;
+  font-size:10px!important;
+  font-weight:800!important;
+  text-transform:uppercase!important;
+  letter-spacing:.04em!important;
+}
+#mercadolivre .card>.actions{
+  padding:0 18px 16px!important;
+}
+#mercadolivre .table-wrap{
+  border-top:1px solid #22334a!important;
+  border-radius:0!important;
+  max-height:64vh!important;
+}
+#mercadolivre table{min-width:1500px!important}
+#mercadolivre th,#mercadolivre td{
+  padding:11px 9px!important;
+  vertical-align:middle!important;
+}
+#mercadolivre td:nth-child(2){
+  min-width:230px!important;
+}
+#mercadolivre .actions{
+  min-width:235px!important;
+  gap:5px!important;
+}
+#mercadolivre .actions .btn{
+  min-height:32px!important;
+}
+#mercadolivre .ml-signal{
+  border:1px solid currentColor!important;
+  background:transparent!important;
+}
+#mercadolivre .ml-signal.good{color:#36d488!important}
+#mercadolivre .ml-signal.mid{color:#f4b63b!important}
+#mercadolivre .ml-signal.bad{color:#ff5e69!important}
+#mercadolivre .ml-signal.neutral{color:#8ea1b8!important}
+#mercadolivre .ml-top-card{
+  background:#101e30!important;
+  border:1px solid #2a3b53!important;
+  color:#fff!important;
+}
+#mercadolivre .ml-market-box{
+  background:#0b1726!important;
+  border-color:#263950!important;
+}
+
+/* Faixa adicionada automaticamente na tela do ML */
+.ml-final-nav{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:14px 0 4px;
+  padding:8px;
+  border:1px solid #21334a;
+  border-radius:13px;
+  background:#0b1726;
+}
+.ml-final-nav button{
+  border:1px solid transparent;
+  color:#a9bad0;
+  background:transparent;
+  border-radius:9px;
+  padding:9px 11px;
+  font-weight:750;
+  cursor:pointer;
+}
+.ml-final-nav button:hover{color:#fff;background:#122238}
+.ml-final-nav button.primary-short{background:var(--lp-red);color:#fff}
+.ml-section-label{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 18px 5px;
+  color:#fff;
+  font-size:14px;
+  font-weight:850;
+}
+.ml-section-label:before{
+  content:'';
+  width:4px;height:17px;border-radius:8px;background:var(--lp-red);
+}
+
+/* Botões e responsividade */
+.btn{transition:.15s ease}
+.btn.primary{background:var(--lp-red)!important}
+.btn.primary:hover{background:#d92734!important}
+.btn.ghost{background:#101e30!important;color:#dce7f4!important;border-color:#2a3b52!important}
+.btn.ghost:hover{background:#17283e!important;color:#fff!important}
+@media(max-width:1150px){
+  #mercadolivre .form-grid{grid-template-columns:repeat(2,minmax(160px,1fr))!important}
+}
+@media(max-width:800px){
+  .brand-copy strong{font-size:15px!important}
+  #mercadolivre .form-grid{grid-template-columns:1fr!important}
+  .modal{padding:8px!important}
+  .modal-card{width:100%!important;max-height:94vh!important;padding:20px 16px!important;border-radius:14px!important}
+  .modal-close-x{margin:-8px -4px 6px 12px!important}
+  .modal-actions{bottom:-20px!important;flex-wrap:wrap!important}
+  .modal-actions .btn{flex:1 1 140px!important}
+}
+</style>
+
+
+<script id="lepneus-final-behavior-fix">
+(function(){
+  function installModalUX(){
+    const modal=document.getElementById('modal');
+    if(!modal || modal.dataset.lpUxInstalled==='1')return;
+    modal.dataset.lpUxInstalled='1';
+    modal.addEventListener('mousedown',function(e){
+      if(e.target===modal)closeModal();
+    });
+    document.addEventListener('keydown',function(e){
+      if(e.key==='Escape' && modal.classList.contains('show'))closeModal();
+    });
+  }
+
+  function enhanceMercadoLivreLayout(){
+    const root=document.getElementById('mercadolivre');
+    if(!root)return;
+
+    // Evita duplicar a faixa ao renderizar novamente.
+    root.querySelectorAll('.ml-final-nav,.ml-section-label[data-auto="1"]').forEach(el=>el.remove());
+
+    const notice=root.querySelector('.notice');
+    const nav=document.createElement('div');
+    nav.className='ml-final-nav';
+    nav.innerHTML=`
+      <button class="primary-short" type="button" onclick="mlV6Top10()">🏆 Top 10 oportunidades</button>
+      <button type="button" onclick="window.__mlV6Filter='todos';renderMercadoLivre()">Todos</button>
+      <button type="button" onclick="window.__mlV6Filter='bons';renderMercadoLivre()">🟢 Competitivos</button>
+      <button type="button" onclick="window.__mlV6Filter='atencao';renderMercadoLivre()">🟡 Atenção</button>
+      <button type="button" onclick="window.__mlV6Filter='ruins';renderMercadoLivre()">🔴 Não compensam</button>`;
+    if(notice)notice.insertAdjacentElement('afterend',nav);
+    else root.prepend(nav);
+
+    const cards=[...root.querySelectorAll(':scope > .card')];
+    cards.forEach((card,index)=>{
+      const label=document.createElement('div');
+      label.className='ml-section-label';
+      label.dataset.auto='1';
+      label.textContent=index===0?'Configuração de preço e custos':'Produtos e oportunidades';
+      card.prepend(label);
+    });
+
+    // Títulos úteis para botões pequenos.
+    root.querySelectorAll('button').forEach(btn=>{
+      if(!btn.title)btn.title=(btn.textContent||'Ação').trim();
+    });
+  }
+
+  installModalUX();
+
+  // A última função renderMercadoLivre já existente continua responsável pelos cálculos.
+  const previousML=window.renderMercadoLivre;
+  if(typeof previousML==='function' && !window.__lpMlFinalWrapped){
+    window.__lpMlFinalWrapped=true;
+    window.renderMercadoLivre=function(){
+      const result=previousML.apply(this,arguments);
+      try{enhanceMercadoLivreLayout()}catch(e){console.warn('Ajuste visual ML:',e)}
+      return result;
+    };
+  }
+
+  // Se a tela já tiver sido desenhada, aplica sem esperar nova navegação.
+  document.addEventListener('DOMContentLoaded',function(){
+    installModalUX();
+    try{
+      if(document.getElementById('mercadolivre')?.innerHTML.trim())enhanceMercadoLivreLayout();
+    }catch(e){}
+  });
 })();
 </script>
 
