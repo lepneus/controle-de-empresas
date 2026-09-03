@@ -160,69 +160,640 @@ tbody tr:hover{background:color-mix(in srgb,var(--primary-soft) 34%,transparent)
 </style>
 
 
-<style id="lepneus-sidebar-polish">
+
+
+
+<style id="lepneus-black-red-clean">
+:root{
+  --lp-bg:#0b1017;
+  --lp-panel:#111821;
+  --lp-panel-2:#151d27;
+  --lp-border:#25303d;
+  --lp-text:#f5f7fa;
+  --lp-muted:#98a2b3;
+  --lp-red:#ef2b2d;
+  --lp-red-soft:rgba(239,43,45,.12);
+  --lp-shadow:0 14px 34px rgba(0,0,0,.22);
+}
+
+/* base */
+html,body{background:var(--lp-bg)!important;color:var(--lp-text)!important}
+body{
+  background:
+    radial-gradient(circle at 82% 5%,rgba(239,43,45,.045),transparent 26%),
+    linear-gradient(180deg,#0b1017 0%,#0d131b 100%)!important;
+}
+.main{margin-left:250px!important;background:transparent!important}
+.content{max-width:1540px!important;margin:0 auto!important;padding:30px!important}
+
+/* sidebar */
 .sidebar{
-  padding:20px 14px 24px!important;
-  background:linear-gradient(180deg,#111a2b 0%,#0e1727 100%)!important;
-  border-right:1px solid rgba(255,255,255,.055)!important;
+  width:250px!important;
+  padding:20px 12px 18px!important;
+  background:linear-gradient(180deg,#09101a 0%,#0b121c 52%,#0a1119 100%)!important;
+  border-right:1px solid #202a36!important;
+  box-shadow:8px 0 28px rgba(0,0,0,.18)!important;
 }
 .brand{
-  padding:7px 9px 20px!important;
-  margin-bottom:16px!important;
-  border-bottom:1px solid rgba(255,255,255,.07)!important;
+  padding:8px 10px 22px!important;
+  margin-bottom:15px!important;
+  border-bottom:1px solid #1e2834!important;
 }
 .brand-copy strong{
-  font-size:16px!important;
+  color:#fff!important;
+  font-size:18px!important;
   font-weight:800!important;
-  letter-spacing:-.02em!important;
+  letter-spacing:-.035em!important;
 }
 .brand-copy small{
+  color:#8f9bad!important;
   font-size:9px!important;
   letter-spacing:.11em!important;
 }
 .nav-label{
+  color:#6f7d91!important;
   font-size:9px!important;
-  letter-spacing:.16em!important;
-  margin:7px 0 8px!important;
-  color:#71809a!important;
+  font-weight:800!important;
+  letter-spacing:.17em!important;
+  margin:12px 10px 8px!important;
 }
-.nav{
-  gap:4px!important;
-}
+.nav{gap:5px!important}
 .nav button{
-  position:relative!important;
-  min-height:46px!important;
-  padding:11px 13px!important;
+  min-height:50px!important;
+  padding:10px 12px!important;
   border-radius:12px!important;
+  border:1px solid transparent!important;
+  color:#c6cfdb!important;
   font-size:14px!important;
   font-weight:650!important;
-  letter-spacing:-.01em!important;
-  color:#b7c2d4!important;
-  transition:background .18s ease,color .18s ease,transform .18s ease!important;
+  background:transparent!important;
+  transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease!important;
 }
 .nav button:hover{
-  background:rgba(255,255,255,.055)!important;
+  background:#121b26!important;
+  border-color:#273443!important;
   color:#fff!important;
+  transform:translateX(2px)!important;
 }
 .nav button.active{
-  background:linear-gradient(90deg,rgba(82,103,239,.28),rgba(82,103,239,.13))!important;
+  background:linear-gradient(90deg,rgba(239,43,45,.16),rgba(239,43,45,.045))!important;
+  border-color:rgba(239,43,45,.32)!important;
   color:#fff!important;
-  box-shadow:inset 3px 0 #7586ff,0 7px 20px rgba(17,24,39,.16)!important;
+  box-shadow:inset 3px 0 var(--lp-red),0 8px 18px rgba(0,0,0,.16)!important;
 }
 .nav button.active::after{
-  content:''!important;
+  content:""!important;
   position:absolute!important;
   right:12px!important;
   width:7px!important;
   height:7px!important;
   border-radius:50%!important;
-  background:#8793ff!important;
-  box-shadow:0 0 0 4px rgba(135,147,255,.12)!important;
+  background:var(--lp-red)!important;
+  box-shadow:0 0 0 4px rgba(239,43,45,.10)!important;
 }
-.nav button span:first-child{
-  font-size:15px!important;
+.nav button span:first-child{font-size:16px!important}
+
+/* topbar */
+.topbar{
+  height:72px!important;
+  padding:0 28px!important;
+  background:rgba(12,18,27,.92)!important;
+  backdrop-filter:blur(16px)!important;
+  -webkit-backdrop-filter:blur(16px)!important;
+  border-bottom:1px solid #202a36!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.08)!important;
+}
+.topbar input{
+  background:#111821!important;
+  border-color:#273342!important;
+  color:#fff!important;
+}
+.topbar input::placeholder{color:#79869a!important}
+
+/* títulos */
+.page h1,.page h2,.page h3{color:#f7f9fc!important}
+.page h1{
+  font-size:28px!important;
+  font-weight:800!important;
+  letter-spacing:-.04em!important;
+}
+.page p,.muted,small{color:var(--lp-muted)!important}
+
+/* cards */
+.card,.kpi,.table-wrap,.panel{
+  background:linear-gradient(180deg,#121a24 0%,#101720 100%)!important;
+  border:1px solid var(--lp-border)!important;
+  border-radius:16px!important;
+  box-shadow:var(--lp-shadow)!important;
+}
+.card{padding:20px!important}
+.kpi{
+  padding:20px!important;
+  min-height:126px!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+.kpi::before{
+  content:""!important;
+  position:absolute!important;
+  right:-32px!important;
+  top:-32px!important;
+  width:88px!important;
+  height:88px!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle,rgba(239,43,45,.12),transparent 70%)!important;
+}
+.kpi .value,.kpi b{
+  color:#fff!important;
+  font-size:24px!important;
+  letter-spacing:-.03em!important;
+}
+
+/* botões */
+.btn{
+  min-height:42px!important;
+  padding:10px 15px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+  font-weight:750!important;
+  border:1px solid #2a3543!important;
+  background:#151e29!important;
+  color:#e9edf3!important;
+  transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease!important;
+}
+.btn:hover{
+  transform:translateY(-1px)!important;
+  background:#192431!important;
+  border-color:#354253!important;
+  box-shadow:0 8px 18px rgba(0,0,0,.18)!important;
+}
+.btn.primary{
+  background:linear-gradient(135deg,#e32629,#f13a3d)!important;
+  border-color:#f04a4d!important;
+  color:#fff!important;
+  box-shadow:0 8px 18px rgba(239,43,45,.16)!important;
+}
+.btn.primary:hover{
+  background:linear-gradient(135deg,#ed2d30,#f24749)!important;
+}
+
+/* campos */
+input,select,textarea{
+  min-height:42px!important;
+  border-radius:10px!important;
+  border:1px solid #2a3543!important;
+  background:#0f161f!important;
+  color:#f5f7fa!important;
+  outline:none!important;
+}
+input::placeholder,textarea::placeholder{color:#6f7d91!important}
+input:focus,select:focus,textarea:focus{
+  border-color:#7b3438!important;
+  box-shadow:0 0 0 3px rgba(239,43,45,.08)!important;
+}
+
+/* tabelas */
+table{border-collapse:separate!important;border-spacing:0!important}
+th{
+  background:#111923!important;
+  color:#8f9bad!important;
+  font-size:11px!important;
+  text-transform:uppercase!important;
+  letter-spacing:.04em!important;
+}
+th,td{
+  padding:13px 14px!important;
+  border-bottom:1px solid #202a35!important;
+}
+td{color:#dfe5ed!important}
+tbody tr{transition:background .14s ease!important}
+tbody tr:hover{background:#131d28!important}
+
+/* avisos / badges */
+.badge,.status{
+  border-radius:999px!important;
+  padding:5px 9px!important;
+  font-weight:750!important;
+}
+.notice{
+  background:#131c26!important;
+  border:1px solid #2a3543!important;
+  border-radius:12px!important;
+  color:#cbd5e1!important;
+}
+
+/* modais */
+.modal,.modal-backdrop{backdrop-filter:blur(6px)!important}
+.modal-box,.modal-content{
+  background:#101720!important;
+  border:1px solid #2a3543!important;
+  border-radius:18px!important;
+  box-shadow:0 28px 80px rgba(0,0,0,.42)!important;
+}
+
+/* scrollbar */
+*{scrollbar-width:thin;scrollbar-color:#3a4656 #0c131c}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:#0c131c}
+::-webkit-scrollbar-thumb{background:#364252;border-radius:20px;border:2px solid #0c131c}
+::-webkit-scrollbar-thumb:hover{background:#465366}
+
+/* mobile */
+@media(max-width:900px){
+  .main{margin-left:0!important}
+  .sidebar{width:260px!important}
+  .content{padding:18px!important}
+  .topbar{padding:0 16px!important}
 }
 </style>
+
+
+<style id="lepneus-final-clean-vibrant">
+:root{
+  --ui-bg:#f7f9fc;
+  --ui-card:#ffffff;
+  --ui-border:#e7ebf1;
+  --ui-text:#111827;
+  --ui-muted:#6b7280;
+  --ui-sidebar:#08111d;
+  --ui-sidebar-2:#0b1623;
+  --ui-red:#ef1f2b;
+  --ui-green:#16a34a;
+  --ui-blue:#2563eb;
+  --ui-purple:#7c3aed;
+  --ui-orange:#f59e0b;
+  --ui-cyan:#0891b2;
+  --ui-shadow:0 8px 24px rgba(15,23,42,.055);
+}
+
+/* Estrutura geral */
+html,body{
+  background:var(--ui-bg)!important;
+  color:var(--ui-text)!important;
+}
+body{
+  background:
+    radial-gradient(circle at 76% 3%,rgba(37,99,235,.035),transparent 25%),
+    linear-gradient(180deg,#fbfcfe 0%,#f6f8fb 100%)!important;
+}
+.main{
+  margin-left:238px!important;
+  background:transparent!important;
+}
+.content{
+  max-width:1560px!important;
+  margin:0 auto!important;
+  padding:28px 30px 34px!important;
+}
+
+/* Sidebar preta, elegante e fácil de navegar */
+.sidebar{
+  width:238px!important;
+  padding:18px 12px 16px!important;
+  background:linear-gradient(180deg,var(--ui-sidebar) 0%,var(--ui-sidebar-2) 100%)!important;
+  border-right:1px solid rgba(255,255,255,.055)!important;
+  box-shadow:8px 0 28px rgba(15,23,42,.08)!important;
+}
+.brand{
+  padding:8px 10px 21px!important;
+  margin-bottom:14px!important;
+  border-bottom:1px solid rgba(255,255,255,.075)!important;
+}
+.brand-copy strong{
+  color:#fff!important;
+  font-size:18px!important;
+  font-weight:800!important;
+  letter-spacing:-.035em!important;
+}
+.brand-copy small{
+  color:#94a3b8!important;
+  font-size:9px!important;
+  letter-spacing:.11em!important;
+}
+.nav-label{
+  margin:12px 10px 8px!important;
+  color:#66758a!important;
+  font-size:9px!important;
+  font-weight:800!important;
+  letter-spacing:.17em!important;
+}
+.nav{gap:4px!important}
+.nav button{
+  position:relative!important;
+  min-height:48px!important;
+  padding:10px 12px!important;
+  border-radius:11px!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+  color:#d4dbe5!important;
+  font-size:13.5px!important;
+  font-weight:650!important;
+  transition:all .16s ease!important;
+}
+.nav button:hover{
+  color:#fff!important;
+  background:rgba(255,255,255,.055)!important;
+  border-color:rgba(255,255,255,.05)!important;
+  transform:translateX(2px)!important;
+}
+.nav button.active{
+  color:#fff!important;
+  background:linear-gradient(90deg,rgba(239,31,43,.95),rgba(218,26,36,.92))!important;
+  border-color:rgba(255,255,255,.08)!important;
+  box-shadow:0 8px 18px rgba(239,31,43,.18)!important;
+}
+.nav button.active::after{
+  content:"›"!important;
+  position:absolute!important;
+  right:12px!important;
+  font-size:18px!important;
+  line-height:1!important;
+  color:#fff!important;
+  background:none!important;
+  box-shadow:none!important;
+  width:auto!important;
+  height:auto!important;
+}
+.nav button span:first-child{font-size:16px!important}
+
+/* Topo claro */
+.topbar{
+  height:68px!important;
+  padding:0 26px!important;
+  background:rgba(255,255,255,.96)!important;
+  backdrop-filter:blur(12px)!important;
+  -webkit-backdrop-filter:blur(12px)!important;
+  border-bottom:1px solid var(--ui-border)!important;
+  box-shadow:0 2px 10px rgba(15,23,42,.025)!important;
+}
+.topbar input{
+  background:#fbfcfe!important;
+  border-color:#e1e6ed!important;
+  color:#111827!important;
+}
+.topbar input::placeholder{color:#94a3b8!important}
+
+/* Tipografia */
+.page h1,.page h2,.page h3{color:var(--ui-text)!important}
+.page h1{
+  font-size:27px!important;
+  line-height:1.18!important;
+  font-weight:800!important;
+  letter-spacing:-.04em!important;
+}
+.page p,.muted,small{color:var(--ui-muted)!important}
+
+/* Cards principais */
+.card,.kpi,.table-wrap,.panel{
+  background:var(--ui-card)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:14px!important;
+  box-shadow:var(--ui-shadow)!important;
+}
+.card{padding:18px!important}
+.kpi{
+  position:relative!important;
+  min-height:124px!important;
+  padding:18px!important;
+  overflow:hidden!important;
+}
+.kpi::before{
+  content:""!important;
+  position:absolute!important;
+  right:-34px!important;
+  top:-34px!important;
+  width:96px!important;
+  height:96px!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle,rgba(37,99,235,.055),transparent 68%)!important;
+}
+.kpi .value,.kpi b{
+  color:#111827!important;
+  font-size:23px!important;
+  font-weight:800!important;
+  letter-spacing:-.035em!important;
+}
+
+/* Cores semânticas: dinheiro não fica vermelho */
+.kpi:nth-child(1) .value,
+.kpi:nth-child(1) b,
+.money,
+.profit,
+.positive{
+  color:var(--ui-green)!important;
+}
+.warning,.attention{
+  color:var(--ui-orange)!important;
+}
+.danger,.negative{
+  color:#dc2626!important;
+}
+
+/* Botões */
+.btn{
+  min-height:40px!important;
+  padding:9px 14px!important;
+  border-radius:10px!important;
+  border:1px solid #dfe4ea!important;
+  background:#fff!important;
+  color:#243041!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  box-shadow:none!important;
+  transition:all .14s ease!important;
+}
+.btn:hover{
+  transform:translateY(-1px)!important;
+  border-color:#cfd6df!important;
+  background:#f9fafb!important;
+  box-shadow:0 6px 14px rgba(15,23,42,.06)!important;
+}
+.btn.primary{
+  color:#fff!important;
+  background:linear-gradient(135deg,#ef1f2b,#dc1823)!important;
+  border-color:#ef1f2b!important;
+  box-shadow:0 7px 16px rgba(239,31,43,.14)!important;
+}
+.btn.primary:hover{
+  background:linear-gradient(135deg,#f12b35,#e01c27)!important;
+}
+
+/* Inputs e formulários */
+input,select,textarea{
+  min-height:41px!important;
+  border-radius:9px!important;
+  border:1px solid #dde3ea!important;
+  background:#fff!important;
+  color:#111827!important;
+  outline:none!important;
+}
+input::placeholder,textarea::placeholder{color:#9aa5b1!important}
+input:focus,select:focus,textarea:focus{
+  border-color:#93b4ff!important;
+  box-shadow:0 0 0 3px rgba(37,99,235,.08)!important;
+}
+
+/* Tabelas */
+table{
+  border-collapse:separate!important;
+  border-spacing:0!important;
+}
+th{
+  background:#f8fafc!important;
+  color:#64748b!important;
+  font-size:10.5px!important;
+  text-transform:uppercase!important;
+  letter-spacing:.035em!important;
+}
+th,td{
+  padding:12px 13px!important;
+  border-bottom:1px solid #edf0f4!important;
+}
+td{color:#263244!important}
+tbody tr{transition:background .13s ease!important}
+tbody tr:hover{background:#fbfcff!important}
+
+/* Badges e avisos */
+.badge,.status{
+  border-radius:999px!important;
+  padding:5px 9px!important;
+  font-weight:700!important;
+}
+.notice{
+  background:#f8fafc!important;
+  border:1px solid #e4e9ef!important;
+  border-radius:11px!important;
+  color:#475569!important;
+}
+
+/* Modais */
+.modal-box,.modal-content{
+  background:#fff!important;
+  color:#111827!important;
+  border:1px solid #e4e9ef!important;
+  border-radius:16px!important;
+  box-shadow:0 28px 80px rgba(15,23,42,.18)!important;
+}
+
+/* Scrollbar */
+*{scrollbar-width:thin;scrollbar-color:#aab3bf #eef2f6}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#eef2f6}
+::-webkit-scrollbar-thumb{background:#aab3bf;border-radius:20px;border:2px solid #eef2f6}
+::-webkit-scrollbar-thumb:hover{background:#8f99a6}
+
+/* Mobile */
+@media(max-width:900px){
+  .main{margin-left:0!important}
+  .sidebar{width:258px!important}
+  .content{padding:17px!important}
+  .topbar{padding:0 14px!important}
+}
+</style>
+
+
+<style id="lepneus-reference-sidebar">
+/* Ícones e menu iguais ao conceito visual aprovado */
+.sidebar{
+  width:238px!important;
+  padding:18px 13px 16px!important;
+  background:linear-gradient(180deg,#07101b 0%,#091521 100%)!important;
+  border-right:1px solid rgba(255,255,255,.06)!important;
+}
+.main{margin-left:238px!important}
+.nav{display:grid!important;gap:3px!important}
+.nav button{
+  position:relative!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:13px!important;
+  width:100%!important;
+  min-height:46px!important;
+  padding:9px 34px 9px 12px!important;
+  margin:0!important;
+  border-radius:10px!important;
+  background:transparent!important;
+  border:1px solid transparent!important;
+  color:#f0f3f7!important;
+  font-size:13.5px!important;
+  font-weight:600!important;
+  letter-spacing:-.015em!important;
+  box-shadow:none!important;
+  transition:background .16s ease,color .16s ease,transform .16s ease,box-shadow .16s ease!important;
+}
+.nav button:hover{
+  background:rgba(255,255,255,.055)!important;
+  color:#fff!important;
+  transform:translateX(2px)!important;
+  border-color:rgba(255,255,255,.035)!important;
+}
+.nav button::after{
+  content:"›"!important;
+  position:absolute!important;
+  right:13px!important;
+  top:50%!important;
+  transform:translateY(-52%)!important;
+  width:auto!important;
+  height:auto!important;
+  border-radius:0!important;
+  background:none!important;
+  box-shadow:none!important;
+  color:#c8d0db!important;
+  font-size:20px!important;
+  font-weight:300!important;
+  opacity:.92!important;
+}
+.nav button.active{
+  background:linear-gradient(90deg,#f21828 0%,#e61e2c 100%)!important;
+  border-color:#f43b47!important;
+  color:#fff!important;
+  box-shadow:0 8px 20px rgba(226,29,42,.22)!important;
+  transform:none!important;
+}
+.nav button.active::after{color:#fff!important}
+.nav-svg{
+  width:21px!important;
+  height:21px!important;
+  flex:0 0 21px!important;
+  display:grid!important;
+  place-items:center!important;
+  color:#f5f7fa!important;
+}
+.nav-svg svg{
+  display:block!important;
+  width:20px!important;
+  height:20px!important;
+  overflow:visible!important;
+}
+.nav-text{
+  min-width:0!important;
+  line-height:1.18!important;
+}
+.nav-label{
+  margin:11px 11px 7px!important;
+  color:#718095!important;
+  font-size:9px!important;
+  font-weight:800!important;
+  letter-spacing:.17em!important;
+}
+.brand{
+  padding:7px 10px 21px!important;
+  margin-bottom:13px!important;
+}
+.brand .brand-logo{
+  border-radius:11px!important;
+  border-color:rgba(255,255,255,.06)!important;
+}
+@media(max-width:900px){
+  .main{margin-left:0!important}
+  .sidebar{width:258px!important}
+}
+</style>
+
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 
 </head>
 <body>
@@ -272,7 +843,23 @@ tbody tr:hover{background:color-mix(in srgb,var(--primary-soft) 34%,transparent)
 <div class="modal" id="modal"><div class="modal-card"><div id="modalBody"></div></div></div>
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-const menu=[['dashboard','📊','Dashboard'],['estoque','📦','Estoque'],['planilhas','🔗','Conexão Planilhas'],['vendas','🛒','Vendas'],['catalogo','🌐','Catálogo LePneus'],['mercadolivre','🟡','Mercado Livre'],['caixa','🏦','Caixa'],['compras','🚚','Compras'],['clientes','👥','Clientes'],['fornecedores','🏭','Fornecedores'],['os','🛠️','Serviços'],['agenda','📅','Agenda e Lembretes'],['fechamento','🧾','Fechamento Mensal'],['backup','💾','Backup e Restauração'],['usuarios','🔐','Usuários']];
+const menu=[
+['dashboard','home','Dashboard'],
+['estoque','box','Estoque'],
+['planilhas','link','Conexão Planilhas'],
+['vendas','cart','Vendas'],
+['catalogo','globe','Catálogo LePneus'],
+['mercadolivre','handshake','Mercado Livre'],
+['caixa','wallet','Caixa'],
+['compras','bag','Compras'],
+['clientes','users','Clientes'],
+['fornecedores','building','Fornecedores'],
+['os','tools','Serviços'],
+['agenda','calendar','Agenda e Lembretes'],
+['fechamento','chart','Fechamento Mensal'],
+['backup','cloud','Backup e Restauração'],
+['usuarios','shield','Usuários']
+];
 let data=JSON.parse(localStorage.getItem('gestaoData')||'null')||{
  products:[{id:1,code:'P001',name:'Produto Exemplo',category:'Geral',brand:'Marca A',qty:12,min:5,cost:80,price:120},{id:2,code:'P002',name:'Produto Baixo Estoque',category:'Geral',brand:'Marca B',qty:2,min:5,cost:45,price:79.9}],
  customers:[{id:1,name:'Cliente Exemplo',doc:'000.000.000-00',phone:'(45) 99999-9999',email:'cliente@email.com'}],
@@ -299,7 +886,32 @@ function esc(value){
 
 function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function log(action){data.history.unshift({date:new Date().toLocaleString('pt-BR'),user:'Administrador',action});save()}
-function initNav(){ $('#nav').innerHTML=menu.map(([id,icon,label],i)=>`<button class="${i===0?'active':''}" onclick="openPage('${id}',this)">${icon}<span>${label}</span></button>`).join('') }
+
+function navIcon(name){
+ const common='viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+ const icons={
+  home:`<svg ${common}><path d="M3 10.8 12 3l9 7.8"/><path d="M5 9.8V21h14V9.8"/><path d="M9.5 21v-6h5v6"/></svg>`,
+  box:`<svg ${common}><path d="m21 8-9 5-9-5"/><path d="m3 8 9-5 9 5v8l-9 5-9-5Z"/><path d="M12 13v8"/></svg>`,
+  link:`<svg ${common}><path d="M10.6 13.4a4 4 0 0 0 5.7 0l3.1-3.1a4 4 0 0 0-5.7-5.7l-1.8 1.8"/><path d="M13.4 10.6a4 4 0 0 0-5.7 0l-3.1 3.1a4 4 0 0 0 5.7 5.7l1.8-1.8"/></svg>`,
+  cart:`<svg ${common}><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 1.9-1.4L21 8H6"/><circle cx="9.5" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>`,
+  globe:`<svg ${common}><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg>`,
+  handshake:`<svg ${common}><path d="m8.5 12.5 2 2a2 2 0 0 0 2.8 0l4.2-4.2"/><path d="m14 7 1.2-1.2a2 2 0 0 1 2.8 0L21 8.8"/><path d="m3 9 3-3 4 1 2 2"/><path d="m3 9 5 5"/><path d="m21 8.8-5.5 5.5"/><path d="M7 15l1 1a2 2 0 0 0 2.8 0"/></svg>`,
+  wallet:`<svg ${common}><path d="M4 7h14a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12"/><path d="M20 11h-5a2 2 0 0 0 0 4h5"/><circle cx="15" cy="13" r=".5" fill="currentColor" stroke="none"/></svg>`,
+  bag:`<svg ${common}><path d="M5 8h14l-1 13H6Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>`,
+  users:`<svg ${common}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  building:`<svg ${common}><path d="M3 21h18"/><path d="M5 21V8l7-4v17"/><path d="M12 21V11l7-3v13"/><path d="M8 11h1M8 15h1M15 13h1M15 17h1"/></svg>`,
+  tools:`<svg ${common}><path d="M14.7 6.3a4 4 0 0 0-5-5l2.2 2.2-2.4 2.4L7.3 3.7a4 4 0 0 0 5 5l7.5 7.5a2.1 2.1 0 1 1-3 3Z"/><path d="m5 13-3 3 4 4 3-3"/><path d="m14 10 6-6"/></svg>`,
+  calendar:`<svg ${common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>`,
+  chart:`<svg ${common}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>`,
+  cloud:`<svg ${common}><path d="M17.5 19H7a5 5 0 0 1-.6-9.96A7 7 0 0 1 19.7 11.4 4 4 0 0 1 17.5 19Z"/></svg>`,
+  shield:`<svg ${common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M9 12l2 2 4-4"/></svg>`
+ };
+ return `<span class="nav-svg">${icons[name]||icons.home}</span>`;
+}
+
+function initNav(){
+ $('#nav').innerHTML=menu.map(([id,icon,label],i)=>`<button class="${i===0?'active':''}" onclick="openPage('${id}',this)">${navIcon(icon)}<span class="nav-text">${label}</span></button>`).join('');
+}
 function openPage(id,btn){$$('.page').forEach(p=>p.classList.remove('active')); $('#'+id).classList.add('active'); $$('.nav button').forEach(b=>b.classList.remove('active')); if(btn)btn.classList.add('active'); renderAll(); $('#sidebar').classList.remove('open')}
 function toggleSidebar(){ $('#sidebar').classList.toggle('open') }
 function toggleTheme(){document.body.classList.toggle('dark');localStorage.setItem('theme',document.body.classList.contains('dark')?'dark':'light')}
@@ -1286,5 +1898,271 @@ function openPage(id,btn){
 
 initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); $('#login').classList.add('hidden'); autoClosePreviousMonth(); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
 </script>
+<script>
+
+/* ===== Firebase • Integração Controle -> Catálogo LePneus ===== */
+const LEPNEUS_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBGS1CZD-jgQsLcL7wlnXqBZbodrAC-cIQ",
+  authDomain: "le-pneus.firebaseapp.com",
+  projectId: "le-pneus",
+  storageBucket: "le-pneus.firebasestorage.app",
+  messagingSenderId: "301697438039",
+  appId: "1:301697438039:web:a7a36ebae356868e916e12",
+  measurementId: "G-4V5MF7GWMN"
+};
+
+let lpFirebaseApp=null, lpDb=null, lpAuth=null, lpFirebaseUser=null;
+let lpFirebaseState={ready:false,connected:false,error:''};
+
+function initLePneusFirebase(){
+  try{
+    if(!window.firebase){
+      lpFirebaseState={ready:false,connected:false,error:'SDK do Firebase não carregou.'};
+      return false;
+    }
+    if(!firebase.apps.length) firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+    lpFirebaseApp=firebase.app();
+    lpDb=firebase.firestore();
+    lpAuth=firebase.auth();
+    lpFirebaseState.ready=true;
+    lpAuth.onAuthStateChanged(user=>{
+      lpFirebaseUser=user||null;
+      lpFirebaseState.connected=!!user;
+      lpFirebaseState.error='';
+      try{
+        if(document.getElementById('catalogo')?.classList.contains('active')) renderCatalogo();
+      }catch(e){}
+    });
+    return true;
+  }catch(e){
+    console.error('Firebase:',e);
+    lpFirebaseState={ready:false,connected:false,error:e.message||'Falha ao iniciar Firebase.'};
+    return false;
+  }
+}
+
+function firebaseStatusHTML(){
+  if(lpFirebaseState.connected && lpFirebaseUser){
+    return `<span class="badge ok">● Firebase conectado</span><small class="cell-sub">${esc(lpFirebaseUser.email||'Usuário autenticado')}</small>`;
+  }
+  if(lpFirebaseState.error){
+    return `<span class="badge danger">Firebase indisponível</span><small class="cell-sub">${esc(lpFirebaseState.error)}</small>`;
+  }
+  return `<span class="badge warn">○ Firebase desconectado</span><small class="cell-sub">Conecte para publicar no catálogo</small>`;
+}
+
+function firebaseLoginModal(){
+  if(!lpFirebaseState.ready) initLePneusFirebase();
+  if(lpFirebaseUser){
+    showModal(`<h2>Firebase conectado</h2>
+      <div class="notice"><b>Conta:</b> ${esc(lpFirebaseUser.email||'Usuário autenticado')}<br>
+      O Controle de Mercadorias está pronto para atualizar a coleção <b>produtos</b> usada pelo catálogo público.</div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button><button class="btn primary" onclick="firebaseLogout()">Desconectar</button></div>`);
+    return;
+  }
+  showModal(`<h2>Conectar ao Firebase</h2>
+    <div class="notice">Use a mesma conta administrativa do Catálogo LePneus. A senha não fica salva neste HTML.</div>
+    <div class="form">
+      <label>E-mail<input id="fbEmail" type="email" value="lepneus@outlook.com" autocomplete="username"></label>
+      <label>Senha<input id="fbPassword" type="password" autocomplete="current-password" placeholder="Senha do Firebase"></label>
+    </div>
+    <div id="fbLoginMsg" class="muted"></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="firebaseLogin()">Conectar</button></div>`);
+}
+
+async function firebaseLogin(){
+  if(!lpAuth && !initLePneusFirebase()) return alert('Firebase não carregou.');
+  const email=$('#fbEmail')?.value.trim();
+  const password=$('#fbPassword')?.value||'';
+  if(!email||!password) return alert('Informe e-mail e senha.');
+  const msg=$('#fbLoginMsg'); if(msg) msg.textContent='Conectando...';
+  try{
+    await lpAuth.signInWithEmailAndPassword(email,password);
+    closeModal();
+    renderCatalogo();
+    alert('Firebase conectado com sucesso.');
+  }catch(e){
+    console.error(e);
+    if(msg) msg.textContent='Não foi possível entrar. Confira e-mail, senha e regras do Firebase.';
+  }
+}
+
+async function firebaseLogout(){
+  try{if(lpAuth) await lpAuth.signOut();}catch(e){}
+  closeModal();
+  renderCatalogo();
+}
+
+function normalizeCatalogCategory(v){
+  const s=String(v||'').toLowerCase();
+  if(s.includes('moto')) return 'Pneu de moto';
+  if(s.includes('acess')||s.includes('câmara')||s.includes('camara')) return 'Acessórios';
+  return 'Pneu';
+}
+
+function extractCatalogSize(name){
+  const s=String(name||'').toUpperCase().replace(/\s+/g,' ').trim();
+  let m=s.match(/(\d{3})\s*\/?\s*(\d{2})\s*R\s*(\d{2})/i);
+  if(m) return `${m[1]}/${m[2]} R${m[3]}`;
+  m=s.match(/(\d{2,3})\s*\/\s*(\d{2,3})\s*[- ]\s*(\d{2})/i);
+  if(m) return `${m[1]}/${m[2]}-${m[3]}`;
+  m=s.match(/(\d{2,3})\s+(\d{2,3})\s+R?\s*(\d{2})/i);
+  if(m) return `${m[1]}/${m[2]} R${m[3]}`;
+  return '';
+}
+
+function catalogModelFromProduct(p){
+  let n=String(p.name||'').trim();
+  const b=String(p.brand||'').trim();
+  if(b && n.toLowerCase().startsWith(b.toLowerCase())) n=n.slice(b.length).trim();
+  return n || String(p.code||'Produto');
+}
+
+function productToFirebaseCatalog(p, existing={}){
+  const size=existing.size || extractCatalogSize(p.name);
+  const aro=(size.match(/(?:R|-)(\d{2})/i)||[])[1]||existing.aro||'';
+  return {
+    categoria: normalizeCatalogCategory(p.category),
+    brand: p.brand || existing.brand || '',
+    model: catalogModelFromProduct(p),
+    size: size,
+    aro: aro,
+    load: existing.load || '',
+    app: existing.app || '',
+    price: Number(p.price||0),
+    stock: Number(p.qty||0),
+    promo: !!existing.promo,
+    image: existing.image || '',
+    code: String(p.code||''),
+    controlId: String(p.id),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+}
+
+async function findFirebaseCatalogDoc(p){
+  if(!lpDb) return null;
+  let snap=await lpDb.collection('produtos').where('controlId','==',String(p.id)).limit(1).get();
+  if(!snap.empty) return snap.docs[0];
+  if(p.code){
+    snap=await lpDb.collection('produtos').where('code','==',String(p.code)).limit(1).get();
+    if(!snap.empty) return snap.docs[0];
+  }
+  return null;
+}
+
+async function publishProductToFirebase(productId, silent=false){
+  ensureData();
+  if(!lpFirebaseUser){
+    if(!silent) firebaseLoginModal();
+    return {ok:false,reason:'auth'};
+  }
+  const p=data.products.find(x=>String(x.id)===String(productId));
+  if(!p) return {ok:false,reason:'missing'};
+  try{
+    const found=await findFirebaseCatalogDoc(p);
+    const existing=found?found.data():{};
+    const payload=productToFirebaseCatalog(p,existing);
+    let docId;
+    if(found){
+      docId=found.id;
+      await lpDb.collection('produtos').doc(docId).set(payload,{merge:true});
+    }else{
+      const ref=await lpDb.collection('produtos').add(payload);
+      docId=ref.id;
+    }
+    let local=data.catalogItems.find(x=>String(x.productId)===String(p.id));
+    if(local){
+      Object.assign(local,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Publicado',firebaseId:docId,updatedAt:new Date().toLocaleString('pt-BR')});
+    }else{
+      data.catalogItems.unshift({id:Date.now()+Math.random(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Publicado',firebaseId:docId,importedAt:new Date().toLocaleString('pt-BR')});
+    }
+    save();
+    if(!silent) alert('Produto sincronizado com o catálogo pelo Firebase.');
+    return {ok:true,docId};
+  }catch(e){
+    console.error('Publicação Firebase:',e);
+    if(!silent) alert('Não foi possível atualizar o catálogo. Confira login e regras do Firestore.');
+    return {ok:false,error:e};
+  }
+}
+
+async function syncAllCatalogToFirebase(){
+  if(!lpFirebaseUser) return firebaseLoginModal();
+  if(!data.catalogItems.length) return alert('Não há produtos selecionados na aba Catálogo.');
+  if(!confirm(`Sincronizar ${data.catalogItems.length} produto(s) selecionado(s) com o Firebase?`)) return;
+  let ok=0,err=0;
+  for(const item of [...data.catalogItems]){
+    const r=await publishProductToFirebase(item.productId,true);
+    r.ok?ok++:err++;
+  }
+  save(); renderCatalogo();
+  alert(`Sincronização concluída.\nAtualizados: ${ok}\nErros: ${err}`);
+}
+
+async function pullFirebaseCatalog(){
+  if(!lpFirebaseUser) return firebaseLoginModal();
+  try{
+    const snap=await lpDb.collection('produtos').get();
+    const cloud=snap.docs.map(d=>({firebaseId:d.id,...d.data()}));
+    let linked=0;
+    cloud.forEach(c=>{
+      let p=data.products.find(p=>String(p.id)===String(c.controlId||''));
+      if(!p && c.code) p=data.products.find(p=>String(p.code||'')===String(c.code));
+      if(!p) return;
+      let x=data.catalogItems.find(x=>String(x.productId)===String(p.id));
+      const val={code:p.code,name:p.name,brand:p.brand,category:p.category,qty:Number(c.stock??p.qty??0),price:Number(c.price??p.price??0),status:'Publicado',firebaseId:c.firebaseId};
+      if(x) Object.assign(x,val);
+      else data.catalogItems.unshift({id:Date.now()+Math.random(),productId:p.id,...val});
+      linked++;
+    });
+    save();renderCatalogo();
+    alert(`Catálogo lido do Firebase. ${linked} produto(s) foram vinculados ao estoque local.`);
+  }catch(e){
+    console.error(e);alert('Não foi possível ler o catálogo do Firebase.');
+  }
+}
+
+/* Inicializa sem exigir login; a autenticação é feita ao publicar. */
+setTimeout(initLePneusFirebase,0);
+
+</script>
+
+<script id="firebase-catalog-overrides">
+async function sendToCatalogo(id){
+  ensureData();
+  const p=data.products.find(x=>String(x.id)===String(id));
+  if(!p)return;
+  let exists=data.catalogItems.find(x=>String(x.productId)===String(id));
+  if(exists){
+    Object.assign(exists,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,updatedAt:new Date().toLocaleString('pt-BR')});
+  }else{
+    data.catalogItems.unshift({id:Date.now()+Math.random(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:lpFirebaseUser?'Publicando...':'Pronto para publicar',importedAt:new Date().toLocaleString('pt-BR')});
+  }
+  save();
+  if(lpFirebaseUser){
+    await publishProductToFirebase(id);
+  }else{
+    renderCatalogo();
+    firebaseLoginModal();
+  }
+}
+
+function renderCatalogo(){
+  ensureData();
+  let rows=data.catalogItems.map(x=>{
+    let p=data.products.find(p=>String(p.id)===String(x.productId));
+    if(p)Object.assign(x,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price});
+    const cloud=x.firebaseId?'<span class="badge ok">Firebase</span>':'<span class="badge warn">Local</span>';
+    return `<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(x.category)}</td><td>${esc(x.brand)}</td><td>${Number(x.qty||0)}</td><td>${money(x.price)}</td><td>${cloud}</td><td><span class="badge ok">${esc(x.status||'Ativo')}</span></td><td class="actions"><button class="btn ghost small" onclick="publishProductToFirebase('${x.productId}')">Sincronizar</button><button class="btn ghost small" onclick="removeFromCatalog(${x.id})">Remover local</button></td></tr>`
+  }).join('');
+  $('#catalogo').innerHTML=
+    heading('Catálogo LePneus','Controle ligado ao mesmo Firebase usado pelo catálogo público',
+      `<div class="actions"><button class="btn ghost" onclick="firebaseLoginModal()">🔥 ${lpFirebaseUser?'Firebase conectado':'Conectar Firebase'}</button><button class="btn ghost" onclick="pullFirebaseCatalog()">Baixar catálogo</button><button class="btn primary" onclick="syncAllCatalogToFirebase()">Sincronizar todos</button></div>`)
+    +`<div class="card" style="margin-bottom:16px"><div class="panel-head"><div><h3 class="section-title">Conexão Firebase</h3>${firebaseStatusHTML()}</div><div class="soft-chip">Projeto: le-pneus • coleção: produtos</div></div><div class="notice" style="margin-top:12px"><b>Fluxo preparado:</b> Estoque → Catálogo LePneus → Firebase → site público. O custo do produto não é enviado ao catálogo; apenas dados públicos como nome, marca, preço e estoque.</div></div>`
+    +`<div class="cards">${metric('Produtos selecionados',data.catalogItems.length,'prontos para o catálogo','green')}${metric('Publicados no Firebase',data.catalogItems.filter(x=>x.firebaseId).length,'vinculados à nuvem','green')}${metric('Unidades disponíveis',data.catalogItems.reduce((a,x)=>a+Number(x.qty||0),0),'estoque atual','green')}</div>`
+    +`<div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Estoque</th><th>Preço</th><th>Nuvem</th><th>Status</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum produto selecionado. Vá em Estoque e clique em “Catálogo”.</td></tr>'}</tbody></table></div>`;
+}
+</script>
+
 </body>
 </html>
