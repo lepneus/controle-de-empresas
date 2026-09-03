@@ -799,11 +799,11 @@ tbody tr:hover{background:#fbfcff!important}
 <body>
 <div id="login" class="login">
   <div class="login-card">
-    <div class="login-logo">CE</div><h2>Controle de Empresas</h2><p>Central inteligente para administrar sua empresa</p>
-    <input id="loginUser" placeholder="Usuário" value="admin">
-    <input id="loginPass" type="password" placeholder="Senha" value="1234">
-    <button onclick="doLogin()">Entrar</button>
-    <div class="hint">Teste: usuário <b>admin</b> e senha <b>1234</b>.</div>
+    <div class="login-logo">LP</div><h2>Le Pneus • Administrador</h2><p>Entre com a mesma conta administrativa usada no Catálogo LePneus</p>
+    <input id="loginUser" type="email" autocomplete="username" placeholder="E-mail" value="lepneus@outlook.com">
+    <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha">
+    <button id="loginButton" onclick="doLogin()">Entrar com Firebase</button>
+    <div id="loginMessage" class="hint">A senha é validada pelo Firebase e não fica salva neste HTML.</div>
   </div>
 </div>
 <div class="app">
@@ -915,8 +915,32 @@ function initNav(){
 function openPage(id,btn){$$('.page').forEach(p=>p.classList.remove('active')); $('#'+id).classList.add('active'); $$('.nav button').forEach(b=>b.classList.remove('active')); if(btn)btn.classList.add('active'); renderAll(); $('#sidebar').classList.remove('open')}
 function toggleSidebar(){ $('#sidebar').classList.toggle('open') }
 function toggleTheme(){document.body.classList.toggle('dark');localStorage.setItem('theme',document.body.classList.contains('dark')?'dark':'light')}
-function doLogin(){if($('#loginUser').value==='admin'&&$('#loginPass').value==='1234'){sessionStorage.setItem('logged','1');$('#login').classList.add('hidden')}else alert('Usuário ou senha inválidos')}
-function logout(){location.reload()}
+async function doLogin(){
+  const email=($('#loginUser')?.value||'').trim();
+  const pass=$('#loginPass')?.value||'';
+  const msg=$('#loginMessage');
+  const btn=$('#loginButton');
+  if(!email||!pass){ if(msg)msg.textContent='Digite o e-mail e a senha.'; return; }
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Entrando...'}
+    if(msg)msg.textContent='Validando acesso...';
+    if(!window.firebase) throw new Error('Firebase não carregou. Verifique sua conexão com a internet.');
+    if(!firebase.apps.length) firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+    lpFirebaseApp=firebase.app(); lpDb=firebase.firestore(); lpAuth=firebase.auth();
+    await lpAuth.signInWithEmailAndPassword(email,pass);
+    sessionStorage.setItem('logged','firebase');
+    if(msg)msg.textContent='Acesso autorizado.';
+  }catch(e){
+    console.error('Login Firebase:',e);
+    if(msg)msg.textContent='Não foi possível entrar. Confira o e-mail, a senha e sua conexão.';
+  }finally{ if(btn){btn.disabled=false;btn.textContent='Entrar com Firebase'} }
+}
+async function logout(){
+  try{ if(lpAuth) await lpAuth.signOut(); }catch(e){ console.warn(e); }
+  sessionStorage.removeItem('logged');
+  const pass=document.getElementById('loginPass'); if(pass)pass.value='';
+  document.getElementById('login')?.classList.remove('hidden');
+}
 function heading(title,sub,action=''){return `<div class="heading"><div><h1>${title}</h1><p>${sub}</p></div>${action}</div>`}
 function renderDashboard(){let revenue=data.sales.reduce((a,s)=>a+s.total,0), expenses=data.finance.filter(f=>f.type==='Despesa').reduce((a,f)=>a+f.value,0), profit=data.sales.reduce((a,s)=>a+s.profit,0), low=data.products.filter(p=>p.qty<=p.min).length;
 $('#dashboard').innerHTML=heading('Dashboard','Visão geral da operação')+`<div class="cards">
@@ -1245,7 +1269,7 @@ function supplierModal(id){let s=id?data.suppliers.find(x=>x.id===id):{};showMod
 function saveSupplier(id){let s={id:id||Date.now(),name:$('#supname').value.trim(),doc:$('#supdoc').value.trim(),phone:$('#supphone').value.trim(),email:$('#supemail').value.trim(),address:$('#supaddress').value.trim(),notes:$('#supnotes').value};if(!s.name)return alert('Informe o fornecedor.');if(id)data.suppliers[data.suppliers.findIndex(x=>x.id===id)]=s;else data.suppliers.push(s);log((id?'Editou':'Cadastrou')+' fornecedor '+s.name);save();closeModal();renderAll()}
 function deleteSupplier(id){if(confirm('Excluir este fornecedor?')){data.suppliers=data.suppliers.filter(x=>x.id!==id);log('Excluiu fornecedor');save();renderAll()}}
 
-function renderUsuarios(){enhanceData();let rows=data.users.map(u=>`<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.username)}</td><td>${statusBadge(u.role)}</td><td>${u.active?'<span class="badge ok">Ativo</span>':'<span class="badge danger">Inativo</span>'}</td><td class="actions"><button class="btn ghost small" onclick="userModal(${u.id})">Editar</button>${u.id!==1?`<button class="btn ghost small" onclick="toggleUser(${u.id})">${u.active?'Desativar':'Ativar'}</button>`:''}</td></tr>`).join('');$('#usuarios').innerHTML=heading('Usuários e Permissões','Perfis de acesso preparados para futura autenticação multiusuário',`<button class="btn primary" onclick="userModal()">+ Novo usuário</button>`)+`<div class="notice">Nesta versão local, o login principal continua sendo <b>admin</b>. Os perfis abaixo já organizam permissões para a futura versão com banco de dados e backend.</div><div class="card table-wrap"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`}
+function renderUsuarios(){enhanceData();let rows=data.users.map(u=>`<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.username)}</td><td>${statusBadge(u.role)}</td><td>${u.active?'<span class="badge ok">Ativo</span>':'<span class="badge danger">Inativo</span>'}</td><td class="actions"><button class="btn ghost small" onclick="userModal(${u.id})">Editar</button>${u.id!==1?`<button class="btn ghost small" onclick="toggleUser(${u.id})">${u.active?'Desativar':'Ativar'}</button>`:''}</td></tr>`).join('');$('#usuarios').innerHTML=heading('Usuários e Permissões','Perfis de acesso preparados para futura autenticação multiusuário',`<button class="btn primary" onclick="userModal()">+ Novo usuário</button>`)+`<div class="notice">O acesso principal deste Controle usa a <b>mesma conta Firebase do Catálogo LePneus</b>. A senha é validada pelo Firebase e não fica gravada no arquivo HTML.</div><div class="card table-wrap"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`}
 function userModal(id){let u=id?data.users.find(x=>x.id===id):{};showModal(`<h2>${id?'Editar':'Novo'} usuário</h2><div class="form"><label>Nome<input id="uname" value="${esc(u.name||'')}"></label><label>Usuário<input id="uusername" value="${esc(u.username||'')}"></label><label>Perfil<select id="urole">${['ADMINISTRADOR','GERENTE','FINANCEIRO','VENDEDOR','ESTOQUE'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}</select></label><label>Status<select id="uactive"><option value="1" ${u.active!==false?'selected':''}>Ativo</option><option value="0" ${u.active===false?'selected':''}>Inativo</option></select></label></div><div class="role-box"><b>Permissões sugeridas</b><p id="roleHelp">Administrador: acesso completo. Gerente: operação e relatórios. Financeiro: financeiro/caixa. Vendedor: vendas/clientes. Estoque: produtos/compras.</p></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveUser(${id||'null'})">Salvar</button></div>`)}
 function saveUser(id){let u={id:id||Date.now(),name:$('#uname').value.trim(),username:$('#uusername').value.trim(),role:$('#urole').value,active:$('#uactive').value==='1'};if(!u.name||!u.username)return alert('Informe nome e usuário.');if(data.users.some(x=>x.id!==id&&x.username.toLowerCase()===u.username.toLowerCase()))return alert('Esse nome de usuário já existe.');if(id)data.users[data.users.findIndex(x=>x.id===id)]=u;else data.users.push(u);log((id?'Editou':'Cadastrou')+' usuário '+u.name);save();closeModal();renderAll()}
 function toggleUser(id){let u=data.users.find(x=>x.id===id);u.active=!u.active;log((u.active?'Ativou':'Desativou')+' usuário '+u.name);save();renderAll()}
@@ -1896,7 +1920,7 @@ function openPage(id,btn){
   if(sidebar)sidebar.classList.remove('open');
 }
 
-initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); $('#login').classList.add('hidden'); autoClosePreviousMonth(); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
+initNav(); if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark'); autoClosePreviousMonth(); renderAll(); checkReminders(); processWhatsAppQueue(); setInterval(()=>{checkReminders();processWhatsAppQueue()},60000);
 </script>
 <script>
 
@@ -1929,6 +1953,15 @@ function initLePneusFirebase(){
       lpFirebaseUser=user||null;
       lpFirebaseState.connected=!!user;
       lpFirebaseState.error='';
+      const login=document.getElementById('login');
+      if(user){
+        sessionStorage.setItem('logged','firebase');
+        login?.classList.add('hidden');
+        document.querySelectorAll('.profile-copy small').forEach(el=>el.textContent=user.email||'Administrador');
+      }else{
+        sessionStorage.removeItem('logged');
+        login?.classList.remove('hidden');
+      }
       try{
         if(document.getElementById('catalogo')?.classList.contains('active')) renderCatalogo();
       }catch(e){}
@@ -2562,5 +2595,437 @@ function renderMercadoLivre(){
 }
 </script>
 
+<script id="lepneus-stock-brand-image-overrides">
+/* ===== Le Pneus: importar apenas itens úteis + imagem de marca no catálogo ===== */
+(function(){
+  const _origLpEnsureMLImportItem = window.lpEnsureMLImportItem;
+  const _origRenderMercadoLivre = window.renderMercadoLivre;
+  const _origRenderCatalogo = window.renderCatalogo;
+
+  function lpInStock(p){ return Number(p?.qty||0) > 0; }
+
+  /* Pneus sem estoque não entram como rascunho automático do Mercado Livre. */
+  window.lpEnsureMLImportItem = function(p,type){
+    if(!p || Number(p.qty||0) <= 0){
+      if(window.data?.mercadoLivreItems){
+        data.mercadoLivreItems = data.mercadoLivreItems.filter(x => !(String(x.productId)===String(p?.id) && x.mlAutoDraft));
+      }
+      return;
+    }
+    return _origLpEnsureMLImportItem ? _origLpEnsureMLImportItem(p,type) : undefined;
+  };
+
+  /* Importação real: não cria no Controle produtos novos que estejam zerados.
+     Se um produto já existia e caiu para zero, ele continua sendo comparado para
+     o sistema detectar a saída e perguntar se foi venda ou ajuste. */
+  window.importSpreadsheet = async function(type){
+    lpEnsureV3();
+    let f=lpSheetFiles[type];
+    const input=document.getElementById(spreadsheetInputId(type));
+    if(input?.files?.[0]){f=input.files[0];lpSheetFiles[type]=f}
+    if(!f)return alert('Escolha novamente o arquivo '+sheetConnectionLabel(type)+' e depois clique em Importar / Atualizar.');
+    if(typeof XLSX==='undefined')return alert('O leitor de Excel não carregou. Verifique a internet e abra o arquivo novamente.');
+    try{
+      const buf=await f.arrayBuffer(),wb=XLSX.read(buf,{type:'array',cellDates:true});
+      const parsed=lpParseWorkbook(wb,type); if(!parsed.products.length)return alert('Nenhum produto válido foi encontrado nesta planilha.');
+      let created=0,updated=0,diffs=0,skippedZero=0; const batchId=Date.now();
+      for(const imp of parsed.products){
+        let p=data.products.find(x=>lpKey(x.code)===lpKey(imp.code));
+        if(!p && Number(imp.qty||0)<=0){ skippedZero++; continue; }
+        if(!p){
+          p={id:idNow(),code:imp.code,name:imp.name,category:imp.category,brand:imp.brand,qty:imp.qty,min:Number(data.settings.defaultMinStock||0),cost:imp.cost,price:imp.price,location:'Planilha: '+imp.sheet};
+          data.products.push(p); created++;
+          if(p.qty>0)data.stockMovements.unshift({id:idNow(),date:nowBR(),productId:p.id,product:p.name,type:'Entrada',qty:p.qty,before:0,after:p.qty,reason:'Importação inicial da planilha',ref:f.name+' • '+imp.sheet,user:'Administrador'});
+        }else{
+          const oldQty=Number(p.qty||0),newQty=Number(imp.qty||0);
+          p.name=imp.name||p.name; p.category=imp.category||p.category; p.brand=imp.brand||p.brand; p.cost=Number(imp.cost||p.cost||0); p.price=Number(imp.price||p.price||0); p.location=p.location||('Planilha: '+imp.sheet); updated++;
+          if(oldQty!==newQty){
+            data.pendingImportDifferences.push({id:idNow(),batchId,type,productId:p.id,code:p.code,name:p.name,oldQty,newQty,diff:newQty-oldQty,cost:p.cost,price:p.price,file:f.name,sheet:imp.sheet,createdAt:nowBR(),status:'Pendente'}); diffs++;
+          }
+          syncProductChannels(p);
+        }
+        if(Number(p.qty||0)>0) lpEnsureMLImportItem(p,type);
+      }
+      data.spreadsheetConnections[type]={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:data.spreadsheetConnections[type]?.connectedAt||nowBR(),lastImportedAt:nowBR(),status:'Importada'};
+      data.importAudits.unshift({id:batchId,date:nowBR(),type,file:f.name,created,updated,differences:diffs,skippedZero,warnings:parsed.warnings});
+      data.importAudits=data.importAudits.slice(0,100); save(); renderAll();
+      const zeroMsg=skippedZero?`\nSem estoque ignorados: ${skippedZero}`:'';
+      if(diffs){alert(`Importação concluída.\nNovos com estoque: ${created}\nAtualizados: ${updated}${zeroMsg}\nDiferenças de estoque: ${diffs}\n\nO sistema vai pedir a confirmação de cada diferença.`);setTimeout(()=>lpNextDifference(batchId),50)}
+      else alert(`Importação concluída.\nNovos com estoque: ${created}\nAtualizados: ${updated}${zeroMsg}\nNenhuma diferença de estoque pendente.`);
+    }catch(e){console.error(e);alert('Não foi possível ler esta planilha. O arquivo não foi alterado.');}
+  };
+
+  /* Remove da preparação automática do ML itens que chegaram a estoque zero. */
+  function lpCleanupZeroML(){
+    if(!window.data?.mercadoLivreItems)return;
+    data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));
+      return !x.mlAutoDraft || !p || lpInStock(p);
+    });
+  }
+  window.renderMercadoLivre=function(){ lpCleanupZeroML(); return _origRenderMercadoLivre?.(); };
+
+  function lpBrandFallbackImage(brand){
+    const b=String(brand||'Le Pneus').trim();
+    const domains={
+      'pirelli':'pirelli.com','michelin':'michelin.com','bridgestone':'bridgestone.com','continental':'continental-tires.com',
+      'goodyear':'goodyear.com','dunlop':'dunloptires.com','hankook':'hankooktire.com','yokohama':'yokohamatire.com',
+      'kumho':'kumhotire.com','maxxis':'maxxis.com','firestone':'firestone.com','nexen':'nexentire.com',
+      'metzeler':'metzeler.com','borilli':'borilli.com.br','maggion':'maggion.com.br','levorin':'levorin.com.br',
+      'delinte':'delintetires.com','linglong':'linglongtire.com','westlake':'westlaketire.com','goodride':'goodridetire.com'
+    };
+    const k=lpNorm(b).split(/\s+/)[0];
+    if(domains[k]) return `https://logo.clearbit.com/${domains[k]}?size=512`;
+    const safe=b.replace(/[&<>"']/g,'').slice(0,32);
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600"><rect width="900" height="600" rx="42" fill="#111827"/><circle cx="450" cy="235" r="120" fill="#ffffff" opacity=".08"/><text x="450" y="270" text-anchor="middle" font-family="Arial,sans-serif" font-size="70" font-weight="700" fill="#ffffff">${safe}</text><text x="450" y="360" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" fill="#cbd5e1">IMAGEM DA MARCA</text></svg>`;
+    return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+  }
+
+  async function lpResolveCatalogImage(p,existing={}){
+    if(String(existing.image||'').trim()) return existing.image;
+    const brand=String(p.brand||existing.brand||'').trim();
+    if(brand && window.lpDb){
+      try{
+        const snap=await lpDb.collection('produtos').where('brand','==',brand).limit(15).get();
+        for(const d of snap.docs){
+          const img=String(d.data()?.image||'').trim();
+          if(img) return img;
+        }
+      }catch(e){ console.warn('Busca de imagem por marca:',e); }
+    }
+    return lpBrandFallbackImage(brand||'Le Pneus');
+  }
+  window.lpResolveCatalogImage=lpResolveCatalogImage;
+
+  /* Sincroniza catálogo preservando foto existente. Se o pneu ainda não tem foto,
+     procura uma imagem já usada pela mesma marca; se não achar, aplica imagem da marca. */
+  window.publishProductToFirebase=async function(productId,silent=false){
+    ensureData();
+    if(!lpFirebaseUser){ if(!silent)firebaseLoginModal(); return {ok:false,reason:'auth'}; }
+    const p=data.products.find(x=>String(x.id)===String(productId));
+    if(!p)return {ok:false,reason:'missing'};
+    try{
+      const found=await findFirebaseCatalogDoc(p);
+      const existing=found?found.data():{};
+      if(Number(p.qty||0)<=0){
+        if(found){ await lpDb.collection('produtos').doc(found.id).set({stock:0,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }
+        data.catalogItems=data.catalogItems.filter(x=>String(x.productId)!==String(p.id));
+        save(); if(!silent)alert('Produto sem estoque: ele não ficará disponível no catálogo.');
+        return {ok:true,outOfStock:true,docId:found?.id||''};
+      }
+      const image=await lpResolveCatalogImage(p,existing);
+      const payload=productToFirebaseCatalog(p,{...existing,image});
+      let docId;
+      if(found){ docId=found.id; await lpDb.collection('produtos').doc(docId).set(payload,{merge:true}); }
+      else { const ref=await lpDb.collection('produtos').add(payload); docId=ref.id; }
+      let local=data.catalogItems.find(x=>String(x.productId)===String(p.id));
+      const vals={code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Publicado',firebaseId:docId,image,updatedAt:new Date().toLocaleString('pt-BR')};
+      if(local)Object.assign(local,vals);else data.catalogItems.unshift({id:Date.now()+Math.random(),productId:p.id,...vals,importedAt:new Date().toLocaleString('pt-BR')});
+      save(); if(!silent)alert('Produto sincronizado com o catálogo pelo Firebase.');
+      return {ok:true,docId};
+    }catch(e){console.error('Publicação Firebase:',e);if(!silent)alert('Não foi possível atualizar o catálogo. Confira login e regras do Firestore.');return {ok:false,error:e};}
+  };
+
+  window.sendToCatalogo=async function(id){
+    ensureData();
+    const p=data.products.find(x=>String(x.id)===String(id)); if(!p)return;
+    if(Number(p.qty||0)<=0){
+      if(lpFirebaseUser)await publishProductToFirebase(id,true);
+      alert('Esse produto está sem estoque e não será adicionado ao catálogo.');
+      renderCatalogo(); return;
+    }
+    let exists=data.catalogItems.find(x=>String(x.productId)===String(id));
+    if(exists)Object.assign(exists,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,updatedAt:new Date().toLocaleString('pt-BR')});
+    else data.catalogItems.unshift({id:Date.now()+Math.random(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:lpFirebaseUser?'Publicando...':'Pronto para publicar',importedAt:new Date().toLocaleString('pt-BR')});
+    save(); if(lpFirebaseUser)await publishProductToFirebase(id);else{renderCatalogo();firebaseLoginModal();}
+  };
+
+  /* A tela do catálogo mostra somente itens com estoque disponível. */
+  window.renderCatalogo=function(){
+    const original=data.catalogItems;
+    const visible=original.filter(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));
+      return p ? lpInStock(p) : Number(x.qty||0)>0;
+    });
+    data.catalogItems=visible;
+    try{return _origRenderCatalogo?.();}finally{data.catalogItems=original;}
+  };
+
+  window.syncAllCatalogToFirebase=async function(){
+    if(!lpFirebaseUser)return firebaseLoginModal();
+    if(!data.catalogItems.length)return alert('Não há produtos selecionados na aba Catálogo.');
+    const copy=[...data.catalogItems];
+    if(!confirm(`Atualizar o catálogo? Produtos com estoque zero serão retirados da disponibilidade.`))return;
+    let ok=0,err=0,semEstoque=0;
+    for(const item of copy){const r=await publishProductToFirebase(item.productId,true);if(r.ok){ok++;if(r.outOfStock)semEstoque++;}else err++;}
+    save();renderCatalogo();alert(`Sincronização concluída.\nAtualizados: ${ok}\nSem estoque retirados: ${semEstoque}\nErros: ${err}`);
+  };
+})();
+</script>
+
+
+<script id="lepneus-valores-corrigidos-ml-completo-v6">
+/* ===== Le Pneus V6: leitura exata das planilhas reais + cálculo completo ML ===== */
+(function(){
+  function lpExactHeaderIndex(row, labels){
+    const keys=(row||[]).map(v=>lpKey(v));
+    for(const label of labels){
+      const k=lpKey(label);
+      const idx=keys.findIndex(x=>x===k);
+      if(idx>=0)return idx;
+    }
+    return -1;
+  }
+
+  /*
+    Estrutura confirmada nas planilhas reais Le Pneus:
+    Cod | Pneu | Custo | Vista | Valor Venda | Cartão Débito | 2x a 4x | Custo Total | Estoque
+    A leitura abaixo usa correspondência EXATA de cabeçalho para impedir que "Custo"
+    seja confundido com "Custo Total" e que "Valor Venda" seja confundido com outras colunas.
+  */
+  window.lpParseWorkbook=function(wb,type){
+    const products=[], warnings=[];
+    wb.SheetNames.forEach(sheetName=>{
+      const ws=wb.Sheets[sheetName];
+      /* raw:true preserva o valor numérico real da célula, sem depender da formatação exibida no Excel. */
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+      if(!rows.length)return;
+      let hi=-1,map=null;
+      for(let r=0;r<Math.min(rows.length,15);r++){
+        const row=rows[r];
+        const code=lpExactHeaderIndex(row,['Cod','Código','Codigo']);
+        const name=lpExactHeaderIndex(row,['Pneu','Produto','Descrição','Descricao']);
+        const cost=lpExactHeaderIndex(row,['Custo']);
+        const vista=lpExactHeaderIndex(row,['Vista']);
+        const price=lpExactHeaderIndex(row,['Valor Venda']);
+        const stock=lpExactHeaderIndex(row,['Estoque']);
+        if(code>=0 && name>=0 && cost>=0 && price>=0 && stock>=0){
+          hi=r; map={code,name,cost,vista,price,stock}; break;
+        }
+      }
+      if(hi<0){warnings.push(sheetName+': não encontrei exatamente Cod, Pneu, Custo, Valor Venda e Estoque.');return;}
+
+      for(let r=hi+1;r<rows.length;r++){
+        const row=rows[r]||[];
+        const sourceCode=String(row[map.code]??'').trim();
+        const name=String(row[map.name]??'').trim();
+        if(!sourceCode&&!name)continue;
+        if(!name || /^(total|subtotal|estoque|codigo|código|cod)$/i.test(lpNorm(name)))continue;
+
+        const qty=Math.max(0,Math.round(lpNum(row[map.stock])));
+        const cost=Math.max(0,lpNum(row[map.cost]));
+        const price=Math.max(0,lpNum(row[map.price]));
+        const vista=map.vista>=0?Math.max(0,lpNum(row[map.vista])):0;
+        const codeIsGeneric=!sourceCode || /^(sn|s\/?n|semcodigo|semcod|0)$/i.test(lpKey(sourceCode));
+        const stable=(!codeIsGeneric)?sourceCode:`${type}-${sheetName}-${name}`;
+
+        products.push({
+          code:stable,
+          sourceCode,
+          name,
+          qty,
+          cost,
+          price,
+          vista,
+          category:lpCategory(type),
+          brand:lpGuessBrand(name,sheetName,type),
+          sheet:sheetName,
+          row:r+1
+        });
+      }
+    });
+
+    /* Código é a chave principal. Se houver duplicata real no mesmo arquivo, mantém a primeira e avisa. */
+    const by=new Map();
+    for(const p of products){
+      const k=lpKey(p.code);
+      if(!k)continue;
+      if(by.has(k)){
+        const old=by.get(k);
+        warnings.push(`Código duplicado ${p.code}: ${old.sheet} e ${p.sheet}. Mantido o primeiro.`);
+        continue;
+      }
+      by.set(k,p);
+    }
+    return {products:[...by.values()],warnings};
+  };
+
+  /* Atualiza importação para nunca reaproveitar um valor antigo quando a planilha traz zero. */
+  window.importSpreadsheet=async function(type){
+    lpEnsureV3();
+    let f=lpSheetFiles[type];
+    const input=document.getElementById(spreadsheetInputId(type));
+    if(input?.files?.[0]){f=input.files[0];lpSheetFiles[type]=f;}
+    if(!f)return alert('Escolha novamente o arquivo '+sheetConnectionLabel(type)+' e depois clique em Importar / Atualizar.');
+    if(typeof XLSX==='undefined')return alert('O leitor de Excel não carregou. Verifique a internet e abra o arquivo novamente.');
+    try{
+      const buf=await f.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array',cellDates:true});
+      const parsed=window.lpParseWorkbook(wb,type);
+      if(!parsed.products.length)return alert('Nenhum produto válido foi encontrado nesta planilha.');
+
+      let created=0,updated=0,diffs=0,skippedZero=0;
+      const batchId=Date.now();
+      for(const imp of parsed.products){
+        let p=data.products.find(x=>lpKey(x.code)===lpKey(imp.code));
+        if(!p && Number(imp.qty||0)<=0){skippedZero++;continue;}
+
+        if(!p){
+          p={id:idNow(),code:imp.code,name:imp.name,category:imp.category,brand:imp.brand,qty:Number(imp.qty||0),min:Number(data.settings.defaultMinStock||0),cost:Number(imp.cost||0),price:Number(imp.price||0),vista:Number(imp.vista||0),location:'Planilha: '+imp.sheet,sourceSheet:imp.sheet,sourceRow:imp.row};
+          data.products.push(p);created++;
+          if(p.qty>0)data.stockMovements.unshift({id:idNow(),date:nowBR(),productId:p.id,product:p.name,type:'Entrada',qty:p.qty,before:0,after:p.qty,reason:'Importação inicial da planilha',ref:f.name+' • '+imp.sheet,user:'Administrador'});
+        }else{
+          const oldQty=Number(p.qty||0),newQty=Number(imp.qty||0);
+          p.name=imp.name||p.name;
+          p.category=imp.category||p.category;
+          p.brand=imp.brand||p.brand;
+          /* Valores vêm SEMPRE das colunas exatas da planilha atual. */
+          p.cost=Number(imp.cost||0);
+          p.price=Number(imp.price||0);
+          p.vista=Number(imp.vista||0);
+          p.sourceSheet=imp.sheet;p.sourceRow=imp.row;
+          p.location='Planilha: '+imp.sheet;
+          updated++;
+          if(oldQty!==newQty){
+            data.pendingImportDifferences.push({id:idNow(),batchId,type,productId:p.id,code:p.code,name:p.name,oldQty,newQty,diff:newQty-oldQty,cost:p.cost,price:p.price,file:f.name,sheet:imp.sheet,createdAt:nowBR(),status:'Pendente'});diffs++;
+          }
+          syncProductChannels(p);
+        }
+        if(Number(p.qty||0)>0)lpEnsureMLImportItem(p,type);
+      }
+
+      data.spreadsheetConnections[type]={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:data.spreadsheetConnections[type]?.connectedAt||nowBR(),lastImportedAt:nowBR(),status:'Importada'};
+      data.importAudits.unshift({id:batchId,date:nowBR(),type,file:f.name,created,updated,differences:diffs,skippedZero,warnings:parsed.warnings});
+      data.importAudits=data.importAudits.slice(0,100);
+      save();renderAll();
+
+      const warn=parsed.warnings.length?`\nAvisos: ${parsed.warnings.length}`:'';
+      const z=skippedZero?`\nSem estoque ignorados: ${skippedZero}`:'';
+      if(diffs){
+        alert(`Importação corrigida concluída.\nNovos com estoque: ${created}\nAtualizados: ${updated}${z}\nDiferenças de estoque: ${diffs}${warn}\n\nCusto = coluna Custo\nPreço = coluna Valor Venda\nEstoque = coluna Estoque`);
+        setTimeout(()=>lpNextDifference(batchId),50);
+      }else{
+        alert(`Importação corrigida concluída.\nNovos com estoque: ${created}\nAtualizados: ${updated}${z}${warn}\n\nCusto = coluna Custo\nPreço = coluna Valor Venda\nEstoque = coluna Estoque`);
+      }
+    }catch(e){console.error(e);alert('Não foi possível ler esta planilha. O arquivo não foi alterado.');}
+  };
+
+  function mlCompleteBreakdown(x,p,priceOverride){
+    const base=mlSuggestedFromItem(x,p);
+    const price=Math.max(0,Number(priceOverride??x?.mlAdvertisedPrice??0)) || base.suggested;
+    const feePct=Math.max(0,Math.min(95,Number(x?.mlFeePct??data.settings.mlDefaultFeePct??16)));
+    const fee=price*(feePct/100);
+    const freight=Math.max(0,Number(x?.mlFreight??data.settings.mlDefaultFreight??0));
+    const other=Math.max(0,Number(x?.mlOtherCost??data.settings.mlDefaultOther??0));
+    const cost=Math.max(0,Number(p?.cost||0));
+    const totalExpenses=cost+fee+freight+other;
+    const netAfterMarketplace=price-fee-freight-other;
+    const profit=price-totalExpenses;
+    const margin=price>0?(profit/price)*100:0;
+    const returnOnCost=cost>0?(profit/cost)*100:0;
+    return {...base,price,feePct,fee,freight,other,cost,totalExpenses,netAfterMarketplace,profit,margin,returnOnCost};
+  }
+  window.mlCompleteBreakdown=mlCompleteBreakdown;
+
+  window.showMLCostDetails=function(id){
+    const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+    const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+    const suggested=mlSuggestedFromItem(x,p);
+    const c=mlCompleteBreakdown(x,p,suggested.suggested);
+    showModal(`<h2>Cálculo completo • Mercado Livre</h2>
+      <div class="notice"><b>${esc(p.name)}</b><br>O cálculo abaixo usa o custo real importado da coluna <b>Custo</b> da planilha e o lucro alvo configurado.</div>
+      <div class="cards" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px">
+        ${metric('Custo do pneu',money(c.cost),'planilha','green')}
+        ${metric('Preço sugerido',money(c.price),'para atingir o lucro alvo','green')}
+        ${metric('Despesas totais',money(c.totalExpenses),'custo + taxa + frete + outros','red')}
+        ${metric('Lucro líquido',money(c.profit),c.margin.toFixed(2).replace('.',',')+'% de margem','green')}
+      </div>
+      <div class="card table-wrap" style="margin-top:14px"><table><tbody>
+        <tr><th>Preço de venda sugerido</th><td><b>${money(c.price)}</b></td></tr>
+        <tr><th>Custo do produto</th><td>${money(c.cost)}</td></tr>
+        <tr><th>Taxa/comissão ML</th><td>${c.feePct.toFixed(2).replace('.',',')}% = ${money(c.fee)}</td></tr>
+        <tr><th>Frete pago pela loja</th><td>${money(c.freight)}</td></tr>
+        <tr><th>Outros custos</th><td>${money(c.other)}</td></tr>
+        <tr><th>Total de despesas</th><td><b>${money(c.totalExpenses)}</b></td></tr>
+        <tr><th>Valor líquido após taxa/frete/outros</th><td>${money(c.netAfterMarketplace)}</td></tr>
+        <tr><th>Lucro líquido por unidade</th><td><b>${money(c.profit)}</b></td></tr>
+        <tr><th>Margem líquida sobre a venda</th><td><b>${c.margin.toFixed(2).replace('.',',')}%</b></td></tr>
+        <tr><th>Lucro em relação ao custo</th><td>${c.returnOnCost.toFixed(2).replace('.',',')}%</td></tr>
+      </tbody></table></div>
+      <div class="modal-actions"><button class="btn ghost" onclick="editMLSuggestion(${x.id});closeModal()">Alterar taxa/frete/custos</button><button class="btn primary" onclick="useMLSuggestedPrice(${x.id});closeModal()">Usar preço sugerido</button></div>`);
+  };
+
+  window.renderMercadoLivre=function(){
+    lpEnsureV3();
+    data.settings.mlDefaultFeePct=Number(data.settings.mlDefaultFeePct??16);
+    data.settings.mlDefaultFreight=Number(data.settings.mlDefaultFreight??0);
+    data.settings.mlDefaultOther=Number(data.settings.mlDefaultOther??0);
+    data.settings.mlDefaultProfit=Number(data.settings.mlDefaultProfit??40);
+
+    /* limpa rascunhos automáticos sem estoque */
+    data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));
+      return !x.mlAutoDraft || !p || Number(p.qty||0)>0;
+    });
+
+    const rows=data.mercadoLivreItems.map(x=>{
+      const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return '';
+      const est=mlSuggestedFromItem(x,p);
+      const c=mlCompleteBreakdown(x,p,est.suggested);
+      const opp=typeof mlOpportunityFor==='function'?mlOpportunityFor(x.productId):null;
+      const actual=Number(x.mlAdvertisedPrice||0);
+      const actualCalc=actual>0?mlCompleteBreakdown(x,p,actual):null;
+      return `<tr>
+        <td><b>${esc(x.code||p.code)}</b></td>
+        <td>${esc(x.name||p.name)}<small class="cell-sub">Estoque: ${Number(p.qty||0)}</small></td>
+        <td>${money(p.cost)}<small class="cell-sub">Custo da planilha</small></td>
+        <td>${money(p.price)}<small class="cell-sub">Valor Venda da planilha</small></td>
+        <td>${c.feePct.toFixed(1).replace('.',',')}%<small class="cell-sub">${money(c.fee)}</small></td>
+        <td>${money(c.freight)}</td>
+        <td>${money(c.other)}</td>
+        <td><b>${money(c.totalExpenses)}</b></td>
+        <td><b>${money(c.price)}</b><small class="cell-sub">alvo: ${money(c.targetProfit)} lucro</small></td>
+        <td><b>${money(c.profit)}</b><small class="cell-sub">${c.margin.toFixed(1).replace('.',',')}% margem</small></td>
+        <td>${actualCalc?`<b>${money(actual)}</b><small class="cell-sub">Lucro ${money(actualCalc.profit)} • ${actualCalc.margin.toFixed(1).replace('.',',')}%</small>`:'<span class="badge warn">Não aplicado</span>'}</td>
+        <td class="actions"><button class="btn primary small" onclick="showMLCostDetails(${x.id})">Detalhes</button><button class="btn ghost small" onclick="editMLSuggestion(${x.id})">Taxa/frete</button><button class="btn ghost small" onclick="searchMLSimilar(${x.id})">Buscar anúncios</button>${typeof showMLDescription==='function'?`<button class="btn ghost small" onclick="showMLDescription(${x.id})">Descrição</button>`:''}<button class="btn ghost small" onclick="useMLSuggestedPrice(${x.id})">Usar preço</button></td>
+      </tr>`;
+    }).join('');
+
+    const valid=data.mercadoLivreItems.map(x=>{const p=data.products.find(p=>String(p.id)===String(x.productId));return p?mlCompleteBreakdown(x,p,mlSuggestedFromItem(x,p).suggested):null}).filter(Boolean);
+    const avgMargin=valid.length?valid.reduce((a,c)=>a+c.margin,0)/valid.length:0;
+    const totalProfit=valid.reduce((a,c)=>a+c.profit,0);
+    const totalExpenses=valid.reduce((a,c)=>a+c.totalExpenses,0);
+
+    $('#mercadolivre').innerHTML=heading('Mercado Livre','Cálculo completo de custo, despesas, preço e lucro por pneu',`<button class="btn primary" onclick="showMLOpportunities()">⭐ Ver melhores para anunciar</button>`)+
+      `<div class="notice"><b>Como funciona:</b> o custo vem da coluna <b>Custo</b> da planilha e o preço normal vem de <b>Valor Venda</b>. Para o Mercado Livre, o sistema soma custo do produto, comissão percentual, frete, outros custos e calcula o preço necessário para sobrar o lucro desejado. As taxas e o frete são estimativas configuráveis — confira os valores reais do anúncio antes de publicar.</div>
+      <div class="cards">${metric('Produtos preparados',valid.length,'somente com estoque','green')}${metric('Despesas calculadas',money(totalExpenses),'soma das unidades exibidas','red')}${metric('Lucro alvo total',money(totalProfit),'1 unidade de cada','green')}${metric('Margem média',avgMargin.toFixed(1).replace('.',',')+'%','sobre o preço sugerido','green')}</div>
+      <div class="card" style="margin-top:16px"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Padrões do cálculo</h3><small class="cell-sub">Você pode alterar por produto depois</small></div></div><div class="form-grid">
+        <label class="field"><span>Comissão/taxa Mercado Livre (%)</span><input id="mlDefaultFeePct" type="number" step="0.1" min="0" max="95" value="${data.settings.mlDefaultFeePct}"></label>
+        <label class="field"><span>Frete médio pago pela loja (R$)</span><input id="mlDefaultFreight" type="number" step="0.01" min="0" value="${data.settings.mlDefaultFreight}"></label>
+        <label class="field"><span>Outros custos por venda (R$)</span><input id="mlDefaultOther" type="number" step="0.01" min="0" value="${data.settings.mlDefaultOther}"></label>
+        <label class="field"><span>Lucro desejado por pneu (R$)</span><input id="mlDefaultProfit" type="number" step="0.01" min="0" value="${data.settings.mlDefaultProfit}"></label>
+      </div><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveMLDefaults()">Salvar e recalcular todos</button><button class="btn ghost" onclick="showMLOpportunities()">Ranking pelo custo</button></div></div>
+      <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Custo</th><th>Preço planilha</th><th>Taxa ML</th><th>Frete</th><th>Outros</th><th>Despesa total</th><th>Preço sugerido</th><th>Lucro / margem</th><th>Preço aplicado</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="12" class="empty">Importe a planilha de Carro ou Moto para gerar os cálculos.</td></tr>'}</tbody></table></div>`;
+  };
+})();
+</script>
+
+
+<style>
+.ml-market-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:14px 0;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+.ml-market-card h3{margin:0 0 8px}.ml-market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.ml-market-box{background:#f8fafc;border-radius:10px;padding:10px}.ml-market-box b{display:block;margin-bottom:4px}
+</style>
+<script>
+// Camada de apoio para precificação competitiva. A comparação real de anúncios exige dados atuais do Mercado Livre/API.
+window.lePneusMarketStrategy = {
+  mode:'competitivo',
+  description:'Prioriza preço competitivo e mostra lucro estimado, sem impor lucro fixo.',
+  calculate:function(cost, marketPrice, feePct, shipping, other){
+    cost=Number(cost)||0; marketPrice=Number(marketPrice)||0; feePct=(Number(feePct)||0)/100; shipping=Number(shipping)||0; other=Number(other)||0;
+    const fee=marketPrice*feePct; const profit=marketPrice-cost-fee-shipping-other; const margin=marketPrice?profit/marketPrice*100:0;
+    return {price:marketPrice,fee,shipping,other,totalExpenses:cost+fee+shipping+other,profit,margin};
+  }
+};
+</script>
 </body>
 </html>
