@@ -2231,8 +2231,9 @@ function lpParseWorkbook(wb,type){
       const stock=Math.max(0,Math.round(lpNum(row[map.stock])));
       const cost=map.cost>=0?lpNum(row[map.cost]):0;
       const price=map.price>=0?lpNum(row[map.price]):0;
-      const stable=code||`${type}-${sheetName}-${name}`;
-      products.push({code:stable,name:name||('Produto '+code),qty:stock,cost,price,category:lpCategory(type),brand:lpGuessBrand(name,sheetName,type),sheet:sheetName,row:r+1});
+      const codeIsGeneric=/^(sn|s\/?n|semcodigo|semcod|0)$/i.test(lpKey(code));
+      const stable=(!codeIsGeneric&&code)?code:`${type}-${sheetName}-${name}`;
+      products.push({code:stable,name:name||('Produto '+code),qty:stock,cost,price,category:lpCategory(type),brand:lpGuessBrand(name,sheetName,type),sheet:sheetName,row:r+1,sourceCode:code});
     }
   });
   const by=new Map();
@@ -2246,6 +2247,71 @@ function connectSpreadsheet(type){
   const f=input.files[0]; lpSheetFiles[type]=f;
   data.spreadsheetConnections[type]={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:new Date().toLocaleString('pt-BR'),status:'Pronta para importar'};
   save(); renderPlanilhas();
+}
+
+function lpEnsureMLImportItem(p,type){
+  lpEnsureV3();
+  if(type==='acessorios')return;
+  data.settings.mlDefaultFeePct=Number(data.settings.mlDefaultFeePct??16);
+  data.settings.mlDefaultFreight=Number(data.settings.mlDefaultFreight??0);
+  data.settings.mlDefaultOther=Number(data.settings.mlDefaultOther??0);
+  data.settings.mlDefaultProfit=Number(data.settings.mlDefaultProfit??40);
+  let item=data.mercadoLivreItems.find(x=>String(x.productId)===String(p.id));
+  if(!item){
+    item={id:idNow(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Preparação automática',sales:0,orderStatus:'Aguardando publicação',importedAt:nowBR(),mlAutoDraft:true};
+    data.mercadoLivreItems.unshift(item);
+  }
+  item.code=p.code;item.name=p.name;item.brand=p.brand;item.category=p.category;item.qty=p.qty;item.price=p.price;
+  if(item.mlFeePct===undefined)item.mlFeePct=Number(data.settings.mlDefaultFeePct||16);
+  if(item.mlFreight===undefined)item.mlFreight=Number(data.settings.mlDefaultFreight||0);
+  if(item.mlOtherCost===undefined)item.mlOtherCost=Number(data.settings.mlDefaultOther||0);
+  if(item.mlTargetProfit===undefined)item.mlTargetProfit=Number(data.settings.mlDefaultProfit??40);
+  item.updatedAt=nowBR();
+}
+function mlSuggestedFromItem(x,p){
+  const cost=Math.max(0,Number(p?.cost||0));
+  const feePct=Math.max(0,Math.min(95,Number(x?.mlFeePct??data.settings.mlDefaultFeePct??16)))/100;
+  const freight=Math.max(0,Number(x?.mlFreight??data.settings.mlDefaultFreight??0));
+  const other=Math.max(0,Number(x?.mlOtherCost??data.settings.mlDefaultOther??0));
+  const targetProfit=Math.max(0,Number(x?.mlTargetProfit??data.settings.mlDefaultProfit??40));
+  const denom=1-feePct;
+  let suggested=denom>0?(cost+freight+other+targetProfit)/denom:0;
+  if(!Number.isFinite(suggested)||suggested<0)suggested=0;
+  const fee=suggested*feePct;
+  const profit=suggested-fee-freight-other-cost;
+  return {cost,feePct:feePct*100,freight,other,targetProfit,suggested,fee,profit};
+}
+function mlSearchQuery(x,p){
+  let q=String(p?.name||x?.name||'').replace(/\s+/g,' ').trim();
+  if(!q)q=[x?.brand,p?.brand,x?.code].filter(Boolean).join(' ');
+  return q.replace(/\b(PNEU|NOVO|NOVOS|UNIDADE|UNIDADES)\b/gi,' ').replace(/\s+/g,' ').trim();
+}
+function searchMLSimilar(id){
+  const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+  const p=data.products.find(p=>String(p.id)===String(x.productId));
+  const q=mlSearchQuery(x,p);if(!q)return alert('Não consegui montar a busca para este produto.');
+  const slug=q.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();
+  window.open('https://lista.mercadolivre.com.br/'+encodeURIComponent(slug),'_blank','noopener,noreferrer');
+}
+function saveMLDefaults(){
+  lpEnsureV3();
+  data.settings.mlDefaultFeePct=Math.max(0,Number($('#mlDefaultFeePct')?.value||0));
+  data.settings.mlDefaultFreight=Math.max(0,Number($('#mlDefaultFreight')?.value||0));
+  data.settings.mlDefaultOther=Math.max(0,Number($('#mlDefaultOther')?.value||0));
+  data.settings.mlDefaultProfit=Math.max(0,Number($('#mlDefaultProfit')?.value||40));
+  data.mercadoLivreItems.forEach(x=>{if(x.mlAutoDraft){x.mlFeePct=data.settings.mlDefaultFeePct;x.mlFreight=data.settings.mlDefaultFreight;x.mlOtherCost=data.settings.mlDefaultOther;x.mlTargetProfit=data.settings.mlDefaultProfit;}});
+  save();renderMercadoLivre();alert('Padrões do Mercado Livre salvos e preços sugeridos recalculados.');
+}
+function editMLSuggestion(id){
+  lpEnsureV3();const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+  const fee=prompt('Comissão/taxa estimada do Mercado Livre (%):',x.mlFeePct??data.settings.mlDefaultFeePct??16);if(fee===null)return;
+  const freight=prompt('Frete estimado pago pela loja (R$):',x.mlFreight??data.settings.mlDefaultFreight??0);if(freight===null)return;
+  const other=prompt('Outros custos estimados (R$):',x.mlOtherCost??data.settings.mlDefaultOther??0);if(other===null)return;
+  const profit=prompt('Lucro desejado por pneu (R$):',x.mlTargetProfit??data.settings.mlDefaultProfit??40);if(profit===null)return;
+  x.mlFeePct=Math.max(0,Number(fee)||0);x.mlFreight=Math.max(0,Number(freight)||0);x.mlOtherCost=Math.max(0,Number(other)||0);x.mlTargetProfit=Math.max(0,Number(profit)||0);x.mlAutoDraft=true;x.status='Preparação automática';x.updatedAt=nowBR();save();renderMercadoLivre();
+}
+function useMLSuggestedPrice(id){
+  const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;const c=mlSuggestedFromItem(x,p);x.mlAdvertisedPrice=Number(c.suggested.toFixed(2));x.mlFee=Number(c.fee.toFixed(2));x.status='Preço sugerido aplicado';x.orderStatus='Aguardando publicação';save();renderMercadoLivre();
 }
 async function importSpreadsheet(type){
   lpEnsureV3();
@@ -2272,6 +2338,7 @@ async function importSpreadsheet(type){
         }
         syncProductChannels(p);
       }
+      lpEnsureMLImportItem(p,type);
     }
     data.spreadsheetConnections[type]={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:data.spreadsheetConnections[type]?.connectedAt||nowBR(),lastImportedAt:nowBR(),status:'Importada'};
     data.importAudits.unshift({id:batchId,date:nowBR(),type,file:f.name,created,updated,differences:diffs,warnings:parsed.warnings});
@@ -2367,6 +2434,131 @@ function importMonthlyClosing(){
 function renderFechamento(){
  lpEnsureV3(); const now=new Date(),prev=new Date(now.getFullYear(),now.getMonth()-1,1),defaultKey=monthKeyFromDate(prev),rows=[...data.monthlyClosings].sort((a,b)=>b.month.localeCompare(a.month)).map(c=>{const s=c.summary;return `<tr><td><b>${esc(c.label)}</b><small class="cell-sub">Fechado: ${esc(c.closedAt)}${c.imported?' • importado':''}</small></td><td>${s.salesCount}</td><td>${money(s.revenue)}</td><td>${money(s.productCost)}</td><td>${money(s.profit)}</td><td>${money(s.financeExpense)}</td><td>${money(s.netResult)}</td><td><div class="actions"><button class="btn primary small" onclick="closingDetail('${c.month}')">Ver detalhes</button><button class="btn ghost small" onclick="exportClosingJSON('${c.month}')">Exportar</button></div></td></tr>`}).join(''),currentPreview=buildMonthClosing(monthKeyFromDate(now)).summary;
  $('#fechamento').innerHTML=heading('Fechamento Mensal','Importe tudo que aconteceu no mês e guarde uma fotografia do período')+`<div class="notice"><b>Importar fechamento:</b> reúne automaticamente as vendas válidas, custos, lucros, formas de pagamento, serviços, compras, financeiro e caixa registrados naquele mês. Vendas canceladas ficam fora do faturamento ativo e permanecem no histórico de cancelamentos.</div><div class="cards">${metric('Mês atual',monthLabel(monthKeyFromDate(now)),currentPreview.salesCount+' venda(s)','green')}${metric('Faturamento atual',money(currentPreview.revenue),'prévia','green')}${metric('Lucro atual',money(currentPreview.profit),'prévia','green')}${metric('Meses fechados',data.monthlyClosings.length,'histórico salvo','green')}</div><div class="card" style="margin-top:16px"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar fechamento do período</h3><small class="cell-sub">Escolha o mês e o sistema reúne tudo que está registrado</small></div></div><div class="actions" style="margin-top:12px"><input id="closingImportMonth" type="month" value="${defaultKey}" style="max-width:220px"><button class="btn primary" onclick="importMonthlyClosing()">Importar fechamento</button><button class="btn ghost" onclick="closeMonth($('#closingImportMonth').value)">Fechar sem substituir</button></div></div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Mês</th><th>Vendas</th><th>Faturamento</th><th>Custo produtos</th><th>Lucro vendas</th><th>Despesas</th><th>Resultado financeiro</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum mês fechado ainda.</td></tr>'}</tbody></table></div>`;
+}
+
+
+/* ===== Mercado Livre V5: descrição pronta + oportunidades por custo ===== */
+function mlCleanProductName(name){
+ return String(name||'').replace(/\s+/g,' ').trim();
+}
+function mlExtractTireInfo(p){
+ const name=mlCleanProductName(p?.name||'');
+ const size=(name.match(/\b\d{3}\s*[\/-]\s*\d{2}\s*(?:R|ZR)?\s*\d{2}\b/i)||name.match(/\b\d{2,3}\s*\/?\s*\d{2,3}\s*[-x]\s*\d{2}\b/i)||[])[0]||'';
+ const aro=(name.match(/\bR\s?(\d{2})\b/i)||[])[1]||'';
+ return {name,size:size.replace(/\s+/g,' ').trim(),aro};
+}
+function mlListingTitle(p){
+ const info=mlExtractTireInfo(p);
+ let title=info.name.replace(/^PNEU\s+/i,'Pneu ');
+ if(!/^pneu\b/i.test(title))title='Pneu '+title;
+ return title.replace(/\s+/g,' ').trim().slice(0,60);
+}
+function mlDetailedDescription(p,x){
+ const info=mlExtractTireInfo(p), brand=String(p?.brand||x?.brand||'').trim();
+ const lines=[
+  mlListingTitle(p),
+  '',
+  'Produto disponível no estoque da Le Pneus.',
+  '',
+  'DETALHES DO PRODUTO',
+  '• Produto: '+info.name,
+  brand?'• Marca: '+brand:'',
+  info.size?'• Medida: '+info.size:'',
+  info.aro?'• Aro: '+info.aro:'',
+  '• Condição: novo',
+  '• Quantidade do anúncio: 1 unidade',
+  '',
+  'ANTES DA COMPRA',
+  'Confira a medida indicada no pneu atualmente instalado no veículo e confirme a compatibilidade com seu carro ou moto.',
+  '',
+  'ENVIO E ATENDIMENTO',
+  'Produto separado conforme disponibilidade de estoque. Em caso de dúvida sobre medida ou aplicação, utilize o campo de perguntas do anúncio antes da compra.',
+  '',
+  'Observação: características específicas como índice de carga, velocidade e aplicação devem ser confirmadas na identificação do produto antes da publicação do anúncio.'
+ ].filter(v=>v!==''||true);
+ return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+function showMLDescription(id){
+ const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));if(!x)return;
+ const p=data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+ const title=mlListingTitle(p),desc=mlDetailedDescription(p,x);
+ showModal(`<h2>Descrição pronta para o Mercado Livre</h2><div class="notice"><b>Título sugerido</b><br>${esc(title)}</div><label class="field"><span>Descrição detalhada</span><textarea id="mlGeneratedDescription" rows="18" style="width:100%">${esc(desc)}</textarea></label><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button><button class="btn primary" onclick="copyMLDescription(${id})">Copiar descrição</button></div>`);
+}
+async function copyMLDescription(id){
+ const x=data.mercadoLivreItems.find(i=>Number(i.id)===Number(id));const p=x&&data.products.find(p=>String(p.id)===String(x.productId));if(!p)return;
+ const text=(document.getElementById('mlGeneratedDescription')?.value||mlDetailedDescription(p,x));
+ try{await navigator.clipboard.writeText(text);alert('Descrição copiada.');}catch(e){const ta=document.getElementById('mlGeneratedDescription');if(ta){ta.focus();ta.select();document.execCommand('copy');alert('Descrição copiada.')}}
+}
+function mlOpportunityData(){
+ const items=(data.mercadoLivreItems||[]).map(x=>{const p=data.products.find(p=>String(p.id)===String(x.productId));return {x,p,cost:Number(p?.cost||0),qty:Number(p?.qty||0)}}).filter(o=>o.p&&o.cost>0&&o.qty>0&&!/acess/i.test(String(o.p.category||'')));
+ const costs=items.map(o=>o.cost).sort((a,b)=>a-b);
+ const q=(pct)=>costs.length?costs[Math.min(costs.length-1,Math.floor((costs.length-1)*pct))]:0;
+ const q25=q(.25),q50=q(.50);
+ return items.map(o=>{
+  let level='Normal',score=0,reason='Custo acima da metade do estoque analisado.';
+  if(o.cost<=q25){level='Melhor custo';score=3;reason='Está entre os 25% de menor custo do estoque com unidades disponíveis.';}
+  else if(o.cost<=q50){level='Bom custo';score=2;reason='Está entre os 50% de menor custo do estoque com unidades disponíveis.';}
+  else {score=1;}
+  if(o.qty>=4)score+=1;
+  return {...o,level,score,reason};
+ }).sort((a,b)=>b.score-a.score||a.cost-b.cost);
+}
+function mlOpportunityFor(productId){
+ return mlOpportunityData().find(o=>String(o.p.id)===String(productId))||null;
+}
+function mlOpportunityBadge(o){
+ if(!o)return '<span class="badge">Sem análise</span>';
+ if(o.level==='Melhor custo')return '<span class="badge ok">⭐ Melhor custo</span>';
+ if(o.level==='Bom custo')return '<span class="badge ok">Bom custo</span>';
+ return '<span class="badge warn">Comparar mercado</span>';
+}
+function showMLOpportunities(){
+ const arr=mlOpportunityData();
+ const rows=arr.slice(0,30).map((o,i)=>{const est=mlSuggestedFromItem(o.x,o.p);return `<tr><td><b>#${i+1}</b></td><td>${esc(o.p.name)}<small class="cell-sub">Estoque ${o.qty}</small></td><td>${money(o.cost)}</td><td>${mlOpportunityBadge(o)}</td><td>${money(est.suggested)}</td><td><button class="btn ghost small" onclick="searchMLSimilar(${o.x.id})">Buscar anúncios</button></td></tr>`}).join('');
+ showModal(`<h2>Melhores oportunidades pelo custo</h2><div class="notice"><b>Importante:</b> esta seleção usa somente os dados internos da sua planilha: custo e disponibilidade em estoque. Ela não sabe automaticamente a procura nem o preço dos concorrentes. Use <b>Buscar anúncios</b> para confirmar se o preço fica competitivo.</div><div class="table-wrap"><table><thead><tr><th>Ranking</th><th>Pneu</th><th>Custo</th><th>Análise</th><th>Preço sugerido</th><th>Mercado</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">Importe os pneus primeiro.</td></tr>'}</tbody></table></div><div class="modal-actions"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+}
+
+function renderMercadoLivre(){
+ lpEnsureV3();
+ data.settings.mlDefaultFeePct=Number(data.settings.mlDefaultFeePct??16);
+ data.settings.mlDefaultFreight=Number(data.settings.mlDefaultFreight??0);
+ data.settings.mlDefaultOther=Number(data.settings.mlDefaultOther??0);
+ data.settings.mlDefaultProfit=Number(data.settings.mlDefaultProfit??40);
+ const opts=data.products.map(p=>`<option value="${p.id}">${esc(p.code)} — ${esc(p.name)}</option>`).join('');
+ let rows=data.mercadoLivreItems.map(x=>{
+   let p=data.products.find(p=>String(p.id)===String(x.productId));
+   if(p){x.qty=p.qty;x.name=p.name;x.code=p.code;x.brand=p.brand;x.price=p.price}
+   const est=mlSuggestedFromItem(x,p),opp=mlOpportunityFor(x.productId);
+   const actual=Number(x.mlAdvertisedPrice||0),applied=actual>0;
+   const actualFee=applied?Number(x.mlFee||actual*(est.feePct/100)):est.fee;
+   const actualProfit=applied?actual-actualFee-est.freight-est.other-est.cost:est.profit;
+   return `<tr>
+   <td><b>${esc(x.code)}</b></td>
+   <td>${esc(x.name)}<small class="cell-sub">${esc(x.brand||'')} • estoque ${Number(x.qty||0)}</small></td>
+   <td>${money(est.cost)}</td>
+   <td>${mlOpportunityBadge(opp)}<small class="cell-sub">${opp?esc(opp.reason):'Sem estoque/custo válido'}</small></td>
+   <td>${money(Number(p?.price||x.price||0))}<small class="cell-sub">preço da planilha</small></td>
+   <td>${est.feePct.toFixed(1)}%</td>
+   <td>${money(est.freight)}</td>
+   <td><b>${money(est.targetProfit)}</b><small class="cell-sub">por pneu</small></td>
+   <td><b>${money(est.suggested)}</b><small class="cell-sub">custo + despesas + lucro</small></td>
+   <td>${applied?`<b>${money(actual)}</b><small class="cell-sub">lucro est. ${money(actualProfit)}</small>`:'<span class="badge warn">Ainda não aplicado</span>'}</td>
+   <td><div class="actions"><button class="btn primary small" onclick="useMLSuggestedPrice(${x.id})">Usar sugerido</button><button class="btn ghost small" onclick="showMLDescription(${x.id})">Descrição</button><button class="btn ghost small" onclick="searchMLSimilar(${x.id})">🔎 Buscar anúncios</button><button class="btn ghost small" onclick="editMLSuggestion(${x.id})">Frete/taxas</button><button class="btn ghost small" onclick="removeFromML(${x.id})">Remover</button></div></td>
+   </tr>`;
+ }).join('');
+ const suggestedTotal=data.mercadoLivreItems.reduce((a,x)=>{const p=data.products.find(p=>String(p.id)===String(x.productId));return a+mlSuggestedFromItem(x,p).suggested},0);
+ const topCount=mlOpportunityData().filter(o=>o.level==='Melhor custo').length;
+ $('#mercadolivre').innerHTML=heading('Mercado Livre','Preço, descrição e seleção automática das melhores oportunidades do estoque',`<button class="btn primary" onclick="showMLOpportunities()">⭐ Ver melhores para anunciar</button>`)+
+ `<div class="notice"><b>Depois da importação:</b> pneus de Carro e Moto entram automaticamente aqui. O sistema calcula o preço usando o custo da planilha, despesas estimadas e <b>R$ ${Number(data.settings.mlDefaultProfit).toFixed(2).replace('.',',')} de lucro por pneu</b>. Também gera uma descrição pronta para copiar.</div>
+ <div class="notice"><b>Seleção inteligente pelo custo:</b> o sistema destaca os pneus com menor custo dentro do seu próprio estoque e que possuem unidades disponíveis. Isso é uma triagem interna; para saber se realmente vale anunciar, compare os concorrentes com o botão <b>Buscar anúncios</b>.</div>
+ <div class="cards">${metric('Produtos preparados',data.mercadoLivreItems.length,'vindos do estoque','green')}${metric('Melhor custo',topCount,'prioridade para comparar','green')}${metric('Total sugerido',money(suggestedTotal),'soma dos preços sugeridos','green')}${metric('Lucro alvo',money(data.settings.mlDefaultProfit),'por pneu','green')}</div>
+ <div class="card" style="margin-top:16px"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Padrões do cálculo</h3><small class="cell-sub">Ajuste quando souber os custos reais do anúncio</small></div></div><div class="form-grid">
+ <label class="field"><span>Comissão/taxa ML (%)</span><input id="mlDefaultFeePct" type="number" step="0.1" min="0" value="${data.settings.mlDefaultFeePct}"></label>
+ <label class="field"><span>Frete médio pago pela loja (R$)</span><input id="mlDefaultFreight" type="number" step="0.01" min="0" value="${data.settings.mlDefaultFreight}"></label>
+ <label class="field"><span>Outros custos por venda (R$)</span><input id="mlDefaultOther" type="number" step="0.01" min="0" value="${data.settings.mlDefaultOther}"></label>
+ <label class="field"><span>Lucro desejado por pneu (R$)</span><input id="mlDefaultProfit" type="number" step="0.01" min="0" value="${data.settings.mlDefaultProfit}"></label>
+ </div><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveMLDefaults()">Salvar e recalcular todos</button><button class="btn ghost" onclick="showMLOpportunities()">Ver ranking por custo</button></div></div>
+ <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Custo</th><th>Oportunidade</th><th>Preço planilha</th><th>Taxa</th><th>Frete</th><th>Lucro/pneu</th><th>Preço sugerido ML</th><th>Preço aplicado</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="11" class="empty">Importe a planilha de Carro ou Moto para gerar as sugestões automaticamente.</td></tr>'}</tbody></table></div>`;
 }
 </script>
 
