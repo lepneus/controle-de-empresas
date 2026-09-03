@@ -2164,5 +2164,211 @@ function renderCatalogo(){
 }
 </script>
 
+
+<!-- SheetJS: leitura das planilhas Excel diretamente no navegador -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script id="lepneus-planilhas-vendas-fechamento-v3">
+/* ===== Le Pneus V3: importação Excel + diferenças + cancelamentos + fechamento ===== */
+const lpSheetFiles={};
+function lpEnsureV3(){
+  ensureData(); enhanceData();
+  data.saleCancellations=data.saleCancellations||[];
+  data.importAudits=data.importAudits||[];
+  data.pendingImportDifferences=data.pendingImportDifferences||[];
+  data.spreadsheetConnections=data.spreadsheetConnections||{};
+}
+function lpNorm(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ')}
+function lpNum(v){
+  if(typeof v==='number')return Number.isFinite(v)?v:0;
+  let s=String(v??'').trim(); if(!s)return 0;
+  s=s.replace(/R\$\s*/gi,'').replace(/\s/g,'');
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');
+  s=s.replace(/[^0-9.-]/g,''); const n=Number(s); return Number.isFinite(n)?n:0;
+}
+function lpKey(v){return lpNorm(v).replace(/[^a-z0-9]/g,'')}
+function lpCategory(type){return type==='carro'?'Pneu':type==='moto'?'Pneu de moto':'Acessórios'}
+function lpGuessBrand(name,sheetName,type){
+  const n=String(name||'').trim();
+  const stop=new Set(['pneu','pneus','camara','câmara','de','ar','aro','moto','carro','radial']);
+  const parts=n.split(/\s+/).filter(Boolean);
+  for(let i=0;i<parts.length;i++){
+    const t=lpNorm(parts[i]).replace(/[^a-z0-9]/g,'');
+    if(stop.has(lpNorm(parts[i]))||/^\d/.test(parts[i]))continue;
+    if(t.length>=3)return parts[i].replace(/[^A-Za-zÀ-ÿ0-9-]/g,'');
+  }
+  const sn=String(sheetName||'').replace(/^P\.\s*/i,'').trim();
+  return type==='moto'&&sn&&!/outros/i.test(sn)?sn:'';
+}
+function lpHeaderIndex(row,aliases){
+  const keys=row.map(lpKey);
+  for(const a of aliases){const k=lpKey(a),i=keys.findIndex(x=>x===k||x.includes(k));if(i>=0)return i}
+  return -1;
+}
+function lpParseWorkbook(wb,type){
+  const products=[]; const warnings=[];
+  wb.SheetNames.forEach(sheetName=>{
+    const ws=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+    if(!rows.length)return;
+    let hi=-1, map=null;
+    for(let r=0;r<Math.min(rows.length,25);r++){
+      const row=rows[r].map(x=>String(x??'').trim());
+      const code=lpHeaderIndex(row,['Cod','Código','Codigo','SKU']);
+      const name=lpHeaderIndex(row,['Pneu','Produto','Descrição','Descricao','Item']);
+      const stock=lpHeaderIndex(row,['Estoque','Qtd','Quantidade','Saldo']);
+      const cost=lpHeaderIndex(row,['Custo','Custo Total','Preço Custo','Preco Custo']);
+      const price=lpHeaderIndex(row,['Valor Venda','Venda','Preço Venda','Preco Venda','Vista','À Vista','A Vista']);
+      if((code>=0||name>=0)&&stock>=0){hi=r;map={code,name,stock,cost,price};break}
+    }
+    if(hi<0){warnings.push(sheetName+': cabeçalho não identificado');return}
+    for(let r=hi+1;r<rows.length;r++){
+      const row=rows[r];
+      const code=map.code>=0?String(row[map.code]??'').trim():'';
+      const name=map.name>=0?String(row[map.name]??'').trim():'';
+      if(!code&&!name)continue;
+      if(/^(total|subtotal|estoque|codigo|código|cod)$/i.test(lpNorm(name)))continue;
+      const stock=Math.max(0,Math.round(lpNum(row[map.stock])));
+      const cost=map.cost>=0?lpNum(row[map.cost]):0;
+      const price=map.price>=0?lpNum(row[map.price]):0;
+      const stable=code||`${type}-${sheetName}-${name}`;
+      products.push({code:stable,name:name||('Produto '+code),qty:stock,cost,price,category:lpCategory(type),brand:lpGuessBrand(name,sheetName,type),sheet:sheetName,row:r+1});
+    }
+  });
+  const by=new Map();
+  products.forEach(p=>{const k=lpKey(p.code);if(k&&!by.has(k))by.set(k,p)});
+  return {products:[...by.values()],warnings};
+}
+function connectSpreadsheet(type){
+  lpEnsureV3();
+  const input=document.getElementById(spreadsheetInputId(type));
+  if(!input||!input.files||!input.files[0])return alert('Escolha a planilha '+sheetConnectionLabel(type)+'.');
+  const f=input.files[0]; lpSheetFiles[type]=f;
+  data.spreadsheetConnections[type]={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:new Date().toLocaleString('pt-BR'),status:'Pronta para importar'};
+  save(); renderPlanilhas();
+}
+async function importSpreadsheet(type){
+  lpEnsureV3();
+  let f=lpSheetFiles[type];
+  const input=document.getElementById(spreadsheetInputId(type));
+  if(input?.files?.[0]){f=input.files[0];lpSheetFiles[type]=f}
+  if(!f)return alert('Escolha novamente o arquivo '+sheetConnectionLabel(type)+' e depois clique em Importar / Atualizar.');
+  if(typeof XLSX==='undefined')return alert('O leitor de Excel não carregou. Verifique a internet e abra o arquivo novamente.');
+  try{
+    const buf=await f.arrayBuffer(),wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const parsed=lpParseWorkbook(wb,type); if(!parsed.products.length)return alert('Nenhum produto válido foi encontrado nesta planilha.');
+    let created=0,updated=0,diffs=0; const batchId=Date.now();
+    for(const imp of parsed.products){
+      let p=data.products.find(x=>lpKey(x.code)===lpKey(imp.code));
+      if(!p){
+        p={id:idNow(),code:imp.code,name:imp.name,category:imp.category,brand:imp.brand,qty:imp.qty,min:Number(data.settings.defaultMinStock||0),cost:imp.cost,price:imp.price,location:'Planilha: '+imp.sheet};
+        data.products.push(p); created++;
+        if(p.qty>0)data.stockMovements.unshift({id:idNow(),date:nowBR(),productId:p.id,product:p.name,type:'Entrada',qty:p.qty,before:0,after:p.qty,reason:'Importação inicial da planilha',ref:f.name+' • '+imp.sheet,user:'Administrador'});
+      }else{
+        const oldQty=Number(p.qty||0),newQty=Number(imp.qty||0);
+        p.name=imp.name||p.name; p.category=imp.category||p.category; p.brand=imp.brand||p.brand; p.cost=Number(imp.cost||p.cost||0); p.price=Number(imp.price||p.price||0); p.location=p.location||('Planilha: '+imp.sheet); updated++;
+        if(oldQty!==newQty){
+          data.pendingImportDifferences.push({id:idNow(),batchId,type,productId:p.id,code:p.code,name:p.name,oldQty,newQty,diff:newQty-oldQty,cost:p.cost,price:p.price,file:f.name,sheet:imp.sheet,createdAt:nowBR(),status:'Pendente'}); diffs++;
+        }
+        syncProductChannels(p);
+      }
+    }
+    data.spreadsheetConnections[type]={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:data.spreadsheetConnections[type]?.connectedAt||nowBR(),lastImportedAt:nowBR(),status:'Importada'};
+    data.importAudits.unshift({id:batchId,date:nowBR(),type,file:f.name,created,updated,differences:diffs,warnings:parsed.warnings});
+    data.importAudits=data.importAudits.slice(0,100); save(); renderAll();
+    if(diffs){alert(`Importação concluída.\nNovos: ${created}\nAtualizados: ${updated}\nDiferenças de estoque: ${diffs}\n\nO sistema vai pedir a confirmação de cada diferença.`);setTimeout(()=>lpNextDifference(batchId),50)}
+    else alert(`Importação concluída.\nNovos: ${created}\nAtualizados: ${updated}\nNenhuma diferença de estoque pendente.`);
+  }catch(e){console.error(e);alert('Não foi possível ler esta planilha. O arquivo não foi alterado.');}
+}
+function lpNextDifference(batchId){
+  lpEnsureV3(); const d=data.pendingImportDifferences.find(x=>x.status==='Pendente'&&(!batchId||x.batchId===batchId)); if(!d)return;
+  const p=data.products.find(x=>String(x.id)===String(d.productId)); if(!p){d.status='Ignorada';save();return lpNextDifference(batchId)}
+  if(d.diff<0) lpDifferenceSaleModal(d.id); else lpDifferenceEntryModal(d.id);
+}
+function lpDifferenceSaleModal(diffId){
+ const d=data.pendingImportDifferences.find(x=>String(x.id)===String(diffId));if(!d)return;
+ const q=Math.abs(d.diff);
+ showModal(`<h2>Diferença detectada no estoque</h2><div class="notice"><b>${esc(d.name)}</b><br>Controle: <b>${d.oldQty}</b> → Planilha: <b>${d.newQty}</b><br>Saída detectada: <b>${q} unidade(s)</b>.</div>
+ <p style="margin:12px 0;color:var(--muted)">Essa saída foi uma venda?</p>
+ <div class="form"><label>Preço vendido por unidade<input id="diprice" type="number" step="0.01" value="${Number(d.price||0).toFixed(2)}"></label><label>Pagamento<select id="dipayment"><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option><option>Cheque</option><option>Transferência</option><option>Boleto</option><option>Outro</option></select></label><label>Nome do comprador<input id="dicustomer" placeholder="Opcional"></label><label>Telefone<input id="diphone" placeholder="Opcional"></label><label class="full">Observação<input id="dinote" placeholder="Opcional"></label></div>
+ <div class="modal-actions"><button class="btn ghost" onclick="lpResolveDifference(${d.id},'ignorar')">Deixar pendente</button><button class="btn ghost" onclick="lpResolveDifference(${d.id},'ajuste')">Foi ajuste</button><button class="btn primary" onclick="lpResolveDifference(${d.id},'venda')">Confirmar venda</button></div>`);
+}
+function lpDifferenceEntryModal(diffId){
+ const d=data.pendingImportDifferences.find(x=>String(x.id)===String(diffId));if(!d)return;
+ showModal(`<h2>Entrada detectada no estoque</h2><div class="notice"><b>${esc(d.name)}</b><br>Controle: <b>${d.oldQty}</b> → Planilha: <b>${d.newQty}</b><br>Entrada detectada: <b>${Math.abs(d.diff)} unidade(s)</b>.</div><div class="form"><label class="full">Motivo<select id="dientryreason"><option>Compra / reposição</option><option>Correção da planilha</option><option>Devolução de cliente</option><option>Inventário / ajuste</option><option>Outro</option></select></label></div><div class="modal-actions"><button class="btn ghost" onclick="lpResolveDifference(${d.id},'ignorar')">Deixar pendente</button><button class="btn primary" onclick="lpResolveDifference(${d.id},'ajuste')">Confirmar entrada</button></div>`);
+}
+function lpFindOrCreateCustomer(name,phone){
+  name=String(name||'').trim();phone=String(phone||'').trim(); if(!name&&!phone)return '';
+  let c=data.customers.find(x=>(phone&&String(x.phone||'').replace(/\D/g,'')===phone.replace(/\D/g,''))||(name&&lpNorm(x.name)===lpNorm(name)));
+  if(!c){c={id:idNow(),name:name||'Cliente '+phone,phone,email:'',doc:'',address:'',city:'',notes:'Cadastrado automaticamente por importação de planilha'};data.customers.unshift(c);}
+  return c.id;
+}
+async function lpResolveDifference(diffId,action){
+  lpEnsureV3(); const d=data.pendingImportDifferences.find(x=>String(x.id)===String(diffId));if(!d)return;
+  const p=data.products.find(x=>String(x.id)===String(d.productId));if(!p)return;
+  if(action==='ignorar'){closeModal();return;}
+  if(action==='venda'){
+    const q=Math.abs(d.diff),unit=Number($('#diprice')?.value||d.price||0),payment=$('#dipayment')?.value||'PIX',name=$('#dicustomer')?.value||'',phone=$('#diphone')?.value||'',note=$('#dinote')?.value||'';
+    if(unit<0)return alert('Informe um preço de venda válido.');
+    const customerId=lpFindOrCreateCustomer(name,phone);
+    const res=createIntegratedSale({customerId,items:[{id:p.id,qty:q,price:unit,cost:Number(p.cost||0)}],discount:0,payment,financialStatus:'Pago',originType:'Importação Excel',originNumber:'PLANILHA-'+d.id});
+    if(res.error)return alert(res.error);
+    res.sale.importDifferenceId=d.id;res.sale.importNote=note; d.saleId=res.sale.id; d.status='Venda confirmada';
+    syncProductChannels(p);queueExcelSync(p,'Venda detectada na planilha #'+res.sale.id);
+    log(`Planilha detectou venda #${res.sale.id}: ${p.name} × ${q}`);
+  }else{
+    const reason=d.diff>0?($('#dientryreason')?.value||'Entrada detectada na planilha'):'Ajuste de estoque confirmado';
+    addStockMovement(p.id,'Ajuste',d.newQty,reason,d.file+' • '+d.sheet); d.status='Ajuste confirmado'; syncProductChannels(p);queueExcelSync(p,'Ajuste confirmado por importação');
+    log(`Diferença de planilha ajustada: ${p.name} ${d.oldQty} → ${d.newQty}`);
+  }
+  d.resolvedAt=nowBR(); save(); closeModal(); renderAll();
+  if(lpFirebaseUser&&data.catalogItems.some(x=>String(x.productId)===String(p.id))){try{await publishProductToFirebase(p.id,true)}catch(e){console.warn(e)}}
+  setTimeout(()=>lpNextDifference(d.batchId),50);
+}
+function renderPlanilhas(){
+ lpEnsureV3();
+ const cards=['carro','moto','acessorios'].map(type=>{const c=data.spreadsheetConnections[type],pending=data.pendingImportDifferences.filter(x=>x.type===type&&x.status==='Pendente').length;return `<div class="card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">${sheetConnectionLabel(type)}</h3><small class="cell-sub">${type==='carro'?'Pneus de carro':type==='moto'?'Pneus de moto':'Câmaras, rodas, peças e acessórios'}</small></div>${c?'<span class="badge ok">'+esc(c.status||'Selecionada')+'</span>':'<span class="badge warn">Não selecionada</span>'}</div>${c?`<div class="notice"><b>Arquivo:</b> ${esc(c.name)}${c.lastImportedAt?`<br><b>Última importação:</b> ${esc(c.lastImportedAt)}`:''}${pending?`<br><b>Pendências:</b> ${pending}`:''}</div>`:'<p style="color:var(--muted);font-size:13px">Escolha a planilha original deste estoque.</p>'}<input id="${spreadsheetInputId(type)}" type="file" accept=".xlsx,.xls" style="width:100%;margin:10px 0 12px"><div class="actions"><button class="btn ghost" onclick="connectSpreadsheet('${type}')">Selecionar arquivo</button><button class="btn primary" onclick="importSpreadsheet('${type}')">Importar / Atualizar agora</button>${pending?`<button class="btn ghost" onclick="lpNextDifference()">Revisar diferenças</button>`:''}</div></div>`}).join('');
+ const connected=Object.keys(data.spreadsheetConnections).filter(k=>['carro','moto','acessorios'].includes(k)).length,pending=data.pendingImportDifferences.filter(x=>x.status==='Pendente').length,last=data.importAudits[0];
+ $('#planilhas').innerHTML=heading('Conexão Planilhas','Importe Carro, Moto e Acessórios e confirme toda diferença de estoque')+`<div class="notice"><b>Como funciona:</b> na primeira importação o estoque é criado. Nas próximas, custo e preço de venda são atualizados e qualquer mudança de quantidade é conferida antes de virar venda ou ajuste. O arquivo Excel original não é alterado por este HTML.</div><div class="cards">${metric('Fontes previstas','3','Carro • Moto • Acessórios','green')}${metric('Selecionadas',connected,'neste navegador',connected===3?'green':'red')}${metric('Diferenças pendentes',pending,'aguardando confirmação',pending?'red':'green')}${metric('Última importação',last?esc(last.date):'Ainda não','histórico salvo','green')}</div><div class="settings-grid" style="margin-top:16px">${cards}</div>`;
+}
+function cancelSaleModal(id){
+ lpEnsureV3();const s=data.sales.find(x=>String(x.id)===String(id));if(!s||s.status==='Cancelada')return;
+ showModal(`<h2>Cancelar venda #${s.id}</h2><div class="notice">A venda será marcada como cancelada, o estoque dos produtos será devolvido e os lançamentos vinculados serão estornados quando aplicável. O histórico do cancelamento ficará armazenado.</div><div class="form"><label class="full">Motivo do cancelamento<textarea id="saleCancelReason" rows="4" placeholder="Obrigatório"></textarea></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Voltar</button><button class="btn primary" onclick="confirmCancelSale(${s.id})">Confirmar cancelamento</button></div>`);
+}
+async function confirmCancelSale(id){
+ lpEnsureV3();const s=data.sales.find(x=>String(x.id)===String(id));if(!s||s.status==='Cancelada')return;
+ const reason=String($('#saleCancelReason')?.value||'').trim();if(!reason)return alert('Escreva o motivo do cancelamento.');
+ if(!confirm('Confirmar o cancelamento desta venda?'))return;
+ const restored=[];
+ (s.items||[]).filter(i=>i.kind!=='service'&&i.id).forEach(i=>{const p=data.products.find(x=>String(x.id)===String(i.id));if(p&&addStockMovement(p.id,'Devolução',Number(i.qty||0),'Cancelamento de venda #'+s.id,reason)){restored.push({productId:p.id,name:p.name,qty:Number(i.qty||0)});syncProductChannels(p);queueExcelSync(p,'Cancelamento de venda #'+s.id)}});
+ const f=data.finance.find(x=>String(x.id)===String(s.financeId))||data.finance.find(x=>x.originType==='Venda'&&String(x.originId)===String(s.id));
+ if(f&&f.status!=='Cancelado'){if(f.status==='Pago'){addCashMovement('Saída','Estorno venda #'+s.id,Number(f.value||s.total||0),f.payment||s.payment,'CancelamentoVenda',s.id,'VEN-'+s.id)}f.status='Cancelado';completeLinkedReminder(f)}
+ const com=data.commissions.find(x=>String(x.id)===String(s.commissionId))||data.commissions.find(x=>String(x.saleId)===String(s.id));if(com)com.status='Cancelada';
+ s.status='Cancelada';s.cancelReason=reason;s.canceledAt=nowBR();s.financialStatus='Cancelado';
+ data.saleCancellations.unshift({id:idNow(),saleId:s.id,date:nowBR(),reason,customer:s.customer,total:s.total,payment:s.payment,items:JSON.parse(JSON.stringify(s.items||[])),restored});
+ log('Cancelou venda #'+s.id+' • motivo: '+reason);save();closeModal();renderAll();
+ for(const r of restored){if(lpFirebaseUser&&data.catalogItems.some(x=>String(x.productId)===String(r.productId))){try{await publishProductToFirebase(r.productId,true)}catch(e){console.warn(e)}}}
+}
+function renderVendas(){
+ lpEnsureV3();
+ let stockRows=data.products.map(p=>{const inCat=data.catalogItems.some(x=>String(x.productId)===String(p.id)),inML=data.mercadoLivreItems.some(x=>String(x.productId)===String(p.id));return `<tr><td><b>${esc(p.code)}</b></td><td>${esc(p.name)}<small class="cell-sub">${esc(p.brand||'')} ${esc(p.category||'')}</small></td><td><b>${Number(p.qty||0)}</b></td><td>${money(p.price)}</td><td>${inCat?'<span class="badge ok">Catálogo</span>':'<span class="badge">Fora do catálogo</span>'}</td><td>${inML?'<span class="badge ok">Mercado Livre</span>':'<span class="badge">Não enviado</span>'}</td><td><div class="actions" style="align-items:center"><input id="sellqty-${p.id}" type="number" min="1" max="${Number(p.qty||0)}" value="1" style="width:78px;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text)"><button class="btn primary small" onclick="quickSell(${p.id})" ${Number(p.qty||0)<=0?'disabled':''}>Dar baixa / Vendido</button></div></td></tr>`}).join('');
+ let salesRows=data.sales.map(s=>`<tr><td><b>#${s.id}</b><small class="cell-sub">${esc(s.origin||s.originType||'Venda direta')}</small></td><td>${esc(s.date)}</td><td>${esc(s.customer||'Consumidor')}</td><td>${s.items?.map(i=>esc(i.name)+' × '+i.qty).join('<br>')||'-'}</td><td>${money(s.total)}</td><td>${statusBadge(s.financialStatus||'Pago')}</td><td>${statusBadge(s.status||'Concluída')}${s.cancelReason?`<small class="cell-sub">${esc(s.cancelReason)}</small>`:''}</td><td>${s.status!=='Cancelada'?`<button class="btn ghost small" onclick="cancelSaleModal(${s.id})">Cancelar venda</button>`:'<span class="soft-chip">Cancelada</span>'}</td></tr>`).join('');
+ const cancels=data.saleCancellations.slice(0,15).map(c=>`<tr><td>#${c.saleId}</td><td>${esc(c.date)}</td><td>${esc(c.customer||'Consumidor')}</td><td>${money(c.total)}</td><td>${esc(c.reason)}</td></tr>`).join('');
+ $('#vendas').innerHTML=heading('Vendas','Baixas, vendas detectadas nas planilhas e cancelamentos rastreáveis')+`<div class="notice"><b>Importação inteligente:</b> quando a planilha mostrar menos unidades, o sistema pergunta se foi venda ou ajuste. Se for venda, pede preço real, pagamento, cliente e telefone antes de registrar.</div><div class="cards">${metric('Produtos',data.products.length,'cadastrados','green')}${metric('Vendas ativas',activeSales().length,'sem canceladas','green')}${metric('Faturamento',money(activeSales().reduce((a,s)=>a+Number(s.total||0),0)),'vendas válidas','green')}${metric('Cancelamentos',data.saleCancellations.length,'histórico preservado',data.saleCancellations.length?'red':'green')}</div><div class="card" style="margin-top:16px"><div class="panel-head"><h3 class="section-title" style="margin:0">Produtos do estoque</h3><span class="soft-chip">Baixa rápida</span></div><div class="toolbar"><input id="salesStockSearch" placeholder="Pesquisar produto, código ou marca" oninput="filterTable('salesStockSearch','salesStockTable')"></div><div class="table-wrap"><table id="salesStockTable"><thead><tr><th>Código</th><th>Produto</th><th>Estoque</th><th>Preço</th><th>Catálogo</th><th>Mercado Livre</th><th>Baixa</th></tr></thead><tbody>${stockRows||'<tr><td colspan="7" class="empty">Nenhum produto no estoque.</td></tr>'}</tbody></table></div></div><div class="card" style="margin-top:16px"><div class="panel-head"><h3 class="section-title" style="margin:0">Histórico de vendas</h3></div><div class="table-wrap"><table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Financeiro</th><th>Status</th><th>Ação</th></tr></thead><tbody>${salesRows||'<tr><td colspan="8" class="empty">Nenhuma venda registrada.</td></tr>'}</tbody></table></div></div><div class="card" style="margin-top:16px"><div class="panel-head"><h3 class="section-title" style="margin:0">Histórico de cancelamentos</h3><span class="soft-chip">Não é apagado</span></div><div class="table-wrap"><table><thead><tr><th>Venda</th><th>Cancelada em</th><th>Cliente</th><th>Valor</th><th>Motivo</th></tr></thead><tbody>${cancels||'<tr><td colspan="5" class="empty">Nenhum cancelamento.</td></tr>'}</tbody></table></div></div>`;
+}
+function importMonthlyClosing(){
+ lpEnsureV3(); const month=$('#closingImportMonth')?.value||$('#closingMonth')?.value;if(!month)return alert('Escolha o mês que deseja importar para o fechamento.');
+ const existing=data.monthlyClosings.find(c=>c.month===month);
+ if(existing&&!confirm('Já existe um fechamento deste mês. Deseja atualizar a fotografia usando todos os dados atuais desse período?'))return;
+ const fresh=buildMonthClosing(month); fresh.closedAt=nowBR(); fresh.automatic=false; fresh.imported=true;
+ if(existing)data.monthlyClosings[data.monthlyClosings.indexOf(existing)]=fresh;else data.monthlyClosings.unshift(fresh);
+ log('Importou fechamento mensal: '+fresh.label);save();renderAll();alert('Fechamento de '+fresh.label+' importado com tudo que está registrado nesse período.');
+}
+function renderFechamento(){
+ lpEnsureV3(); const now=new Date(),prev=new Date(now.getFullYear(),now.getMonth()-1,1),defaultKey=monthKeyFromDate(prev),rows=[...data.monthlyClosings].sort((a,b)=>b.month.localeCompare(a.month)).map(c=>{const s=c.summary;return `<tr><td><b>${esc(c.label)}</b><small class="cell-sub">Fechado: ${esc(c.closedAt)}${c.imported?' • importado':''}</small></td><td>${s.salesCount}</td><td>${money(s.revenue)}</td><td>${money(s.productCost)}</td><td>${money(s.profit)}</td><td>${money(s.financeExpense)}</td><td>${money(s.netResult)}</td><td><div class="actions"><button class="btn primary small" onclick="closingDetail('${c.month}')">Ver detalhes</button><button class="btn ghost small" onclick="exportClosingJSON('${c.month}')">Exportar</button></div></td></tr>`}).join(''),currentPreview=buildMonthClosing(monthKeyFromDate(now)).summary;
+ $('#fechamento').innerHTML=heading('Fechamento Mensal','Importe tudo que aconteceu no mês e guarde uma fotografia do período')+`<div class="notice"><b>Importar fechamento:</b> reúne automaticamente as vendas válidas, custos, lucros, formas de pagamento, serviços, compras, financeiro e caixa registrados naquele mês. Vendas canceladas ficam fora do faturamento ativo e permanecem no histórico de cancelamentos.</div><div class="cards">${metric('Mês atual',monthLabel(monthKeyFromDate(now)),currentPreview.salesCount+' venda(s)','green')}${metric('Faturamento atual',money(currentPreview.revenue),'prévia','green')}${metric('Lucro atual',money(currentPreview.profit),'prévia','green')}${metric('Meses fechados',data.monthlyClosings.length,'histórico salvo','green')}</div><div class="card" style="margin-top:16px"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar fechamento do período</h3><small class="cell-sub">Escolha o mês e o sistema reúne tudo que está registrado</small></div></div><div class="actions" style="margin-top:12px"><input id="closingImportMonth" type="month" value="${defaultKey}" style="max-width:220px"><button class="btn primary" onclick="importMonthlyClosing()">Importar fechamento</button><button class="btn ghost" onclick="closeMonth($('#closingImportMonth').value)">Fechar sem substituir</button></div></div><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Mês</th><th>Vendas</th><th>Faturamento</th><th>Custo produtos</th><th>Lucro vendas</th><th>Despesas</th><th>Resultado financeiro</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum mês fechado ainda.</td></tr>'}</tbody></table></div>`;
+}
+</script>
+
 </body>
 </html>
