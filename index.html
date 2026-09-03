@@ -3775,5 +3775,164 @@ input::placeholder,textarea::placeholder{color:#667c96!important}
 })();
 </script>
 
+
+<style id="lepneus-layout-hotfix-final">
+/* ===== Correção final: remove espaço branco, corrige contraste e mantém painel escuro ===== */
+html,body{
+  background:#08111f!important;
+  color:#f5f8fc!important;
+  min-height:100%!important;
+}
+body{
+  background:
+    radial-gradient(circle at 80% 0%,rgba(239,51,64,.035),transparent 25%),
+    linear-gradient(180deg,#08111f 0%,#0a1422 100%)!important;
+}
+
+/* O layout já usa grid. Não pode somar margin-left na área principal. */
+.app{
+  display:grid!important;
+  grid-template-columns:238px minmax(0,1fr)!important;
+  min-height:100vh!important;
+  background:#08111f!important;
+}
+.sidebar{
+  width:auto!important;
+  min-width:0!important;
+  position:sticky!important;
+  top:0!important;
+  left:auto!important;
+  height:100vh!important;
+}
+.main{
+  margin-left:0!important;
+  width:auto!important;
+  min-width:0!important;
+  background:#08111f!important;
+}
+.topbar{
+  width:100%!important;
+  box-sizing:border-box!important;
+  background:#0d1928!important;
+  border-bottom:1px solid #223249!important;
+}
+.content{
+  width:100%!important;
+  max-width:1560px!important;
+  box-sizing:border-box!important;
+  margin:0 auto!important;
+  padding:28px 30px 36px!important;
+  background:transparent!important;
+  color:#f5f8fc!important;
+}
+
+/* Corrige textos que ficaram brancos em área clara / escuros em área escura */
+.page,.page.active{
+  color:#f5f8fc!important;
+}
+.heading h1,.heading h2,.heading h3,
+.section-title,.panel-head h3{
+  color:#f8fafc!important;
+}
+.heading p,.cell-sub,.metric .label,.ml-mini{
+  color:#94a8c0!important;
+}
+.card,.metric,.settings-section{
+  background:linear-gradient(180deg,#0f1b2b 0%,#0d1928 100%)!important;
+  border:1px solid #223249!important;
+  color:#eef4fb!important;
+  box-shadow:0 7px 22px rgba(0,0,0,.14)!important;
+}
+.card p,.card span,.card div,.metric div{
+  text-shadow:none!important;
+}
+.alert{
+  background:#101d2e!important;
+  color:#e8f0f8!important;
+  border-color:#273a52!important;
+}
+.notice{
+  background:#101e30!important;
+  color:#d6e3f0!important;
+  border-color:#2a3c54!important;
+}
+.soft-chip,.mini{
+  background:#101e30!important;
+  color:#a9bad0!important;
+  border-color:#2b3d55!important;
+}
+
+/* Gráfico e tabelas */
+canvas{
+  color:#dbe7f4!important;
+}
+table{
+  color:#e9f0f7!important;
+}
+thead th{
+  background:#0b1726!important;
+  color:#9baec4!important;
+}
+tbody td{
+  color:#e7eef6!important;
+}
+tbody tr:hover{
+  background:#122238!important;
+}
+.table-wrap{
+  background:#0f1b2b!important;
+}
+
+/* Inputs */
+input,select,textarea{
+  background:#0b1726!important;
+  color:#eef5ff!important;
+  border-color:#2a3b52!important;
+}
+input::placeholder,textarea::placeholder{
+  color:#7187a1!important;
+}
+
+/* Logo sem corte */
+.brand{
+  overflow:visible!important;
+}
+.brand .brand-logo{
+  width:48px!important;
+  height:48px!important;
+  min-width:48px!important;
+  overflow:visible!important;
+}
+.brand .brand-logo img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+
+/* Responsivo */
+@media(max-width:900px){
+  .app{
+    display:block!important;
+  }
+  .sidebar{
+    position:fixed!important;
+    width:258px!important;
+    left:-270px!important;
+    z-index:50!important;
+  }
+  .sidebar.open{
+    left:0!important;
+  }
+  .main{
+    margin-left:0!important;
+    width:100%!important;
+  }
+  .content{
+    padding:17px!important;
+  }
+}
+</style>
+
 </body>
 </html>
