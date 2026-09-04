@@ -3570,5 +3570,278 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
 })();
 </script>
 
+
+<style id="lp-dashboard-catalog-auto-v8-css">
+.lp-dashboard-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.lp-dashboard-charts{display:grid;grid-template-columns:1.35fr .85fr;gap:14px;margin-top:14px}
+.lp-dashboard-charts-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+.lp-chart-card{min-height:310px}
+.lp-chart-wrap{position:relative;height:245px}
+.lp-catalog-audit{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px}
+.lp-catalog-audit>div{padding:13px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc}
+.lp-catalog-audit span{display:block;font-size:10px;text-transform:uppercase;font-weight:800;color:#64748b}
+.lp-catalog-audit b{display:block;margin-top:5px;font-size:20px;color:#172033}
+.lp-catalog-ok{color:#12885a!important}.lp-catalog-bad{color:#d52b3a!important}
+.lp-sheet-reserved{border-style:dashed!important}
+.lp-auto-sync-box{margin-top:16px;border:1px solid #dce6f1;border-radius:16px;padding:16px;background:#f8fafc}
+.lp-auto-sync-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+.lp-auto-sync-steps>div{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+.lp-auto-sync-steps b{display:block;margin-bottom:4px;font-size:12px}
+.lp-auto-sync-steps small{display:block;line-height:1.45}
+@media(max-width:1100px){
+ .lp-dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .lp-dashboard-charts,.lp-dashboard-charts-3{grid-template-columns:1fr}
+ .lp-catalog-audit{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .lp-auto-sync-steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ .lp-dashboard-grid,.lp-catalog-audit,.lp-auto-sync-steps{grid-template-columns:1fr}
+}
+</style>
+
+<script id="lp-dashboard-catalog-auto-v8-js">
+(function(){
+ const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+ const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ const E=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+ const now=()=>new Date().toLocaleString('pt-BR');
+
+ function categoryKey(p){
+   const s=(String(p?.category||'')+' '+String(p?.location||'')+' '+String(p?.name||'')).toLowerCase();
+   if(s.includes('moto')) return 'moto';
+   if(s.includes('acess')||s.includes('câmara')||s.includes('camara')||s.includes('roda')||s.includes('material')) return 'acessorios';
+   if(s.includes('caminh')||s.includes('peça')||s.includes('peca')) return 'pecas';
+   return 'carro';
+ }
+ function autoCatalogProduct(p){ return ['carro','moto'].includes(categoryKey(p)); }
+ function publicableProduct(p){ return autoCatalogProduct(p)&&N(p.qty)>0; }
+
+ function activeSalesSafe(){
+   try{return typeof activeSales==='function'?activeSales():(data.sales||[]).filter(s=>String(s.status||'').toLowerCase()!=='cancelada')}
+   catch(e){return data.sales||[]}
+ }
+ function parseDateSafe(s){
+   try{ if(typeof parseBRDateTime==='function'){const d=parseBRDateTime(s);if(d&&!isNaN(d))return d} }catch(e){}
+   if(!s)return null;
+   const m=String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+   if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+   const d=new Date(s); return isNaN(d)?null:d;
+ }
+ function monthKey(d){return d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`:''}
+
+ /* DASHBOARD: mais informação, sem carregar gráficos fora da tela. */
+ window.renderDashboard=function(){
+   try{ensureData();enhanceData()}catch(e){}
+   const sales=activeSalesSafe();
+   const revenue=sales.reduce((a,s)=>a+N(s.total),0);
+   const profit=sales.reduce((a,s)=>a+N(s.profit),0);
+   const avgTicket=sales.length?revenue/sales.length:0;
+   const units=(data.products||[]).reduce((a,p)=>a+N(p.qty),0);
+   const cars=(data.products||[]).filter(p=>categoryKey(p)==='carro');
+   const motos=(data.products||[]).filter(p=>categoryKey(p)==='moto');
+   const acc=(data.products||[]).filter(p=>categoryKey(p)==='acessorios');
+   const parts=(data.products||[]).filter(p=>categoryKey(p)==='pecas');
+   const zero=(data.products||[]).filter(p=>N(p.qty)<1).length;
+   const clients=(data.customers||[]).length;
+   const openOS=(data.serviceOrders||[]).filter(o=>!['Concluída','Entregue','Cancelada'].includes(o.status)).length;
+   const cashIn=(data.cash||[]).filter(c=>c.type==='Entrada').reduce((a,c)=>a+N(c.value),0);
+   const cashOut=(data.cash||[]).filter(c=>c.type==='Saída').reduce((a,c)=>a+N(c.value),0);
+   const cash=cashIn-cashOut;
+
+   document.getElementById('dashboard').innerHTML=
+     heading('Dashboard','Visão geral de vendas, estoque, caixa, catálogo e operação')+
+     `<div class="lp-dashboard-grid">
+       ${metric('Faturamento',M(revenue),sales.length+' venda(s) ativa(s)','green')}
+       ${metric('Lucro registrado',M(profit),'lucro das vendas','green')}
+       ${metric('Ticket médio',M(avgTicket),'valor médio por venda','green')}
+       ${metric('Saldo do caixa',M(cash),'entradas menos saídas',cash>=0?'green':'red')}
+       ${metric('Unidades em estoque',units,(data.products||[]).length+' produtos cadastrados','green')}
+       ${metric('Produtos zerados',zero,'alerta somente estoque < 1',zero?'red':'green')}
+       ${metric('Clientes',clients,'cadastrados','green')}
+       ${metric('Serviços abertos',openOS,'em andamento',openOS?'red':'green')}
+     </div>
+     <div class="lp-dashboard-charts">
+       <div class="card lp-chart-card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Faturamento por mês</h3><small class="cell-sub">Últimos 6 meses com vendas registradas</small></div></div><div class="lp-chart-wrap"><canvas id="lpChartMonthly"></canvas></div></div>
+       <div class="card lp-chart-card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Distribuição do estoque</h3><small class="cell-sub">Quantidade de cadastros por classificação</small></div></div><div class="lp-chart-wrap"><canvas id="lpChartStock"></canvas></div></div>
+     </div>
+     <div class="lp-dashboard-charts-3">
+       <div class="card"><div class="panel-head"><h3 class="section-title" style="margin:0">Estoque por categoria</h3></div>
+         <div class="summary-list"><div><span>Pneus de carro</span><b>${cars.length} produtos • ${cars.reduce((a,p)=>a+N(p.qty),0)} un.</b></div><div><span>Pneus de moto</span><b>${motos.length} produtos • ${motos.reduce((a,p)=>a+N(p.qty),0)} un.</b></div><div><span>Acessórios</span><b>${acc.length} produtos • ${acc.reduce((a,p)=>a+N(p.qty),0)} un.</b></div><div><span>Peças</span><b>${parts.length} produtos • ${parts.reduce((a,p)=>a+N(p.qty),0)} un.</b></div></div>
+       </div>
+       <div class="card"><div class="panel-head"><h3 class="section-title" style="margin:0">Catálogo automático</h3></div>
+         <div class="summary-list"><div><span>Carro + Moto publicáveis</span><b>${(data.products||[]).filter(publicableProduct).length}</b></div><div><span>Vinculados localmente</span><b>${(data.catalogItems||[]).filter(x=>{const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));return p&&publicableProduct(p)}).length}</b></div><div><span>Firebase</span><b>${window.lpFirebaseUser?'Conectado':'Aguardando login'}</b></div></div>
+       </div>
+       <div class="card"><div class="panel-head"><h3 class="section-title" style="margin:0">Últimas movimentações</h3></div>
+         <div class="activity-feed">${(data.history||[]).slice(0,5).map(h=>`<div class="activity-row"><span class="activity-dot"></span><div><b>${E(h.action||'Movimentação')}</b><small>${E(h.date||'')} • ${E(h.user||'Administrador')}</small></div></div>`).join('')||'<div class="empty">Nenhuma movimentação registrada.</div>'}</div>
+       </div>
+     </div>`;
+
+   setTimeout(()=>{
+     if(typeof Chart==='undefined')return;
+     try{
+       const monthly=new Map();
+       sales.forEach(s=>{const d=parseDateSafe(s.date);if(!d)return;const k=monthKey(d);monthly.set(k,(monthly.get(k)||0)+N(s.total))});
+       const keys=[...monthly.keys()].sort().slice(-6);
+       const c1=document.getElementById('lpChartMonthly');
+       if(c1)new Chart(c1,{type:'bar',data:{labels:keys.map(k=>{const [y,m]=k.split('-');return `${m}/${y}`}),datasets:[{label:'Faturamento',data:keys.map(k=>monthly.get(k)),borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});
+       const c2=document.getElementById('lpChartStock');
+       if(c2)new Chart(c2,{type:'doughnut',data:{labels:['Carro','Moto','Acessórios','Peças'],datasets:[{data:[cars.length,motos.length,acc.length,parts.length]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+     }catch(e){console.warn('Dashboard gráficos:',e)}
+   },60);
+ };
+
+ /* CATÁLOGO: reconcilia automaticamente todos Carro/Moto com estoque. */
+ window.lpReconcileAutoCatalog=function(){
+   try{ensureData()}catch(e){}
+   data.catalogItems=Array.isArray(data.catalogItems)?data.catalogItems:[];
+   const products=Array.isArray(data.products)?data.products:[];
+   let added=0,updated=0,removed=0;
+
+   products.forEach(p=>{
+     if(!autoCatalogProduct(p))return;
+     const idx=data.catalogItems.findIndex(x=>String(x.productId)===String(p.id));
+     if(N(p.qty)>0){
+       const vals={code:p.code,name:p.name,brand:p.brand,category:p.category,qty:N(p.qty),price:N(p.price),updatedAt:now(),autoCatalog:true};
+       if(idx>=0){Object.assign(data.catalogItems[idx],vals);updated++}
+       else{data.catalogItems.unshift({id:Date.now()+Math.random(),productId:p.id,status:'Pronto para publicar',importedAt:now(),...vals});added++}
+     }else if(idx>=0){
+       data.catalogItems.splice(idx,1);removed++;
+     }
+   });
+   try{save()}catch(e){}
+   return {added,updated,removed};
+ };
+
+ function catalogAudit(){
+   const products=Array.isArray(data.products)?data.products:[];
+   const expected=products.filter(publicableProduct);
+   const cars=expected.filter(p=>categoryKey(p)==='carro');
+   const motos=expected.filter(p=>categoryKey(p)==='moto');
+   const linkedIds=new Set((data.catalogItems||[]).map(x=>String(x.productId)));
+   const missing=expected.filter(p=>!linkedIds.has(String(p.id)));
+   const cloudLinked=expected.filter(p=>{const x=(data.catalogItems||[]).find(x=>String(x.productId)===String(p.id));return !!x?.firebaseId});
+   return {expected,cars,motos,missing,cloudLinked};
+ }
+ window.lpShowCatalogDivergence=function(){
+   window.lpReconcileAutoCatalog();
+   const a=catalogAudit();
+   const rows=a.missing.map(p=>`<tr><td>${E(p.code||'')}</td><td>${E(p.name||'')}</td><td>${E(categoryKey(p)==='moto'?'Moto':'Carro')}</td><td>${N(p.qty)}</td></tr>`).join('');
+   showModal(`<h2>Conferência do catálogo</h2><div class="notice">O controle considera automático somente <b>pneus de Carro e Moto com estoque acima de zero</b>. Acessórios e Peças ficam fora da sincronização automática.</div><div class="lp-catalog-audit"><div><span>Carro publicável</span><b>${a.cars.length}</b></div><div><span>Moto publicável</span><b>${a.motos.length}</b></div><div><span>Total esperado</span><b>${a.expected.length}</b></div><div><span>Firebase vinculado</span><b>${a.cloudLinked.length}</b></div><div><span>Faltando local</span><b class="${a.missing.length?'lp-catalog-bad':'lp-catalog-ok'}">${a.missing.length}</b></div></div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Código</th><th>Produto</th><th>Tipo</th><th>Estoque</th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty">Nenhuma divergência local. Carro e Moto estão reconciliados.</td></tr>'}</tbody></table></div><div class="modal-actions"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+ };
+ window.lpAutoSyncCatalog=function(silent=false){
+   window.lpReconcileAutoCatalog();
+   if(!window.lpFirebaseUser){
+     if(!silent&&typeof firebaseLoginModal==='function')firebaseLoginModal();
+     return Promise.resolve({ok:false,reason:'auth'});
+   }
+   const eligible=(data.products||[]).filter(autoCatalogProduct);
+   let ok=0,err=0;
+   return (async()=>{
+     for(const p of eligible){
+       try{
+         const r=await publishProductToFirebase(p.id,true);
+         r?.ok?ok++:err++;
+       }catch(e){err++}
+     }
+     try{save()}catch(e){}
+     if(document.getElementById('catalogo')?.classList.contains('active'))window.renderCatalogo();
+     if(!silent)alert(`Catálogo automático atualizado.\nCarro/Moto processados: ${eligible.length}\nSucesso: ${ok}\nErros: ${err}`);
+     return {ok:true,total:eligible.length,success:ok,errors:err};
+   })();
+ };
+
+ window.renderCatalogo=function(){
+   window.lpReconcileAutoCatalog();
+   const a=catalogAudit();
+   const visible=(data.catalogItems||[]).filter(x=>{
+     const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));
+     return p&&publicableProduct(p);
+   });
+   const rows=visible.map(x=>{
+     const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));
+     return `<tr><td><b>${E(p?.code||x.code||'')}</b></td><td>${E(p?.name||x.name||'')}</td><td>${E(categoryKey(p)==='moto'?'Moto':'Carro')}</td><td>${E(p?.brand||x.brand||'')}</td><td><b>${N(p?.qty??x.qty)}</b></td><td>${M(p?.price??x.price)}</td><td>${x.firebaseId?'<span class="badge ok">Firebase</span>':'<span class="badge warn">Aguardando nuvem</span>'}</td></tr>`;
+   }).join('');
+   const status=window.lpFirebaseUser?'<span class="badge ok">Firebase conectado</span>':'<span class="badge warn">Firebase desconectado</span>';
+   document.getElementById('catalogo').innerHTML=
+     heading('Catálogo LePneus','Carro e Moto atualizam automaticamente a partir do Controle',`<div class="actions"><button class="btn ghost" onclick="lpShowCatalogDivergence()">Conferir divergências</button><button class="btn ghost" onclick="lpCatalogConnect()">Conectar Firebase</button><button class="btn primary" onclick="lpAutoSyncCatalog(false)">Atualizar agora</button></div>`)+
+     `<div class="card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Sincronização automática</h3><small class="cell-sub">Estoque → Catálogo local → Firebase → site público</small></div>${status}</div>
+       <div class="notice"><b>Regra:</b> todos os pneus de <b>Carro e Moto</b> com estoque acima de zero entram automaticamente. Acessórios e Peças não entram automaticamente.</div>
+       <div class="lp-catalog-audit"><div><span>Carro publicável</span><b>${a.cars.length}</b></div><div><span>Moto publicável</span><b>${a.motos.length}</b></div><div><span>Total esperado</span><b>${a.expected.length}</b></div><div><span>Vinculados Firebase</span><b>${a.cloudLinked.length}</b></div><div><span>Divergência local</span><b class="${a.missing.length?'lp-catalog-bad':'lp-catalog-ok'}">${a.missing.length}</b></div></div>
+     </div>
+     <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Tipo</th><th>Marca</th><th>Estoque</th><th>Preço</th><th>Nuvem</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhum pneu de Carro/Moto com estoque disponível.</td></tr>'}</tbody></table></div>`;
+ };
+
+ /* PLANILHAS: adiciona campo reservado para Peças. */
+ const oldSheetLabel=window.sheetConnectionLabel;
+ window.sheetConnectionLabel=function(type){
+   if(type==='pecas')return 'Planilha de Peças';
+   return typeof oldSheetLabel==='function'?oldSheetLabel(type):(type==='carro'?'Planilha Carro':type==='moto'?'Planilha Moto':'Planilha Acessórios');
+ };
+ window.lpReservedPartsImport=function(){
+   alert('Campo de Peças já está reservado. Quando você enviar a planilha de peças de caminhão, eu configuro os cabeçalhos e a importação sem misturar com os pneus.');
+ };
+ window.renderPlanilhas=function(){
+   try{ensureData();enhanceData()}catch(e){}
+   data.spreadsheetConnections=data.spreadsheetConnections||{};
+   data.pendingImportDifferences=data.pendingImportDifferences||[];
+   const types=['carro','moto','acessorios','pecas'];
+   const desc={carro:'Pneus de carro',moto:'Pneus de moto',acessorios:'Câmaras, rodas e acessórios',pecas:'Peças de caminhão • campo reservado'};
+   const cards=types.map(type=>{
+     const c=data.spreadsheetConnections[type];
+     const pending=data.pendingImportDifferences.filter(x=>x.type===type&&x.status==='Pendente').length;
+     const reserved=type==='pecas';
+     return `<div class="card ${reserved?'lp-sheet-reserved':''}"><div class="panel-head"><div><h3 class="section-title" style="margin:0">${E(window.sheetConnectionLabel(type))}</h3><small class="cell-sub">${E(desc[type])}</small></div>${reserved?'<span class="badge warn">Reservado</span>':c?'<span class="badge ok">Configurada</span>':'<span class="badge warn">Não selecionada</span>'}</div>
+       ${c?`<div class="notice"><b>Arquivo:</b> ${E(c.name||'')}${c.lastImportedAt?`<br><b>Última importação:</b> ${E(c.lastImportedAt)}`:''}</div>`:reserved?'<div class="notice">Já deixei a área pronta. A estrutura será configurada quando você enviar a planilha amanhã.</div>':'<p style="color:var(--muted);font-size:13px">Escolha a planilha original deste estoque.</p>'}
+       <input id="${spreadsheetInputId(type)}" type="file" accept=".xlsx,.xls" style="width:100%;margin:10px 0 12px">
+       <div class="actions"><button class="btn ghost" onclick="connectSpreadsheet('${type}')">Selecionar arquivo</button>${reserved?`<button class="btn primary" onclick="lpReservedPartsImport()">Configurar quando enviar</button>`:`<button class="btn primary" onclick="importSpreadsheet('${type}')">Importar / Atualizar agora</button>`}${pending?`<button class="btn ghost" onclick="lpNextDifference()">Revisar diferenças</button>`:''}</div>
+     </div>`;
+   }).join('');
+   const connected=['carro','moto','acessorios'].filter(t=>data.spreadsheetConnections[t]).length;
+   const pending=data.pendingImportDifferences.filter(x=>x.status==='Pendente').length;
+   document.getElementById('planilhas').innerHTML=
+     heading('Conexão Planilhas','Carro, Moto, Acessórios e campo reservado para Peças')+
+     `<div class="notice"><b>Hoje:</b> a importação atualiza o Controle quando você seleciona o Excel. Depois da importação de Carro ou Moto, o Catálogo local é reconciliado automaticamente e, se o Firebase estiver conectado, a nuvem também é atualizada.</div>
+      <div class="cards">${metric('Planilhas ativas','3','Carro • Moto • Acessórios','green')}${metric('Selecionadas',connected,'neste navegador',connected===3?'green':'red')}${metric('Campo Peças','Pronto','aguardando a planilha','green')}${metric('Diferenças pendentes',pending,'aguardando revisão',pending?'red':'green')}</div>
+      <div class="settings-grid" style="margin-top:16px">${cards}</div>
+      <div class="lp-auto-sync-box"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Conexão automática — próxima etapa</h3><small class="cell-sub">Para a planilha alterar o sistema sozinha, sem clicar em Importar.</small></div><span class="badge warn">Precisa de ponte/backend</span></div>
+        <div class="lp-auto-sync-steps"><div><b>1. Fonte da planilha</b><small>Excel no OneDrive/SharePoint ou uma pasta no PC monitorada por um programa ponte.</small></div><div><b>2. Serviço de sincronização</b><small>Um backend seguro lê a planilha periodicamente ou recebe alteração e envia os dados ao Controle/Firebase.</small></div><div><b>3. Regras de estoque</b><small>Comparar código, custo, preço e estoque; redução continua pedindo confirmação de venda/ajuste.</small></div><div><b>4. Catálogo</b><small>Carro/Moto sincronizam para Firebase automaticamente; acessórios e peças ficam conforme regra definida.</small></div></div>
+      </div>`;
+ };
+
+ /* Após importar Carro/Moto, reconcilia o catálogo e sincroniza a nuvem se já estiver autenticado. */
+ const previousImport=window.importSpreadsheet;
+ if(typeof previousImport==='function'){
+   window.importSpreadsheet=async function(type){
+     const result=await previousImport(type);
+     if(type==='carro'||type==='moto'){
+       const r=window.lpReconcileAutoCatalog();
+       try{save()}catch(e){}
+       if(window.lpFirebaseUser){
+         try{await window.lpAutoSyncCatalog(true)}catch(e){console.warn('Auto catálogo Firebase:',e)}
+       }
+       if(document.getElementById('catalogo')?.classList.contains('active'))window.renderCatalogo();
+       console.info('Catálogo reconciliado após importação:',r);
+     }
+     return result;
+   };
+ }
+
+ /* Corrige atualização de canal: qualquer mudança posterior em Carro/Moto atualiza o catálogo local. */
+ const previousSyncChannels=window.syncProductChannels;
+ if(typeof previousSyncChannels==='function'){
+   window.syncProductChannels=function(p){
+     const r=previousSyncChannels.apply(this,arguments);
+     if(p&&autoCatalogProduct(p)){
+       window.lpReconcileAutoCatalog();
+     }
+     return r;
+   };
+ }
+
+ /* Reconciliação inicial sem tocar em acessórios. */
+ setTimeout(()=>{try{window.lpReconcileAutoCatalog()}catch(e){console.warn(e)}},250);
+})();
+</script>
+
 </body>
 </html>
