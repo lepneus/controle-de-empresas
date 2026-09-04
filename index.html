@@ -4997,5 +4997,189 @@ body.dark{background:#f4f7fb !important;color:#172033 !important;}
 })();
 </script>
 
+
+<style id="lp-navigation-runtime-fix-css">
+/* Garante que overlays fechados nunca bloqueiem cliques da navegação */
+#modal:not(.show){display:none!important;pointer-events:none!important}
+#modal.show{pointer-events:auto!important}
+body.lp-page-switching{overflow:auto!important}
+.nav button{pointer-events:auto!important}
+.page{pointer-events:auto}
+</style>
+
+<script id="lp-navigation-runtime-fix-js">
+(function(){
+  function lpCloseBlockingLayers(){
+    try{
+      const m=document.getElementById('modal');
+      if(m){
+        m.classList.remove('show');
+        m.style.display='none';
+        m.style.pointerEvents='none';
+      }
+      document.body.style.overflow='';
+      document.body.classList.remove('modal-open','no-scroll','lp-page-switching');
+    }catch(e){}
+  }
+
+  function lpPageRenderer(id){
+    const map={
+      dashboard:window.renderDashboard,
+      estoque:window.renderEstoque,
+      planilhas:window.renderPlanilhas,
+      vendas:window.renderVendas,
+      catalogo:window.renderCatalogo,
+      mercadolivre:window.renderMercadoLivre,
+      caixa:window.renderCaixa,
+      compras:window.renderCompras,
+      clientes:window.renderClientes,
+      fornecedores:window.renderFornecedores,
+      os:window.renderOS,
+      agenda:window.renderAgenda,
+      fechamento:window.renderFechamento,
+      backup:window.renderBackup,
+      usuarios:window.renderUsuarios
+    };
+    return map[id];
+  }
+
+  window.renderPageById=function(id){
+    try{
+      if(typeof window.ensureData==='function')window.ensureData();
+      if(typeof window.enhanceData==='function')window.enhanceData();
+
+      const fn=lpPageRenderer(id);
+      if(typeof fn!=='function'){
+        throw new Error('Renderizador não encontrado para: '+id);
+      }
+      fn();
+      return true;
+    }catch(err){
+      console.error('Erro ao abrir página '+id,err);
+      const el=document.getElementById(id);
+      if(el){
+        el.innerHTML=
+          '<div class="heading"><div><h1>Não foi possível abrir esta área</h1>'+
+          '<p>O restante do sistema continua liberado. Tente abrir novamente.</p></div></div>'+
+          '<div class="card"><div class="notice"><b>Erro isolado nesta tela.</b><br>'+
+          'A navegação foi protegida para não travar o restante do controle.</div></div>';
+      }
+      lpCloseBlockingLayers();
+      return false;
+    }
+  };
+
+  /* Importante: renderAll passa a atualizar SOMENTE a página atual.
+     Assim um erro em outra tela não trava o controle inteiro. */
+  window.renderAll=function(){
+    const active=document.querySelector('.page.active');
+    return window.renderPageById(active?.id||'dashboard');
+  };
+
+  window.openPage=function(id,btn){
+    lpCloseBlockingLayers();
+
+    const page=document.getElementById(id);
+    if(!page){
+      console.error('Página não encontrada:',id);
+      return false;
+    }
+
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    page.classList.add('active');
+
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+    if(btn)btn.classList.add('active');
+
+    const sidebar=document.getElementById('sidebar');
+    if(sidebar)sidebar.classList.remove('open');
+
+    window.renderPageById(id);
+    window.scrollTo({top:0,left:0,behavior:'auto'});
+    return true;
+  };
+
+  /* Substitui o onclick antigo por navegação protegida, sem duplicar cliques. */
+  function protectNavigation(){
+    document.querySelectorAll('.nav button').forEach(btn=>{
+      const raw=btn.getAttribute('onclick')||'';
+      const m=raw.match(/openPage\('([^']+)'/);
+      if(!m)return;
+      const id=m[1];
+      btn.removeAttribute('onclick');
+      btn.dataset.lpPage=id;
+    });
+
+    const nav=document.getElementById('nav');
+    if(nav && !nav.dataset.lpProtected){
+      nav.dataset.lpProtected='1';
+      nav.addEventListener('click',function(ev){
+        const btn=ev.target.closest('button[data-lp-page]');
+        if(!btn)return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        window.openPage(btn.dataset.lpPage,btn);
+      });
+    }
+  }
+
+  /* Catálogo: renderização defensiva para dados antigos ou incompletos. */
+  const oldCatalog=window.renderCatalogo;
+  window.renderCatalogo=function(){
+    try{
+      if(typeof window.ensureData==='function')window.ensureData();
+      data.catalogItems=Array.isArray(data.catalogItems)?data.catalogItems:[];
+      data.products=Array.isArray(data.products)?data.products:[];
+      return oldCatalog();
+    }catch(err){
+      console.error('Catálogo LePneus:',err);
+      const el=document.getElementById('catalogo');
+      if(el)el.innerHTML=
+        '<div class="heading"><div><h1>Catálogo LePneus</h1><p>Produtos enviados ao catálogo público</p></div></div>'+
+        '<div class="card"><div class="notice">O catálogo não conseguiu carregar os dados antigos. '+
+        'A navegação continua funcionando normalmente.</div></div>';
+    }
+  };
+
+  /* Mercado Livre: qualquer erro fica preso somente dentro desta tela. */
+  const oldML=window.renderMercadoLivre;
+  window.renderMercadoLivre=function(){
+    try{
+      if(typeof window.ensureData==='function')window.ensureData();
+      data.mercadoLivreItems=Array.isArray(data.mercadoLivreItems)?data.mercadoLivreItems:[];
+      data.products=Array.isArray(data.products)?data.products:[];
+      return oldML();
+    }catch(err){
+      console.error('Mercado Livre:',err);
+      const el=document.getElementById('mercadolivre');
+      if(el)el.innerHTML=
+        '<div class="heading"><div><h1>Mercado Livre</h1><p>Oportunidades e cálculo de lucro</p></div></div>'+
+        '<div class="card"><div class="notice"><b>Esta tela encontrou um dado incompatível.</b><br>'+
+        'O erro foi isolado e não bloqueia mais as outras áreas do sistema.</div></div>';
+    }
+  };
+
+  /* Corrige closeModal para sempre devolver os cliques ao site. */
+  const oldClose=window.closeModal;
+  window.closeModal=function(){
+    try{if(typeof oldClose==='function')oldClose()}catch(e){}
+    lpCloseBlockingLayers();
+  };
+
+  function bootFix(){
+    protectNavigation();
+    lpCloseBlockingLayers();
+    const active=document.querySelector('.page.active');
+    if(active)window.renderPageById(active.id);
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(bootFix,120));
+  }else{
+    setTimeout(bootFix,120);
+  }
+})();
+</script>
+
 </body>
 </html>
