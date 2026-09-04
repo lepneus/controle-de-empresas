@@ -796,7 +796,7 @@ tbody tr:hover{background:#fbfcff!important}
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 
 </head>
-<body class="dark">
+<body>
 <div id="login" class="login">
   <div class="login-card">
     <div class="login-logo">LP</div><h2>Le Pneus • Administrador</h2><p>Entre com a mesma conta administrativa usada no Catálogo LePneus</p>
@@ -3933,6 +3933,486 @@ input::placeholder,textarea::placeholder{
   }
 }
 </style>
+
+
+<style id="lepneus-theme-switch-final">
+/* ===== Tema claro/escuro com legibilidade revisada ===== */
+:root{
+  --lp-bg:#f4f7fb;
+  --lp-panel:#ffffff;
+  --lp-panel-2:#f8fafc;
+  --lp-sidebar:#0b1726;
+  --lp-topbar:#ffffff;
+  --lp-text:#172033;
+  --lp-muted:#65758b;
+  --lp-line:#d9e1eb;
+  --lp-line-strong:#c6d1df;
+  --lp-red:#e7333f;
+  --lp-green:#159a62;
+  --lp-yellow:#b7791f;
+  --lp-blue:#2463eb;
+  --lp-shadow:0 8px 24px rgba(15,23,42,.07);
+}
+
+/* Tema claro padrão */
+html,body{
+  background:var(--lp-bg)!important;
+  color:var(--lp-text)!important;
+}
+body{
+  background:linear-gradient(180deg,#f7f9fc 0%,#eef3f8 100%)!important;
+}
+.main,.content,.page,.page.active{
+  background:transparent!important;
+  color:var(--lp-text)!important;
+}
+.topbar{
+  background:rgba(255,255,255,.96)!important;
+  border-bottom:1px solid var(--lp-line)!important;
+  color:var(--lp-text)!important;
+}
+.topbar *{color:inherit}
+.card,.metric,.settings-section{
+  background:var(--lp-panel)!important;
+  border:1px solid var(--lp-line)!important;
+  color:var(--lp-text)!important;
+  box-shadow:var(--lp-shadow)!important;
+}
+.heading h1,.heading h2,.heading h3,.section-title,.panel-head h3,
+.metric .value,.card h1,.card h2,.card h3,.card h4{
+  color:var(--lp-text)!important;
+}
+.heading p,.metric .label,.cell-sub,.ml-mini,.muted,small{
+  color:var(--lp-muted)!important;
+}
+.notice,.alert,.soft-chip,.mini{
+  background:#f7f9fc!important;
+  color:var(--lp-text)!important;
+  border-color:var(--lp-line)!important;
+}
+.table-wrap{background:var(--lp-panel)!important}
+table{color:var(--lp-text)!important}
+thead th{
+  background:#f2f5f9!important;
+  color:#53657a!important;
+  border-color:var(--lp-line)!important;
+}
+tbody td{
+  color:var(--lp-text)!important;
+  border-color:#e6ebf2!important;
+}
+tbody tr:hover{background:#f7f9fc!important}
+input,select,textarea{
+  color-scheme:light;
+  background:#fff!important;
+  color:#172033!important;
+  border-color:#cfd8e5!important;
+}
+input::placeholder,textarea::placeholder{color:#8a98aa!important}
+.btn.ghost{
+  background:#fff!important;
+  color:#29364a!important;
+  border-color:#cfd8e5!important;
+}
+.btn.ghost:hover{background:#f3f6fa!important;color:#111827!important}
+.modal{
+  background:rgba(15,23,42,.45)!important;
+}
+.modal-card{
+  background:#fff!important;
+  color:#172033!important;
+  border-color:#d7dfeb!important;
+}
+.modal-card h1,.modal-card h2,.modal-card h3,.modal-card h4{color:#172033!important}
+.modal-card .notice{background:#f7f9fc!important;color:#334155!important}
+.modal-card .cell-sub,.modal-card small,.modal-card label,.modal-card p{color:#64748b!important}
+.modal-card th{color:#53657a!important}
+.modal-card td{color:#172033!important}
+.modal-close-x{
+  background:#f1f5f9!important;
+  color:#172033!important;
+  border-color:#d5dee9!important;
+}
+.modal-close-x:hover{background:var(--lp-red)!important;color:#fff!important}
+
+/* Mercado Livre no tema claro */
+#mercadolivre>.card{
+  background:#fff!important;
+}
+#mercadolivre>.card .panel-head,
+#mercadolivre>.card>.ml-v6-toolbar{
+  background:#f7f9fc!important;
+  border-bottom:1px solid var(--lp-line)!important;
+}
+#mercadolivre .form-grid .field{
+  background:#f8fafc!important;
+  border-color:#d7e0eb!important;
+}
+#mercadolivre .form-grid .field span{color:#607086!important}
+#mercadolivre .table-wrap{background:#fff!important}
+#mercadolivre thead th{background:#eef3f8!important}
+#mercadolivre tbody tr:hover{background:#f6f8fb!important}
+#mercadolivre .ml-final-nav{
+  background:#fff!important;
+  border-color:#d7e0eb!important;
+}
+#mercadolivre .ml-final-nav button{color:#506176!important}
+#mercadolivre .ml-final-nav button:hover{background:#f1f5f9!important;color:#172033!important}
+#mercadolivre .ml-top-card,
+#mercadolivre .ml-market-box{
+  background:#f8fafc!important;
+  color:#172033!important;
+  border-color:#d7e0eb!important;
+}
+#mercadolivre .ml-section-label{color:#172033!important}
+#mercadolivre .notice{
+  background:#fff7f8!important;
+  color:#3b4657!important;
+  border-color:#f1d1d5!important;
+}
+
+/* Sidebar permanece escura para contraste e identidade visual */
+.sidebar{
+  background:linear-gradient(180deg,#071321 0%,#0a1727 100%)!important;
+  color:#eef4fb!important;
+}
+.sidebar *{color:inherit}
+.nav button{color:#d3ddea!important}
+.nav button:hover{background:#132238!important;color:#fff!important}
+.nav button.active{background:#18283c!important;color:#fff!important}
+
+/* Tema escuro opcional */
+body.dark{
+  --lp-bg:#08111f;
+  --lp-panel:#0f1b2b;
+  --lp-panel-2:#121f31;
+  --lp-topbar:#0d1928;
+  --lp-text:#f5f8fc;
+  --lp-muted:#9aabc0;
+  --lp-line:#223249;
+  --lp-line-strong:#2f425c;
+  --lp-shadow:0 8px 28px rgba(0,0,0,.18);
+  background:#08111f!important;
+  color:#f5f8fc!important;
+}
+body.dark .main,
+body.dark .content,
+body.dark .page,
+body.dark .page.active{color:#f5f8fc!important}
+body.dark .topbar{
+  background:#0d1928!important;
+  border-bottom-color:#223249!important;
+}
+body.dark .card,
+body.dark .metric,
+body.dark .settings-section{
+  background:linear-gradient(180deg,#0f1b2b,#0d1928)!important;
+  border-color:#223249!important;
+  color:#eef4fb!important;
+}
+body.dark .heading h1,
+body.dark .heading h2,
+body.dark .heading h3,
+body.dark .section-title,
+body.dark .panel-head h3,
+body.dark .metric .value,
+body.dark .card h1,
+body.dark .card h2,
+body.dark .card h3,
+body.dark .card h4{color:#fff!important}
+body.dark .heading p,
+body.dark .metric .label,
+body.dark .cell-sub,
+body.dark .ml-mini,
+body.dark .muted,
+body.dark small{color:#9aabc0!important}
+body.dark .notice,
+body.dark .alert,
+body.dark .soft-chip,
+body.dark .mini{
+  background:#101e30!important;
+  color:#dce7f4!important;
+  border-color:#2b3d55!important;
+}
+body.dark .table-wrap{background:#0f1b2b!important}
+body.dark table{color:#e9f0f7!important}
+body.dark thead th{background:#0b1726!important;color:#9baec4!important;border-color:#223249!important}
+body.dark tbody td{color:#e7eef6!important;border-color:#1d2c40!important}
+body.dark tbody tr:hover{background:#122238!important}
+body.dark input,
+body.dark select,
+body.dark textarea{
+  color-scheme:dark;
+  background:#0b1726!important;
+  color:#eef5ff!important;
+  border-color:#2a3b52!important;
+}
+body.dark input::placeholder,
+body.dark textarea::placeholder{color:#7187a1!important}
+body.dark .btn.ghost{
+  background:#101e30!important;
+  color:#dce7f4!important;
+  border-color:#2a3b52!important;
+}
+body.dark .modal{background:rgba(2,8,18,.76)!important}
+body.dark .modal-card{background:#0d1928!important;color:#f4f8fd!important;border-color:#2a3a50!important}
+body.dark .modal-card h1,
+body.dark .modal-card h2,
+body.dark .modal-card h3,
+body.dark .modal-card h4{color:#fff!important}
+body.dark .modal-card .notice{background:#111f31!important;color:#dbe7f4!important}
+body.dark .modal-card .cell-sub,
+body.dark .modal-card small,
+body.dark .modal-card label,
+body.dark .modal-card p{color:#a8b8ca!important}
+body.dark .modal-card th{color:#9eb0c5!important}
+body.dark .modal-card td{color:#edf4fb!important}
+body.dark .modal-close-x{background:#132238!important;color:#fff!important;border-color:#364a64!important}
+body.dark #mercadolivre>.card{background:#0f1b2b!important}
+body.dark #mercadolivre>.card .panel-head,
+body.dark #mercadolivre>.card>.ml-v6-toolbar{background:#101e30!important;border-color:#23354c!important}
+body.dark #mercadolivre .form-grid .field{background:#0b1726!important;border-color:#22354d!important}
+body.dark #mercadolivre .form-grid .field span{color:#8fa4bd!important}
+body.dark #mercadolivre .table-wrap{background:#0f1b2b!important}
+body.dark #mercadolivre thead th{background:#0b1726!important}
+body.dark #mercadolivre .ml-final-nav{background:#0b1726!important;border-color:#21334a!important}
+body.dark #mercadolivre .ml-final-nav button{color:#a9bad0!important}
+body.dark #mercadolivre .ml-final-nav button:hover{background:#122238!important;color:#fff!important}
+body.dark #mercadolivre .ml-top-card,
+body.dark #mercadolivre .ml-market-box{background:#101e30!important;color:#fff!important;border-color:#2a3b53!important}
+body.dark #mercadolivre .ml-section-label{color:#fff!important}
+body.dark #mercadolivre .notice{background:#0d1b2b!important;color:#c9d7e7!important;border-color:#2a3c54!important}
+
+/* Botão do tema */
+.lp-theme-toggle{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  height:38px;
+  padding:0 12px;
+  border:1px solid #d4dce7;
+  border-radius:10px;
+  background:#fff;
+  color:#263448;
+  font-weight:800;
+  cursor:pointer;
+}
+.lp-theme-toggle:hover{background:#f3f6fa}
+body.dark .lp-theme-toggle{
+  background:#111f31;
+  color:#eef5ff;
+  border-color:#2d4058;
+}
+body.dark .lp-theme-toggle:hover{background:#17283e}
+.lp-theme-toggle .lp-theme-icon{
+  font-size:15px;
+  line-height:1;
+}
+@media(max-width:800px){
+  .lp-theme-toggle .lp-theme-label{display:none}
+  .lp-theme-toggle{width:38px;padding:0;justify-content:center}
+}
+</style>
+
+
+<script id="lepneus-theme-switch-js">
+(function(){
+  const KEY='lepneus-theme';
+
+  function currentTheme(){
+    return document.body.classList.contains('dark') ? 'dark' : 'light';
+  }
+
+  function updateThemeButton(){
+    const btn=document.getElementById('lpThemeToggle');
+    if(!btn)return;
+    const dark=currentTheme()==='dark';
+    btn.innerHTML='<span class="lp-theme-icon">'+(dark?'☀️':'🌙')+'</span><span class="lp-theme-label">'+(dark?'Tema claro':'Tema escuro')+'</span>';
+    btn.title=dark?'Mudar para tema claro':'Mudar para tema escuro';
+    btn.setAttribute('aria-label',btn.title);
+  }
+
+  function applyTheme(theme,save){
+    document.body.classList.toggle('dark',theme==='dark');
+    if(save!==false){
+      try{localStorage.setItem(KEY,theme)}catch(e){}
+    }
+    updateThemeButton();
+  }
+
+  window.toggleLePneusTheme=function(){
+    applyTheme(currentTheme()==='dark'?'light':'dark',true);
+  };
+
+  function installThemeButton(){
+    if(document.getElementById('lpThemeToggle'))return;
+    const topbar=document.querySelector('.topbar');
+    if(!topbar)return;
+
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.id='lpThemeToggle';
+    btn.className='lp-theme-toggle';
+    btn.onclick=window.toggleLePneusTheme;
+
+    // Tenta colocar perto da área de usuário/sair sem quebrar o layout.
+    const candidates=[
+      topbar.querySelector('.top-actions'),
+      topbar.querySelector('.topbar-actions'),
+      topbar.querySelector('.right'),
+      topbar
+    ];
+    const host=candidates.find(Boolean);
+    host.appendChild(btn);
+    updateThemeButton();
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    let saved='light';
+    try{saved=localStorage.getItem(KEY)||'light'}catch(e){}
+    applyTheme(saved,false);
+    installThemeButton();
+  });
+
+  // Se o DOM já carregou antes deste script.
+  if(document.readyState!=='loading'){
+    let saved='light';
+    try{saved=localStorage.getItem(KEY)||'light'}catch(e){}
+    applyTheme(saved,false);
+    installThemeButton();
+  }
+})();
+</script>
+
+
+<style id="lepneus-soft-future-v2">
+:root{
+  --sf-bg:#f5f7fb;--sf-panel:#fff;--sf-text:#172033;--sf-muted:#708197;
+  --sf-line:#dfe6ef;--sf-accent:#e23843;--sf-green:#168a5d;--sf-yellow:#9f6a12;--sf-red:#c53d47;
+  --sf-shadow:0 16px 38px rgba(20,36,61,.07);--sf-shadow-soft:0 7px 20px rgba(20,36,61,.045);
+}
+body:not(.dark){
+  background:radial-gradient(circle at 78% -8%,rgba(226,56,67,.045),transparent 28%),linear-gradient(180deg,#f8fafc 0%,#f3f6fa 100%)!important;
+}
+body:not(.dark) .topbar{
+  background:rgba(255,255,255,.9)!important;backdrop-filter:blur(18px)!important;border-bottom:1px solid var(--sf-line)!important;
+}
+.card,.metric,.settings-section{transition:.18s ease}
+body:not(.dark) .card,body:not(.dark) .metric,body:not(.dark) .settings-section{
+  border:1px solid rgba(203,214,226,.82)!important;border-radius:18px!important;box-shadow:var(--sf-shadow-soft)!important;
+}
+body:not(.dark) .card:hover{box-shadow:var(--sf-shadow)!important;transform:translateY(-1px)}
+.heading h1{font-size:28px!important;letter-spacing:-.035em!important}.heading p{font-size:13px!important}
+.metric{min-height:124px!important;padding:18px!important}.metric .label{font-size:11px!important;font-weight:800!important;text-transform:uppercase!important}.metric .value{font-size:26px!important}
+.btn{border-radius:11px!important;font-weight:800!important;transition:.18s ease}.btn.primary{box-shadow:0 7px 18px rgba(226,56,67,.13)!important}
+input,select,textarea{border-radius:11px!important;min-height:40px!important}
+.nav button{border-radius:11px!important;margin:2px 0!important}.nav button.active{background:linear-gradient(90deg,rgba(226,56,67,.15),rgba(255,255,255,.03))!important}
+
+/* Mercado Livre simplificado e mais fácil de ler */
+#mercadolivre>.notice{
+  border:1px solid #f0d7da!important;border-left:4px solid var(--sf-accent)!important;border-radius:14px!important;
+  padding:14px 16px!important;background:#fffafb!important;color:#4b5563!important;line-height:1.5!important;
+}
+#mercadolivre .ml-final-nav{
+  display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important;
+  padding:8px!important;background:#fff!important;border:1px solid var(--sf-line)!important;border-radius:14px!important;box-shadow:var(--sf-shadow-soft)!important;
+}
+#mercadolivre .ml-final-nav button{min-height:40px!important;padding:9px 10px!important;font-size:12px!important;border-radius:10px!important}
+#mercadolivre .ml-final-nav .primary-short{background:var(--sf-accent)!important;color:#fff!important}
+#mercadolivre>.cards{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important}
+#mercadolivre>.cards .metric{min-height:108px!important;padding:16px!important}
+#mercadolivre>.card{
+  border-radius:18px!important;overflow:hidden!important;background:#fff!important;border:1px solid var(--sf-line)!important;box-shadow:var(--sf-shadow-soft)!important;
+}
+#mercadolivre .ml-section-label{padding:16px 18px 10px!important;font-size:14px!important;font-weight:900!important}
+#mercadolivre .form-grid{grid-template-columns:repeat(3,minmax(170px,1fr))!important;gap:10px!important;padding:10px 18px 16px!important}
+#mercadolivre .form-grid .field{padding:11px!important;background:#f9fbfd!important;border:1px solid #e2e8f0!important;border-radius:12px!important}
+#mercadolivre .ml-v6-toolbar{
+  display:grid!important;grid-template-columns:1fr 220px!important;align-items:center!important;gap:10px!important;
+  padding:13px 18px!important;background:#fbfcfe!important;border-top:1px solid #edf1f5!important;border-bottom:1px solid #edf1f5!important;
+}
+#mercadolivre .table-wrap{max-height:none!important;overflow:auto!important}
+#mercadolivre table{min-width:1280px!important;font-size:12px!important}
+#mercadolivre thead th{background:#f7f9fc!important;color:#607086!important;font-size:10px!important;font-weight:900!important;text-transform:uppercase!important;padding:12px 10px!important}
+#mercadolivre tbody td{padding:13px 10px!important;border-bottom:1px solid #edf1f5!important;vertical-align:middle!important}
+#mercadolivre tbody tr:hover{background:#fbfcfe!important}
+#mercadolivre td:nth-child(2){min-width:210px!important}
+#mercadolivre .ml-price-main{font-size:16px!important;color:#182235!important}
+#mercadolivre .ml-signal{padding:5px 8px!important;font-size:10px!important;font-weight:900!important;border-radius:999px!important;border:0!important}
+#mercadolivre .ml-signal.good{background:#eaf8f1!important;color:#168a5d!important}
+#mercadolivre .ml-signal.mid{background:#fff7e8!important;color:#9f6a12!important}
+#mercadolivre .ml-signal.bad{background:#fff0f2!important;color:#c53d47!important}
+#mercadolivre .ml-signal.neutral{background:#eef2f7!important;color:#64748b!important}
+#mercadolivre .actions{min-width:178px!important;gap:4px!important}
+#mercadolivre .actions .btn{min-height:30px!important;padding:6px 8px!important;font-size:10px!important}
+/* reduz ruído visual na linha */
+#mercadolivre tbody .actions .btn:nth-of-type(4),#mercadolivre tbody .actions .btn:nth-of-type(5){display:none!important}
+#mercadolivre>small.cell-sub{display:block!important;margin:12px 4px 0!important;padding:10px 12px!important;background:#fff!important;border:1px solid var(--sf-line)!important;border-radius:12px!important}
+
+/* Tema escuro equivalente */
+body.dark .card,body.dark .metric,body.dark .settings-section{border-radius:18px!important}
+body.dark #mercadolivre .ml-final-nav,body.dark #mercadolivre>.card{box-shadow:0 10px 26px rgba(0,0,0,.12)!important}
+body.dark #mercadolivre .ml-final-nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important}
+body.dark #mercadolivre .form-grid{grid-template-columns:repeat(3,minmax(170px,1fr))!important}
+body.dark #mercadolivre .ml-v6-toolbar{background:#101e30!important;border-color:#223249!important}
+body.dark #mercadolivre .ml-price-main{color:#fff!important}
+body.dark #mercadolivre .ml-signal.good{background:rgba(32,199,122,.12)!important;color:#46d693!important}
+body.dark #mercadolivre .ml-signal.mid{background:rgba(244,174,43,.12)!important;color:#f3bd54!important}
+body.dark #mercadolivre .ml-signal.bad{background:rgba(239,51,64,.12)!important;color:#ff6974!important}
+body.dark #mercadolivre>small.cell-sub{background:#0f1b2b!important;border-color:#223249!important}
+
+@media(max-width:1180px){
+  #mercadolivre>.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #mercadolivre .form-grid,body.dark #mercadolivre .form-grid{grid-template-columns:repeat(2,minmax(160px,1fr))!important}
+  #mercadolivre .ml-final-nav,body.dark #mercadolivre .ml-final-nav{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media(max-width:760px){
+  #mercadolivre>.cards{grid-template-columns:1fr!important}
+  #mercadolivre .form-grid,body.dark #mercadolivre .form-grid{grid-template-columns:1fr!important}
+  #mercadolivre .ml-final-nav,body.dark #mercadolivre .ml-final-nav{grid-template-columns:1fr 1fr!important}
+  #mercadolivre .ml-v6-toolbar{grid-template-columns:1fr!important}
+}
+</style>
+
+
+<script id="lepneus-soft-future-v2-js">
+(function(){
+  function simplifyMercadoLivre(){
+    const root=document.getElementById('mercadolivre');
+    if(!root)return;
+    const heading=root.querySelector('.heading');
+    if(heading){
+      const h=heading.querySelector('h1,h2');
+      const p=heading.querySelector('p');
+      if(h)h.textContent='Mercado Livre';
+      if(p)p.textContent='Veja quais produtos valem a pena anunciar e qual preço usar.';
+    }
+    const notice=root.querySelector(':scope > .notice');
+    if(notice)notice.innerHTML='<b>Como usar:</b> confira custos e taxas → registre preços de concorrentes → veja o sinal de oportunidade → aplique o preço recomendado.';
+    const labels=root.querySelectorAll('.ml-section-label');
+    labels.forEach((el,i)=>{el.textContent=i===0?'1. Custos e taxas':'2. Produtos e oportunidades';});
+    const toolbar=root.querySelector('.ml-v6-toolbar b');
+    if(toolbar)toolbar.textContent='Produtos preparados para análise';
+    root.querySelectorAll('tbody .actions .btn').forEach(btn=>{
+      const t=(btn.textContent||'').trim().toLowerCase();
+      if(t==='detalhes')btn.textContent='Ver';
+      else if(t==='concorrência')btn.textContent='Preços';
+      else if(t==='aplicar preço')btn.textContent='Aplicar';
+    });
+  }
+  const oldRender=window.renderMercadoLivre;
+  if(typeof oldRender==='function'&&!window.__lpSoftFutureMLWrapped){
+    window.__lpSoftFutureMLWrapped=true;
+    window.renderMercadoLivre=function(){
+      const r=oldRender.apply(this,arguments);
+      try{simplifyMercadoLivre()}catch(e){}
+      return r;
+    };
+  }
+  document.addEventListener('DOMContentLoaded',()=>{try{simplifyMercadoLivre()}catch(e){}});
+  if(document.readyState!=='loading'){try{simplifyMercadoLivre()}catch(e){}}
+})();
+</script>
 
 </body>
 </html>
