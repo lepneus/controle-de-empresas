@@ -3376,5 +3376,199 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
 })();
 </script>
 
+
+<style id="lp-final-refinement-css">
+/* ===== Revisão final: logo, estoque por categoria, catálogo e modais ===== */
+.brand{display:flex!important;align-items:center!important;gap:13px!important;padding:8px 8px 18px!important}
+.brand .brand-logo{width:66px!important;height:66px!important;min-width:66px!important;border-radius:16px!important;overflow:visible!important;background:transparent!important;box-shadow:none!important;border:0!important}
+.brand .brand-logo img{width:100%!important;height:100%!important;object-fit:contain!important;display:block!important;filter:drop-shadow(0 7px 14px rgba(0,0,0,.22))}
+.brand-copy strong{font-size:17px!important}.brand-copy small{font-size:9px!important;letter-spacing:.04em!important}
+
+.lp-stock-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.lp-stock-tab{border:1px solid #dbe3ef;background:#fff;color:#334155;padding:9px 12px;border-radius:999px;font-size:12px;font-weight:800;cursor:pointer}
+.lp-stock-tab.active{background:#0f1d2f;color:#fff;border-color:#0f1d2f;box-shadow:0 6px 16px rgba(15,29,47,.14)}
+.lp-stock-section{margin-top:14px}
+.lp-stock-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.lp-stock-section-title h3{margin:0;font-size:16px;color:#172033!important}
+.lp-stock-section-title .badge{white-space:nowrap}
+.lp-stock-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.lp-code-table td:nth-child(1){font-weight:900}
+.lp-category-chip{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:800;background:#eef3f8;color:#46566c}
+.lp-catalog-connection{display:grid;grid-template-columns:1.25fr .75fr;gap:14px;align-items:stretch}
+.lp-catalog-status{padding:16px;border:1px solid #dfe6ef;border-radius:15px;background:#f8fafc}
+.lp-catalog-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+
+/* Modal sempre legível e sempre fechável */
+#modal{display:none;pointer-events:none}
+#modal.show{display:flex!important;pointer-events:auto!important}
+#modal .modal-card{position:relative!important;padding-top:22px!important}
+.modal-close-x{
+ position:sticky!important;top:0!important;float:right!important;z-index:20!important;
+ width:38px!important;height:38px!important;display:inline-grid!important;place-items:center!important;
+ margin:-6px -4px 6px 12px!important;border-radius:11px!important;background:#fff!important;
+ color:#172033!important;border:1px solid #dbe3ef!important;font-size:23px!important;font-weight:900!important;
+ box-shadow:0 8px 18px rgba(15,23,42,.08)!important;cursor:pointer!important
+}
+.modal-close-x:hover{background:#e7333f!important;color:#fff!important;border-color:#e7333f!important}
+.lp-modal-footer{position:sticky;bottom:-20px;background:linear-gradient(180deg,rgba(255,255,255,.2),#fff 30%);padding-top:14px;margin-top:14px}
+
+@media(max-width:980px){.lp-stock-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lp-catalog-connection{grid-template-columns:1fr}.lp-catalog-actions{justify-content:flex-start}}
+@media(max-width:650px){.brand .brand-logo{width:58px!important;height:58px!important;min-width:58px!important}.lp-stock-summary-grid{grid-template-columns:1fr}.lp-stock-tabs{display:grid;grid-template-columns:1fr 1fr}.lp-stock-tab{text-align:center}}
+</style>
+<script id="lp-final-refinement-js">
+(function(){
+ const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+ const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ const E=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>\"]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]));
+ window.lpStockView=window.lpStockView||{category:'all',sort:'code'};
+
+ function catKey(p){
+   const s=String(p?.category||'').toLowerCase();
+   if(s.includes('moto'))return 'moto';
+   if(s.includes('acess')||s.includes('câmara')||s.includes('camara')||s.includes('roda')||s.includes('peça')||s.includes('peca'))return 'acessorios';
+   return 'carro';
+ }
+ function catLabel(k){return k==='moto'?'Pneus de moto':k==='acessorios'?'Acessórios':'Pneus de carro'}
+ function filteredStock(cat){return (data.products||[]).filter(p=>cat==='all'||catKey(p)===cat)}
+ function sortProducts(list,sort){
+   const a=[...list];
+   if(sort==='code')a.sort((x,y)=>String(x.code||'').localeCompare(String(y.code||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+   else if(sort==='qtyasc')a.sort((x,y)=>N(x.qty)-N(y.qty));
+   else if(sort==='qtydesc')a.sort((x,y)=>N(y.qty)-N(x.qty));
+   else if(sort==='pricedesc')a.sort((x,y)=>N(y.price)-N(x.price));
+   else a.sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+   return a;
+ }
+ function stockRows(list){
+   return list.map(p=>`<tr data-stock-search="${E([p.code,p.name,p.brand,p.category].join(' ').toLowerCase())}">
+     <td><b>${E(p.code||'')}</b></td><td>${E(p.name||'')}</td><td><span class="lp-category-chip">${E(catLabel(catKey(p)))}</span></td><td>${E(p.brand||'')}</td>
+     <td><b>${N(p.qty)}</b></td><td>${M(p.cost)}</td><td>${M(p.price)}</td><td>${N(p.qty)<1?'<span class="badge danger">Zerado</span>':'<span class="badge ok">Normal</span>'}</td>
+     <td class="actions"><button class="btn ghost small" onclick="stockMovementModal(${p.id})">Movimentar</button><button class="btn ghost small" onclick="productModal(${p.id})">Editar</button></td></tr>`).join('');
+ }
+ function stockSection(k,list){
+   const qty=list.reduce((a,p)=>a+N(p.qty),0);
+   return `<div class="card lp-stock-section"><div class="lp-stock-section-title"><h3>${E(catLabel(k))}</h3><span class="badge ok">${list.length} produto(s) • ${qty} unidade(s)</span></div>
+     <div class="table-wrap"><table class="lp-stock-table"><thead><tr><th>Código</th><th>Produto</th><th>Classificação</th><th>Marca</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead><tbody>${stockRows(list)||'<tr><td colspan="9" class="empty">Nenhum produto nesta classificação.</td></tr>'}</tbody></table></div></div>`;
+ }
+ window.lpSetStockCategory=function(k){window.lpStockView.category=k;renderEstoque()};
+ window.lpSetStockSort=function(v){window.lpStockView.sort=v;renderEstoque()};
+ window.lpFilterStock=function(v){
+   const q=String(v||'').trim().toLowerCase();
+   document.querySelectorAll('.lp-stock-table tbody tr[data-stock-search]').forEach(tr=>{tr.style.display=!q||tr.dataset.stockSearch.includes(q)?'':'none'});
+ };
+ window.lpStockCodeSummary=function(){
+   const list=filteredStock(window.lpStockView.category);
+   const map=new Map();
+   list.forEach(p=>{
+     const code=String(p.code||'Sem código');const key=code+'|'+catKey(p);
+     const g=map.get(key)||{code,cat:catKey(p),qty:0,models:0,names:[]};
+     g.qty+=N(p.qty);g.models++;if(p.name&&!g.names.includes(p.name))g.names.push(p.name);map.set(key,g);
+   });
+   const rows=[...map.values()].sort((a,b)=>a.code.localeCompare(b.code,'pt-BR',{numeric:true})).map(g=>`<tr><td>${E(g.code)}</td><td>${E(catLabel(g.cat))}</td><td>${g.models}</td><td><b>${g.qty}</b></td><td>${E(g.names.slice(0,3).join(' • '))}</td></tr>`).join('');
+   showModal(`<h2>Resumo por código</h2><div class="notice">Aqui o sistema soma a quantidade de cada código. Exemplo: se o código 1082 aparecer mais de uma vez, as unidades são somadas.</div><div class="table-wrap"><table class="lp-code-table"><thead><tr><th>Código</th><th>Classificação</th><th>Cadastros</th><th>Qtd. total</th><th>Produto(s)</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Nenhum produto.</td></tr>'}</tbody></table></div><div class="modal-actions lp-modal-footer"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+ };
+
+ window.renderEstoque=function(){
+   ensureData();enhanceData();
+   const cat=window.lpStockView.category||'all',sort=window.lpStockView.sort||'code';
+   const selected=sortProducts(filteredStock(cat),sort);
+   const qty=selected.reduce((a,p)=>a+N(p.qty),0),zeros=selected.filter(p=>N(p.qty)<1).length,codes=new Set(selected.map(p=>String(p.code||'')).filter(Boolean)).size;
+   const tabs=['all','carro','moto','acessorios'].map(k=>`<button class="lp-stock-tab ${cat===k?'active':''}" onclick="lpSetStockCategory('${k}')">${k==='all'?'Todos':catLabel(k)}</button>`).join('');
+   let sections='';
+   if(cat==='all'){
+     for(const k of ['carro','moto','acessorios'])sections+=stockSection(k,sortProducts(filteredStock(k),sort));
+   }else sections=stockSection(cat,selected);
+   document.getElementById('estoque').innerHTML=heading('Estoque','Separado por carro, moto e acessórios, com quantidade por código',`<div class="actions"><button class="btn ghost" onclick="lpStockCodeSummary()">Resumo por código</button><button class="btn primary" onclick="productModal()">+ Produto</button></div>`)+
+   `<div class="lp-stock-summary-grid">${metric('Produtos / cadastros',selected.length,'itens nesta classificação','green')}${metric('Unidades em estoque',qty,'soma das quantidades','green')}${metric('Códigos',codes,'códigos distintos','green')}${metric('Zerados',zeros,'alerta somente abaixo de 1',zeros?'red':'green')}</div>
+   <div class="card"><div class="lp-stock-tabs">${tabs}</div><div class="toolbar"><input id="lpStockSearch" placeholder="Pesquisar código, produto, marca ou classificação" oninput="lpFilterStock(this.value)"><select onchange="lpSetStockSort(this.value)"><option value="code" ${sort==='code'?'selected':''}>Ordenar por código</option><option value="name" ${sort==='name'?'selected':''}>Ordenar por nome</option><option value="qtyasc" ${sort==='qtyasc'?'selected':''}>Menor estoque</option><option value="qtydesc" ${sort==='qtydesc'?'selected':''}>Maior estoque</option><option value="pricedesc" ${sort==='pricedesc'?'selected':''}>Maior preço</option></select></div></div>${sections}`;
+ };
+
+ /* Modal universal: X, Escape, clique fora e botão Fechar nos conteúdos que precisam. */
+ window.closeModal=function(){
+   const m=document.getElementById('modal');if(!m)return;
+   m.classList.remove('show');m.style.display='none';m.style.pointerEvents='none';document.body.style.overflow='';
+ };
+ window.showModal=function(content){
+   const m=document.getElementById('modal'),body=document.getElementById('modalBody');if(!m||!body)return;
+   body.innerHTML=`<button class="modal-close-x" type="button" aria-label="Fechar" title="Fechar" onclick="closeModal()">×</button>${content}`;
+   m.style.display='flex';m.style.pointerEvents='auto';m.classList.add('show');document.body.style.overflow='hidden';
+ };
+ if(!window.__lpModalEvents){
+   window.__lpModalEvents=true;
+   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('modal')?.classList.contains('show'))closeModal()});
+   document.getElementById('modal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
+ }
+
+ /* Catálogo: restaura e deixa visível a conexão Firebase. */
+ window.lpCatalogConnect=function(){try{if(typeof firebaseLoginModal==='function')firebaseLoginModal();else alert('Firebase ainda não carregou.')}catch(e){console.error(e);alert('Não foi possível abrir a conexão Firebase.')}};
+ window.lpCatalogPull=async function(){try{if(typeof pullFirebaseCatalog==='function')await pullFirebaseCatalog();else alert('Função de leitura do Firebase indisponível.')}catch(e){console.error(e);alert('Não foi possível baixar o catálogo agora.')}};
+ window.lpCatalogSyncAll=async function(){try{if(typeof syncAllCatalogToFirebase==='function')await syncAllCatalogToFirebase();else alert('Função de sincronização indisponível.')}catch(e){console.error(e);alert('Não foi possível sincronizar agora.')}};
+ window.lpCatalogSyncOne=async function(id){try{if(typeof publishProductToFirebase==='function')await publishProductToFirebase(id);else alert('Função de sincronização indisponível.')}catch(e){console.error(e);alert('Não foi possível sincronizar este produto.')}};
+ window.renderCatalogo=function(){
+   ensureData();
+   const all=Array.isArray(data.catalogItems)?data.catalogItems:[];
+   const items=all.filter(x=>N(x.qty)>0);
+   const status=typeof firebaseStatusHTML==='function'?firebaseStatusHTML():'<span class="badge warn">Firebase carregando...</span>';
+   const rows=items.map(x=>{
+     const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));
+     if(p)Object.assign(x,{code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price});
+     return `<tr><td><b>${E(x.code||'')}</b></td><td>${E(x.name||'')}</td><td>${E(x.brand||'')}</td><td>${N(x.qty)}</td><td>${M(x.price)}</td><td>${x.firebaseId?'<span class="badge ok">Firebase</span>':'<span class="badge warn">Local</span>'}</td><td class="actions"><button class="btn ghost small" onclick="lpCatalogSyncOne('${E(x.productId)}')">Sincronizar</button>${typeof removeFromCatalog==='function'?`<button class="btn ghost small" onclick="removeFromCatalog(${x.id})">Remover</button>`:''}</td></tr>`;
+   }).join('');
+   document.getElementById('catalogo').innerHTML=heading('Catálogo LePneus','Conexão do Controle com o catálogo público',`<div class="actions"><button class="btn ghost" onclick="lpCatalogConnect()">Conectar Firebase</button><button class="btn ghost" onclick="lpCatalogPull()">Baixar catálogo</button><button class="btn primary" onclick="lpCatalogSyncAll()">Sincronizar selecionados</button></div>`)+
+   `<div class="card lp-catalog-connection"><div class="lp-catalog-status"><h3 class="section-title" style="margin:0 0 9px">Conexão Firebase</h3>${status}<div class="notice" style="margin-top:12px;margin-bottom:0"><b>Fluxo:</b> Estoque → Catálogo LePneus → Firebase → site público. O custo não é publicado.</div></div><div class="lp-catalog-actions"><button class="btn ghost" onclick="lpCatalogConnect()">Conta / conexão</button><button class="btn primary" onclick="lpCatalogSyncAll()">Atualizar catálogo</button></div></div>
+   <div class="cards" style="margin-top:16px">${metric('No catálogo',items.length,'produtos com estoque','green')}${metric('Publicados na nuvem',items.filter(x=>x.firebaseId).length,'vinculados ao Firebase','green')}${metric('Unidades',items.reduce((a,x)=>a+N(x.qty),0),'disponíveis','green')}</div>
+   <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Código</th><th>Produto</th><th>Marca</th><th>Estoque</th><th>Preço</th><th>Conexão</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhum produto selecionado para o catálogo. Vá ao Estoque e envie os produtos desejados.</td></tr>'}</tbody></table></div>`;
+ };
+
+ /* Serviços: mantém data, cliente e telefone visíveis. */
+ window.lpFillServicePhone=function(){const id=document.getElementById('oscustomer')?.value;const c=(data.customers||[]).find(x=>String(x.id)===String(id));const el=document.getElementById('osphone');if(el)el.value=c?.phone||''};
+ window.osModal=function(){
+   const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
+   showModal(`<h2>Novo serviço</h2><div class="form"><label>Data<input id="osdate" type="date" value="${now.toISOString().slice(0,10)}"></label><label>Cliente<select id="oscustomer" onchange="lpFillServicePhone()">${customerOptions()}</select></label><label>Telefone / WhatsApp<input id="osphone" placeholder="(00) 00000-0000"></label><label>Responsável<input id="osowner" value="Administrador"></label><label class="full">Serviço<input id="osservice" placeholder="Descrição do serviço"></label><label>Produto utilizado<select id="osproduct"><option value="">Nenhum</option>${productOptions()}</select></label><label>Quantidade<input id="osqty" type="number" min="0" value="0"></label><label>Valor do serviço<input id="osservicevalue" type="number" step="0.01" value="0"></label><label>Desconto<input id="osdiscount" type="number" step="0.01" value="0"></label><label>Status<select id="osstatus"><option>Aberta</option><option>Aguardando</option><option>Em andamento</option><option>Concluída</option></select></label><label class="full">Observações<textarea id="osnotes" rows="3"></textarea></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveOS()">Salvar serviço</button></div>`);setTimeout(lpFillServicePhone,0);
+ };
+ window.saveOS=function(){
+   const p=(data.products||[]).find(x=>String(x.id)===String(document.getElementById('osproduct')?.value||''));
+   const qty=N(document.getElementById('osqty')?.value),serviceValue=N(document.getElementById('osservicevalue')?.value),discount=N(document.getElementById('osdiscount')?.value);
+   const service=String(document.getElementById('osservice')?.value||'').trim();if(!service)return alert('Informe o serviço.');
+   if(p&&qty>N(p.qty)&&!data.settings.allowNegativeStock)return alert('Estoque insuficiente.');
+   const customerId=document.getElementById('oscustomer')?.value||'',phone=String(document.getElementById('osphone')?.value||'').trim();
+   const c=(data.customers||[]).find(x=>String(x.id)===String(customerId));if(c&&phone)c.phone=phone;
+   const dv=document.getElementById('osdate')?.value;const date=dv?new Date(dv+'T12:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR');
+   const productValue=p?N(p.price)*qty:0,total=Math.max(0,serviceValue+productValue-discount);
+   const o={id:Date.now(),number:(data.settings.osPrefix||'OS')+'-'+String((data.serviceOrders||[]).length+1).padStart(4,'0'),date,customerId,customerPhone:phone,responsible:document.getElementById('osowner')?.value||'Administrador',service,productId:p?.id||'',productName:p?.name||'',qty,productValue,serviceValue,discount,total,status:document.getElementById('osstatus')?.value||'Aberta',notes:document.getElementById('osnotes')?.value||'',stockDeducted:false,received:false};
+   data.serviceOrders.unshift(o);if(p&&qty>0){addStockMovement(p.id,'Saída',qty,'Produto utilizado em OS',o.number);o.stockDeducted=true}log('Criou serviço '+o.number);save();closeModal();renderAll();
+ };
+ window.renderOS=function(){
+   enhanceData();const rows=(data.serviceOrders||[]).map(o=>{const c=(data.customers||[]).find(x=>String(x.id)===String(o.customerId));const ph=o.customerPhone||c?.phone||'-';return `<tr><td><b>${E(o.number)}</b></td><td>${E(o.date||'-')}</td><td>${E(findCustomerName(o.customerId))}</td><td>${E(ph)}</td><td>${E(o.service||'')}</td><td>${o.qty||'-'}</td><td>${M(o.serviceValue||o.total||0)}</td><td>${statusBadge(o.status)}</td><td class="actions"><button class="btn ghost small" onclick="changeOSStatus(${o.id})">Status</button>${o.status==='Concluída'&&!o.received?`<button class="btn primary small" onclick="receiveOSModal(${o.id})">Receber</button>`:''}</td></tr>`}).join('');
+   document.getElementById('os').innerHTML=heading('Serviços','Data, cliente, telefone e serviço registrados juntos',`<button class="btn primary" onclick="osModal()">+ Novo serviço</button>`)+`<div class="card table-wrap"><table><thead><tr><th>Número</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Serviço</th><th>Qtd.</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum serviço registrado.</td></tr>'}</tbody></table></div>`;
+ };
+
+ /* Cliente: detalhes de cada compra e há quantos dias. */
+ window.customerDetail=function(id){
+   const c=(data.customers||[]).find(x=>String(x.id)===String(id));if(!c)return;
+   const sales=(typeof activeSales==='function'?activeSales():data.sales||[]).filter(s=>String(s.customerId)===String(id)||String(s.customer||'').toLowerCase()===String(c.name||'').toLowerCase());
+   const rows=[];sales.forEach(s=>{let d=typeof parseBRDateTime==='function'?parseBRDateTime(s.date):new Date(s.date);let days=(d&&!isNaN(d))?Math.max(0,Math.floor((Date.now()-d.getTime())/86400000)):null;(s.items||[]).forEach(i=>rows.push(`<tr><td>${E(s.date||'-')}</td><td>${E(i.name||'Produto')}</td><td>${N(i.qty)}</td><td>${M(N(i.price)*N(i.qty))}</td><td><b>${days===null?'-':days===0?'Hoje':days===1?'Há 1 dia':`Há ${days} dias`}</b></td></tr>`))});
+   showModal(`<h2>${E(c.name)}</h2><div class="notice"><b>Telefone:</b> ${E(c.phone||'-')}</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Qtd.</th><th>Valor</th><th>Tempo</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="5" class="empty">Nenhuma compra registrada.</td></tr>'}</tbody></table></div><div class="modal-actions lp-modal-footer"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+ };
+
+ /* Mercado Livre: modal sempre tem X e botão Fechar; sem travar a navegação. */
+ const oldTop30=window.mlShowTop30;
+ window.mlShowTop30=function(){
+   try{
+     if(typeof oldTop30==='function')oldTop30();
+     const body=document.getElementById('modalBody');if(body&&!body.querySelector('.lp-modal-footer'))body.insertAdjacentHTML('beforeend','<div class="modal-actions lp-modal-footer"><button class="btn primary" onclick="closeModal()">Fechar</button></div>');
+   }catch(e){console.error(e);showModal('<h2>Mercado Livre</h2><div class="notice">Não foi possível montar as oportunidades agora. Feche esta janela e tente novamente.</div><div class="modal-actions lp-modal-footer"><button class="btn primary" onclick="closeModal()">Fechar</button></div>')}
+ };
+
+ /* Mantém a navegação estável: renderiza só a página aberta. */
+ window.renderPageStable=function(id){
+   const map={dashboard:window.renderDashboard,estoque:window.renderEstoque,planilhas:window.renderPlanilhas,vendas:window.renderVendas,catalogo:window.renderCatalogo,mercadolivre:window.renderMercadoLivre,caixa:window.renderCaixa,compras:window.renderCompras,clientes:window.renderClientes,fornecedores:window.renderFornecedores,os:window.renderOS,agenda:window.renderAgenda,fechamento:window.renderFechamento,backup:window.renderBackup,usuarios:window.renderUsuarios};
+   const fn=map[id];if(typeof fn!=='function')return;
+   try{ensureData();enhanceData();fn()}catch(e){console.error('Tela '+id,e);const el=document.getElementById(id);if(el)el.innerHTML='<div class="card"><b>Não foi possível carregar esta tela.</b><p>O erro ficou isolado e não bloqueia o restante do sistema.</p></div>'}
+ };
+ window.renderAll=function(){const a=document.querySelector('.page.active');if(a)window.renderPageStable(a.id)};
+})();
+</script>
+
 </body>
 </html>
