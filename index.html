@@ -3843,5 +3843,472 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
 })();
 </script>
 
+
+<style id="lp-service-status-v9-css">
+/* Logo: mantém o tamanho atual, mas mostra a imagem inteira e sem corte */
+.brand .brand-logo{
+  width:66px!important;
+  height:66px!important;
+  min-width:66px!important;
+  padding:0!important;
+  overflow:visible!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.brand .brand-logo img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  display:block!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  border-radius:0!important;
+  filter:drop-shadow(0 5px 10px rgba(0,0,0,.18))!important;
+}
+
+/* Serviço */
+.lp-service-info{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.lp-service-info>div{padding:11px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.lp-service-info span{display:block;font-size:10px;text-transform:uppercase;font-weight:800;color:#64748b}
+.lp-service-info b{display:block;margin-top:5px;color:#172033}
+.lp-status-select{min-width:185px}
+.lp-service-description small{display:block;margin-top:4px;color:#64748b;line-height:1.35}
+@media(max-width:800px){
+  .lp-service-info{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+  .lp-service-info{grid-template-columns:1fr}
+}
+</style>
+
+<script id="lp-service-status-v9-js">
+(function(){
+ const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+ const E=v=>typeof esc==='function'?esc(v):String(v??'');
+ const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ const TODAY=()=>new Date().toLocaleDateString('pt-BR');
+
+ function serviceCustomer(o){
+   return (data.customers||[]).find(x=>String(x.id)===String(o.customerId));
+ }
+ function servicePhone(o){
+   const c=serviceCustomer(o);
+   return o.customerPhone||c?.phone||'-';
+ }
+ function serviceCustomerName(o){
+   const c=serviceCustomer(o);
+   return c?.name||((typeof findCustomerName==='function')?findCustomerName(o.customerId):'Cliente')||'Cliente';
+ }
+ function serviceCompletedDate(o){
+   return o.completedDate||o.completedAt||'';
+ }
+ function serviceIsToday(o){
+   const d=String(serviceCompletedDate(o)||'');
+   return d.startsWith(TODAY());
+ }
+ function serviceCompletedToday(){
+   return (data.serviceOrders||[]).filter(o=>['Concluída','Entregue'].includes(o.status)&&serviceIsToday(o));
+ }
+
+ /* Modal de status: substitui prompt e permite ir/voltar entre estados */
+ window.changeOSStatus=function(id){
+   const o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id));
+   if(!o)return;
+   const options=['Aberta','Aguardando','Em andamento','Concluída','Entregue','Cancelada'];
+   showModal(`<h2>Alterar status do serviço</h2>
+     <div class="notice"><b>${E(o.number)}</b> • ${E(serviceCustomerName(o))}<br>${E(o.service||'')}</div>
+     <div class="form">
+       <label class="full">Status
+         <select id="lpOsNewStatus" class="lp-status-select">
+           ${options.map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
+         </select>
+       </label>
+     </div>
+     <div class="lp-service-info">
+       <div><span>Cliente</span><b>${E(serviceCustomerName(o))}</b></div>
+       <div><span>Telefone</span><b>${E(servicePhone(o))}</b></div>
+       <div><span>Responsável</span><b>${E(o.responsible||'Administrador')}</b></div>
+       <div><span>Valor do serviço</span><b>${M(o.serviceValue||0)}</b></div>
+     </div>
+     <div class="modal-actions">
+       <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+       <button class="btn primary" onclick="lpSaveOSStatus(${id})">Salvar status</button>
+     </div>`);
+ };
+
+ window.lpSaveOSStatus=function(id){
+   const o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id));
+   if(!o)return;
+   const el=document.getElementById('lpOsNewStatus');
+   const next=el?.value||o.status;
+   const old=o.status;
+
+   if(next==='Cancelada'){
+     closeModal();
+     if(typeof cancelOS==='function')return cancelOS(o.id);
+     o.status='Cancelada';
+     o.cancelledAt=new Date().toLocaleString('pt-BR');
+   }else{
+     o.status=next;
+   }
+
+   if(['Concluída','Entregue'].includes(next) && !['Concluída','Entregue'].includes(old)){
+     o.completedAt=new Date().toLocaleString('pt-BR');
+     o.completedDate=TODAY();
+     o.completedBy=(typeof currentUser==='function'&&currentUser()?.name)||'Administrador';
+   }
+   if(!['Concluída','Entregue'].includes(next) && ['Concluída','Entregue'].includes(old)){
+     /* Ao reabrir, remove dos indicadores de concluídos do dia */
+     o.completedAt='';
+     o.completedDate='';
+     o.completedBy='';
+   }
+
+   try{log('Alterou '+o.number+' de '+old+' para '+next)}catch(e){}
+   try{save()}catch(e){}
+   closeModal();
+   if(document.getElementById('os')?.classList.contains('active'))renderOS();
+   if(document.getElementById('dashboard')?.classList.contains('active'))renderDashboard();
+ };
+
+ /* Detalhes completos do serviço */
+ window.lpServiceDetails=function(id){
+   const o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id));
+   if(!o)return;
+   showModal(`<h2>${E(o.number)} — detalhes do serviço</h2>
+     <div class="lp-service-info">
+       <div><span>Data de abertura</span><b>${E(o.date||'-')}</b></div>
+       <div><span>Cliente</span><b>${E(serviceCustomerName(o))}</b></div>
+       <div><span>Telefone</span><b>${E(servicePhone(o))}</b></div>
+       <div><span>Aberto por</span><b>${E(o.responsible||'Administrador')}</b></div>
+       <div><span>Status</span><b>${E(o.status||'-')}</b></div>
+       <div><span>Quantidade</span><b>${N(o.qty)}</b></div>
+       <div><span>Valor do serviço</span><b>${M(o.serviceValue||0)}</b></div>
+       <div><span>Total da OS</span><b>${M(o.total||0)}</b></div>
+     </div>
+     <div class="card" style="box-shadow:none;margin-top:10px">
+       <b>Descrição</b>
+       <p style="margin:8px 0 0">${E(o.service||'-')}</p>
+       <small class="cell-sub">Cliente: ${E(serviceCustomerName(o))} • Telefone: ${E(servicePhone(o))} • Aberto por: ${E(o.responsible||'Administrador')}</small>
+     </div>
+     ${o.notes?`<div class="notice" style="margin-top:12px"><b>Observações:</b><br>${E(o.notes)}</div>`:''}
+     ${serviceCompletedDate(o)?`<div class="notice"><b>Concluído:</b> ${E(serviceCompletedDate(o))}${o.completedBy?` • por ${E(o.completedBy)}`:''}</div>`:''}
+     <div class="modal-actions"><button class="btn ghost" onclick="changeOSStatus(${o.id})">Alterar status</button><button class="btn primary" onclick="closeModal()">Fechar</button></div>`);
+ };
+
+ /* Tabela de serviços com cliente, telefone, responsável e status editável */
+ window.renderOS=function(){
+   try{enhanceData()}catch(e){}
+   const list=data.serviceOrders||[];
+   const today=serviceCompletedToday();
+   const todayValue=today.reduce((a,o)=>a+N(o.serviceValue),0);
+   const todayQty=today.reduce((a,o)=>a+N(o.qty),0);
+   const open=list.filter(o=>!['Concluída','Entregue','Cancelada'].includes(o.status)).length;
+   const concluded=list.filter(o=>['Concluída','Entregue'].includes(o.status)).length;
+
+   const rows=list.map(o=>`<tr>
+     <td><b>${E(o.number)}</b><small class="cell-sub">${E(o.date||'-')}</small></td>
+     <td>${E(serviceCustomerName(o))}<small class="cell-sub">${E(servicePhone(o))}</small></td>
+     <td>${E(o.responsible||'Administrador')}</td>
+     <td class="lp-service-description">${E(o.service||'')}<small>Cliente: ${E(serviceCustomerName(o))} • ${E(servicePhone(o))}</small></td>
+     <td>${N(o.qty)||'-'}</td>
+     <td>${M(o.serviceValue||0)}</td>
+     <td>${statusBadge(o.status)}</td>
+     <td class="actions">
+       <button class="btn ghost small" onclick="lpServiceDetails(${o.id})">Ver</button>
+       <button class="btn ghost small" onclick="changeOSStatus(${o.id})">Editar status</button>
+       ${o.status==='Concluída'&&!o.received?`<button class="btn primary small" onclick="receiveOSModal(${o.id})">Receber</button>`:''}
+     </td>
+   </tr>`).join('');
+
+   document.getElementById('os').innerHTML=
+     heading('Serviços','Acompanhe abertura, cliente, telefone, responsável, status e conclusão',`<button class="btn primary" onclick="osModal()">+ Novo serviço</button>`)+
+     `<div class="cards">
+       ${metric('Em andamento',open,'serviços ainda abertos',open?'red':'green')}
+       ${metric('Concluídos',concluded,'total finalizado','green')}
+       ${metric('Serviços concluídos hoje',today.length,'quantidade de OS finalizadas hoje','green')}
+       ${metric('Valor de serviços hoje',M(todayValue),todayQty+' item(ns) usados nas OS de hoje','green')}
+     </div>
+     <div class="card table-wrap" style="margin-top:16px">
+       <table>
+         <thead><tr><th>OS / Data</th><th>Cliente / Telefone</th><th>Aberto por</th><th>Descrição</th><th>Qtd.</th><th>Valor serviço</th><th>Status</th><th>Ações</th></tr></thead>
+         <tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum serviço registrado.</td></tr>'}</tbody>
+       </table>
+     </div>`;
+ };
+
+ /* Dashboard: acrescenta indicador diário de serviços concluídos */
+ const previousDashboardV9=window.renderDashboard;
+ window.renderDashboard=function(){
+   previousDashboardV9();
+   const page=document.getElementById('dashboard');
+   if(!page)return;
+   const today=serviceCompletedToday();
+   const todayValue=today.reduce((a,o)=>a+N(o.serviceValue),0);
+   const todayQty=today.reduce((a,o)=>a+N(o.qty),0);
+   const cards=page.querySelector('.lp-dashboard-grid,.cards');
+   if(cards && !document.getElementById('lpServiceTodayDashboard')){
+     const wrap=document.createElement('div');
+     wrap.id='lpServiceTodayDashboard';
+     wrap.className='card metric';
+     wrap.innerHTML=`<div class="label">Serviços concluídos hoje</div><div class="value">${today.length}</div><div class="delta green">${M(todayValue)} • ${todayQty} item(ns)</div>`;
+     cards.appendChild(wrap);
+   }
+ };
+
+ /* Guarda nome/telefone do cliente na OS no momento da criação */
+ const previousSaveOSV9=window.saveOS;
+ window.saveOS=function(){
+   const customerId=document.getElementById('oscustomer')?.value||'';
+   const c=(data.customers||[]).find(x=>String(x.id)===String(customerId));
+   const phone=String(document.getElementById('osphone')?.value||c?.phone||'').trim();
+   const before=(data.serviceOrders||[]).length;
+   previousSaveOSV9();
+   const after=data.serviceOrders||[];
+   if(after.length>before){
+     const o=after[0];
+     o.customerNameSnapshot=c?.name||'';
+     o.customerPhone=phone;
+     try{save()}catch(e){}
+   }
+ };
+
+})();
+</script>
+
+
+<style id="lp-catalog-login-users-v10-css">
+/* O controle abre direto; Firebase fica como conexão administrativa interna */
+#login{display:none!important}
+.lp-firebase-card{border:1px solid #dce6f1;border-radius:16px;padding:16px;background:#f8fafc;margin-top:16px}
+.lp-firebase-status{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.lp-firebase-actions{display:flex;gap:8px;flex-wrap:wrap}
+.lp-catalog-actions{display:flex;gap:8px;flex-wrap:wrap}
+.lp-catalog-send-card{border:1px solid #e2e8f0;border-radius:15px;background:#fff;padding:14px;margin-top:12px}
+.lp-catalog-send-card .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.lp-catalog-send-card small{display:block;color:#64748b;margin-top:4px}
+.lp-catalog-send-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.lp-catalog-send-grid>div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:9px}
+.lp-catalog-send-grid span{display:block;font-size:9px;text-transform:uppercase;color:#64748b;font-weight:800}
+.lp-catalog-send-grid b{display:block;margin-top:4px;color:#172033}
+@media(max-width:800px){.lp-catalog-send-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.lp-catalog-send-grid{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-catalog-login-users-v10-js">
+(function(){
+ const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+ const E=v=>typeof esc==='function'?esc(v):String(v??'');
+ const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+ /* ---------- LOGIN: controle abre direto ---------- */
+ window.lpControlUsesFirebaseGate=false;
+
+ function forceControlOpen(){
+   const login=document.getElementById('login');
+   if(login)login.classList.add('hidden');
+   const app=document.querySelector('.app');
+   if(app)app.classList.remove('hidden');
+ }
+
+ /* Não deixa o onAuthStateChanged esconder o controle. Firebase serve apenas para catálogo. */
+ setTimeout(forceControlOpen,20);
+ document.addEventListener('DOMContentLoaded',forceControlOpen);
+
+ /* Redefine logout: desconecta apenas Firebase, não fecha o controle */
+ window.logout=async function(){
+   try{
+     if(window.lpAuth&&window.lpFirebaseUser)await window.lpAuth.signOut();
+   }catch(e){console.warn(e)}
+   window.lpFirebaseUser=null;
+   forceControlOpen();
+   if(document.getElementById('usuarios')?.classList.contains('active'))renderUsuarios();
+   if(document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo();
+ };
+
+ /* ---------- FIREBASE DENTRO DE USUÁRIOS ---------- */
+ window.lpFirebaseAdminLogin=function(){
+   if(typeof firebaseLoginModal==='function')return firebaseLoginModal();
+   alert('A conexão Firebase ainda não terminou de carregar.');
+ };
+ window.lpFirebaseAdminLogout=async function(){
+   try{
+     if(window.lpAuth)await window.lpAuth.signOut();
+     window.lpFirebaseUser=null;
+     alert('Firebase desconectado do Controle.');
+   }catch(e){
+     console.error(e);
+     alert('Não foi possível desconectar agora.');
+   }
+   renderUsuarios();
+   if(document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo();
+ };
+
+ const previousRenderUsuariosV10=window.renderUsuarios;
+ window.renderUsuarios=function(){
+   try{enhanceData()}catch(e){}
+   const users=Array.isArray(data.users)?data.users:[];
+   const rows=users.map(u=>`<tr><td><b>${E(u.name)}</b></td><td>${E(u.username||'')}</td><td>${statusBadge(u.role)}</td><td>${u.active!==false?'<span class="badge ok">Ativo</span>':'<span class="badge danger">Inativo</span>'}</td><td class="actions"><button class="btn ghost small" onclick="userModal(${u.id})">Editar</button>${u.id!==1?`<button class="btn ghost small" onclick="toggleUser(${u.id})">${u.active?'Desativar':'Ativar'}</button>`:''}</td></tr>`).join('');
+   const connected=!!window.lpFirebaseUser;
+   document.getElementById('usuarios').innerHTML=
+     heading('Usuários e Permissões','Usuários do Controle e conexão administrativa do Firebase',`<button class="btn primary" onclick="userModal()">+ Novo usuário</button>`)+
+     `<div class="card table-wrap"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Nenhum usuário cadastrado.</td></tr>'}</tbody></table></div>
+      <div class="lp-firebase-card">
+        <div class="lp-firebase-status">
+          <div>
+            <h3 class="section-title" style="margin:0">Firebase • Catálogo LePneus</h3>
+            <small class="cell-sub">Esse login é somente para sincronizar o Controle com o catálogo público. O Controle abre sem pedir login.</small>
+          </div>
+          ${connected?'<span class="badge ok">Conectado</span>':'<span class="badge warn">Desconectado</span>'}
+        </div>
+        <div class="lp-firebase-actions" style="margin-top:12px">
+          ${connected
+            ?`<button class="btn ghost" onclick="lpFirebaseAdminLogout()">Desconectar Firebase</button>`
+            :`<button class="btn primary" onclick="lpFirebaseAdminLogin()">Entrar com e-mail e senha do Firebase</button>`}
+        </div>
+        <div class="notice" style="margin-top:12px"><b>Segurança:</b> o e-mail e a senha são enviados para autenticação do Firebase. A senha não fica gravada no HTML.</div>
+      </div>`;
+ };
+
+ /* ---------- CATÁLOGO: ENVIO MANUAL MAIS CLARO ---------- */
+ function catalogType(p){
+   const s=(String(p?.category||'')+' '+String(p?.name||'')).toLowerCase();
+   if(s.includes('moto'))return 'Moto';
+   return 'Carro';
+ }
+ function isTireForCatalog(p){
+   const s=(String(p?.category||'')+' '+String(p?.name||'')).toLowerCase();
+   return N(p?.qty)>0 && (s.includes('pneu')||s.includes('moto')||s.includes('carro')) &&
+          !s.includes('acess')&&!s.includes('peça')&&!s.includes('peca')&&!s.includes('câmara')&&!s.includes('camara');
+ }
+
+ window.lpSendOneToCatalog=async function(id){
+   const p=(data.products||[]).find(x=>String(x.id)===String(id));
+   if(!p)return alert('Produto não encontrado.');
+   if(N(p.qty)<=0)return alert('Esse produto está sem estoque e não pode ser enviado ao catálogo.');
+   try{
+     if(typeof sendToCatalogo==='function'){
+       await sendToCatalogo(p.id);
+     }else{
+       throw new Error('Função sendToCatalogo indisponível');
+     }
+     if(window.lpFirebaseUser && typeof publishProductToFirebase==='function'){
+       const r=await publishProductToFirebase(p.id,true);
+       if(r?.ok) alert('Produto enviado/atualizado no catálogo e no Firebase.');
+       else alert('Produto entrou no catálogo local, mas o Firebase não confirmou a atualização.');
+     }else{
+       alert('Produto enviado ao catálogo local. Para publicar no site, conecte o Firebase em Usuários.');
+     }
+   }catch(e){
+     console.error(e);
+     alert('Não foi possível enviar este produto ao catálogo.');
+   }
+   renderCatalogo();
+ };
+
+ window.lpSendAllTiresToCatalog=async function(){
+   const tires=(data.products||[]).filter(isTireForCatalog);
+   if(!tires.length)return alert('Nenhum pneu com estoque disponível para enviar.');
+   let local=0,cloud=0,errors=0;
+   for(const p of tires){
+     try{
+       let item=(data.catalogItems||[]).find(x=>String(x.productId)===String(p.id));
+       const values={code:p.code,name:p.name,brand:p.brand,category:p.category,qty:N(p.qty),price:N(p.price),status:'Ativo',updatedAt:new Date().toLocaleString('pt-BR')};
+       if(item)Object.assign(item,values);
+       else{
+         (data.catalogItems||(data.catalogItems=[])).push({id:Date.now()+Math.random(),productId:p.id,importedAt:new Date().toLocaleString('pt-BR'),...values});
+       }
+       local++;
+       if(window.lpFirebaseUser&&typeof publishProductToFirebase==='function'){
+         const r=await publishProductToFirebase(p.id,true);
+         if(r?.ok)cloud++;else errors++;
+       }
+     }catch(e){errors++}
+   }
+   try{save()}catch(e){}
+   renderCatalogo();
+   alert(window.lpFirebaseUser
+     ?`Envio concluído.\nPneus preparados: ${local}\nAtualizados no Firebase: ${cloud}\nErros: ${errors}`
+     :`Pneus enviados ao catálogo local: ${local}.\nPara aparecerem no site público, entre no Firebase em Usuários e clique em “Enviar todos ao site”.`);
+ };
+
+ window.lpSendAllCloud=async function(){
+   if(!window.lpFirebaseUser){
+     alert('Primeiro conecte o Firebase em Usuários.');
+     return;
+   }
+   const tires=(data.products||[]).filter(isTireForCatalog);
+   let ok=0,err=0;
+   for(const p of tires){
+     try{
+       const r=await publishProductToFirebase(p.id,true);
+       r?.ok?ok++:err++;
+     }catch(e){err++}
+   }
+   renderCatalogo();
+   alert(`Envio ao site concluído.\nAtualizados: ${ok}\nErros: ${err}`);
+ };
+
+ window.renderCatalogo=function(){
+   try{ensureData()}catch(e){}
+   const tires=(data.products||[]).filter(isTireForCatalog);
+   const localIds=new Set((data.catalogItems||[]).map(x=>String(x.productId)));
+   const local=tires.filter(p=>localIds.has(String(p.id)));
+   const cloud=local.filter(p=>{
+     const x=(data.catalogItems||[]).find(i=>String(i.productId)===String(p.id));
+     return !!x?.firebaseId;
+   });
+   const rows=tires.map(p=>{
+     const item=(data.catalogItems||[]).find(x=>String(x.productId)===String(p.id));
+     const inLocal=!!item;
+     const inCloud=!!item?.firebaseId;
+     return `<tr>
+       <td><b>${E(p.code||'')}</b></td>
+       <td>${E(p.name||'')}</td>
+       <td>${E(catalogType(p))}</td>
+       <td>${E(p.brand||'')}</td>
+       <td><b>${N(p.qty)}</b></td>
+       <td>${M(p.price)}</td>
+       <td>${inLocal?'<span class="badge ok">No catálogo</span>':'<span class="badge warn">Não enviado</span>'}</td>
+       <td>${inCloud?'<span class="badge ok">No site</span>':'<span class="badge warn">Aguardando Firebase</span>'}</td>
+       <td><button class="btn primary small" onclick="lpSendOneToCatalog(${p.id})">${inLocal?'Atualizar':'Enviar'}</button></td>
+     </tr>`;
+   }).join('');
+
+   document.getElementById('catalogo').innerHTML=
+     heading('Catálogo LePneus','Envie os pneus manualmente e confira o que realmente chegou ao site',`
+       <div class="lp-catalog-actions">
+         <button class="btn ghost" onclick="lpShowCatalogDivergence()">Conferir diferenças</button>
+         <button class="btn ghost" onclick="lpSendAllTiresToCatalog()">Enviar pneus ao catálogo</button>
+         <button class="btn primary" onclick="lpSendAllCloud()">Enviar todos ao site</button>
+       </div>`)+
+     `<div class="cards">
+       ${metric('Pneus com estoque',tires.length,'Carro + Moto','green')}
+       ${metric('No catálogo local',local.length,'preparados no Controle',local.length===tires.length?'green':'red')}
+       ${metric('Confirmados no Firebase',cloud.length,'com vínculo de nuvem',cloud.length===tires.length?'green':'red')}
+       ${metric('Firebase',window.lpFirebaseUser?'Conectado':'Desconectado',window.lpFirebaseUser?'pronto para publicar':'entre em Usuários','green')}
+     </div>
+     <div class="notice" style="margin-top:16px"><b>Como usar:</b> “Enviar pneus ao catálogo” prepara todos os pneus de Carro e Moto no Controle. Depois, com o Firebase conectado em <b>Usuários</b>, use “Enviar todos ao site” para atualizar o catálogo público.</div>
+     <div class="card table-wrap" style="margin-top:16px">
+       <table><thead><tr><th>Código</th><th>Produto</th><th>Tipo</th><th>Marca</th><th>Estoque</th><th>Preço</th><th>Controle</th><th>Site</th><th>Ação</th></tr></thead>
+       <tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum pneu com estoque disponível.</td></tr>'}</tbody></table>
+     </div>`;
+ };
+
+ /* Mantém o controle aberto mesmo após eventos do Firebase */
+ if(window.lpAuth&&typeof window.lpAuth.onAuthStateChanged==='function'){
+   window.lpAuth.onAuthStateChanged(function(user){
+     window.lpFirebaseUser=user||null;
+     forceControlOpen();
+     if(document.getElementById('usuarios')?.classList.contains('active'))renderUsuarios();
+     if(document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo();
+   });
+ }
+
+})();
+</script>
+
 </body>
 </html>
