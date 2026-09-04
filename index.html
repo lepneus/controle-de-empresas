@@ -4414,5 +4414,588 @@ body.dark #mercadolivre>small.cell-sub{background:#0f1b2b!important;border-color
 })();
 </script>
 
+
+<style id="final-light-fix">
+:root{
+  color-scheme: light !important;
+}
+html,body{background:#f4f7fb !important;color:#172033 !important;}
+body{font-family:Inter,Segoe UI,Arial,sans-serif !important;}
+body.dark{background:#f4f7fb !important;color:#172033 !important;}
+.main,.content,.page,.page.active{background:#f4f7fb !important;color:#172033 !important;}
+.topbar{
+  background:rgba(255,255,255,.92) !important;
+  border-bottom:1px solid #e5eaf2 !important;
+  backdrop-filter:blur(10px) !important;
+}
+.search input{
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #dbe3ef !important;
+  box-shadow:0 1px 2px rgba(15,23,42,.03) !important;
+}
+.search input::placeholder{color:#7c8aa0 !important;}
+.content{padding:26px !important;}
+.card,.metric,.settings-section,.table-wrap,.alert,.mini,.notice,.soft-chip,.role-box,.agenda-item,.wa-bubble,.quick-stat,.summary-list>div{
+  background:#ffffff !important;
+  color:#172033 !important;
+  border-color:#e2e8f0 !important;
+  box-shadow:0 10px 30px rgba(15,23,42,.06) !important;
+}
+.heading h1,.heading h2,.heading h3,.section-title,.panel-head h3,.metric .value,.card h1,.card h2,.card h3,.card h4,
+table,tbody td,strong,b{color:#172033 !important;}
+.heading p,.metric .label,.cell-sub,.muted,small,label,th,.summary-list span,.agenda-item p,.role-box p{color:#64748b !important;}
+input,select,textarea{
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #dbe3ef !important;
+  box-shadow:none !important;
+}
+input::placeholder,textarea::placeholder{color:#94a3b8 !important;}
+.btn.primary{
+  background:linear-gradient(135deg,#ef4444,#dc2626) !important;
+  color:#fff !important;
+  box-shadow:0 8px 24px rgba(220,38,38,.18) !important;
+}
+.btn.ghost,.iconbtn,.logout-btn{
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #dbe3ef !important;
+}
+.badge.ok{background:#ecfdf3 !important;color:#0f9f5a !important;}
+.badge.warn{background:#fff7e6 !important;color:#b46a00 !important;}
+.badge.danger{background:#fff1f2 !important;color:#d11a2a !important;}
+/* single theme only */
+.top-actions .iconbtn[title*="tema"],
+.top-actions .iconbtn[title*="Tema"]{display:none !important;}
+
+/* modal readability */
+.modal{
+  background:rgba(15,23,42,.24) !important;
+  backdrop-filter:blur(8px) !important;
+}
+.modal-card{
+  background:#ffffff !important;
+  color:#172033 !important;
+  border:1px solid #dbe3ef !important;
+  box-shadow:0 24px 80px rgba(15,23,42,.18) !important;
+  border-radius:22px !important;
+}
+.modal-card *{text-shadow:none !important;}
+.modal-card h1,.modal-card h2,.modal-card h3,.modal-card h4,
+.modal-card b,.modal-card strong,
+.modal-card td,.modal-card th,
+.modal-card span,.modal-card div,
+.modal-card label,.modal-card p,.modal-card small{
+  color:#172033 !important;
+}
+.modal-card .notice{
+  background:#f8fafc !important;
+  color:#334155 !important;
+  border:1px solid #e2e8f0 !important;
+}
+.modal-card .mini,.modal-card .field,.modal-card .table-wrap,
+.modal-card .role-box,.modal-card .agenda-item,.modal-card .quick-stat,
+.modal-card .summary-list>div{
+  background:#f8fafc !important;
+  border-color:#e2e8f0 !important;
+  box-shadow:none !important;
+}
+.modal-card input,.modal-card select,.modal-card textarea{
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #dbe3ef !important;
+}
+.modal-card .btn.primary,.modal-card .btn.primary *{color:#fff !important;}
+.modal-card .btn.ghost,.modal-card .btn.ghost *{color:#172033 !important;}
+.modal-close-x{
+  position:sticky !important;
+  top:0 !important;
+  float:right !important;
+  z-index:3 !important;
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #dbe3ef !important;
+  box-shadow:0 8px 18px rgba(15,23,42,.08) !important;
+}
+.modal-close-x:hover{background:#ef4444 !important;color:#fff !important;border-color:#ef4444 !important;}
+
+/* mercado livre clearer layout */
+#mercadolivre>.card{
+  background:#fff !important;
+  border:1px solid #e2e8f0 !important;
+}
+#mercadolivre>.card .panel-head,
+#mercadolivre>.card>.ml-v6-toolbar,
+#mercadolivre .ml-v6-toolbar{
+  background:#f8fafc !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:16px !important;
+  padding:14px !important;
+  gap:12px !important;
+}
+#mercadolivre .form-grid .field,
+#mercadolivre .field,
+#mercadolivre .table-wrap,
+#mercadolivre .mini,
+#mercadolivre .notice{
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #e2e8f0 !important;
+}
+#mercadolivre table th{background:#f8fafc !important;color:#64748b !important;}
+#mercadolivre table td{color:#172033 !important;}
+#mercadolivre .ml-final-nav{
+  background:#fff !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:14px !important;
+}
+#mercadolivre .ml-final-nav button{color:#172033 !important;}
+#mercadolivre .panel-head h3{font-size:22px !important;}
+
+/* sidebar remains dark, cleaner */
+.sidebar{
+  background:linear-gradient(180deg,#08111f 0%,#09162b 100%) !important;
+  border-right:1px solid rgba(255,255,255,.06) !important;
+}
+.nav button{
+  font-size:15px !important;
+  font-weight:700 !important;
+  padding:13px 14px !important;
+  border-radius:14px !important;
+}
+.nav button:hover{background:rgba(255,255,255,.06) !important;}
+.nav button.active{
+  background:linear-gradient(135deg,rgba(239,68,68,.22),rgba(59,130,246,.10)) !important;
+  color:#fff !important;
+  border:1px solid rgba(239,68,68,.38) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 24px rgba(0,0,0,.22) !important;
+}
+
+/* responsive modal */
+@media(max-width:900px){
+  .content{padding:16px !important;}
+  .modal-card{width:100% !important;max-height:92vh !important;padding:18px !important;border-radius:18px !important;}
+}
+</style>
+<script id="final-light-fix-script">
+(function(){
+  function forceLight(){
+    try{ localStorage.setItem('theme','light'); }catch(e){}
+    document.body.classList.remove('dark');
+    document.documentElement.style.colorScheme='light';
+  }
+  const oldToggle = window.toggleTheme;
+  window.toggleTheme = function(){ forceLight(); };
+  const oldInit = window.renderAll;
+  forceLight();
+  document.addEventListener('DOMContentLoaded', function(){
+    forceLight();
+    const body = document.body;
+    if(body) body.classList.remove('dark');
+  });
+  const observer = new MutationObserver(forceLight);
+  observer.observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+})();
+</script>
+
+
+<style id="final-light-lock-v2">
+/* trava definitiva no tema claro */
+.lp-theme-toggle,
+#lpThemeToggle,
+.top-actions .iconbtn[title*="tema" i]{display:none !important;}
+body.dark{background:#f4f7fb !important;color:#172033 !important;}
+</style>
+<script id="final-light-lock-v2-script">
+(function(){
+  function lockLight(){
+    try{
+      localStorage.setItem('theme','light');
+      localStorage.setItem('lepneus-theme','light');
+    }catch(e){}
+    if(document.body) document.body.classList.remove('dark');
+    document.documentElement.style.colorScheme='light';
+    const extra=document.getElementById('lpThemeToggle');
+    if(extra) extra.remove();
+  }
+  window.toggleTheme=lockLight;
+  window.toggleLePneusTheme=lockLight;
+  lockLight();
+  document.addEventListener('DOMContentLoaded',function(){
+    lockLight();
+    if(document.body){
+      new MutationObserver(lockLight).observe(document.body,{attributes:true,attributeFilter:['class']});
+    }
+  });
+  setTimeout(lockLight,0);
+  setTimeout(lockLight,250);
+})();
+</script>
+
+
+<style id="lepneus-operacao-v7-css">
+/* Ajustes operacionais solicitados */
+.lp-diff-list{display:grid;gap:10px}
+.lp-diff-card{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}
+.lp-diff-card strong{display:block;color:#172033}
+.lp-diff-card small{display:block;color:#64748b;margin-top:4px}
+.lp-diff-values{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.lp-pill{padding:6px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#f1f5f9;color:#475569}
+.lp-pill.red{background:#fff1f2;color:#c81e2b}
+.lp-pill.green{background:#ecfdf3;color:#0f8a55}
+.lp-sale-preview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
+.lp-sale-preview>div{padding:11px;border-radius:12px;border:1px solid #e2e8f0;background:#f8fafc}
+.lp-sale-preview span{display:block;font-size:10px;color:#64748b;font-weight:800;text-transform:uppercase}
+.lp-sale-preview b{display:block;margin-top:5px;font-size:15px;color:#172033}
+.lp-ml-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.lp-ml-explain{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.lp-ml-explain>div{padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}
+.lp-ml-explain b{display:block;margin-bottom:5px}
+.lp-opp-card{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;margin-bottom:10px}
+.lp-opp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.lp-opp-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:12px}
+.lp-opp-box{padding:10px;border:1px solid #e7edf4;background:#f8fafc;border-radius:11px}
+.lp-opp-box span{display:block;font-size:9px;text-transform:uppercase;color:#64748b;font-weight:800}
+.lp-opp-box b{display:block;margin-top:4px;font-size:13px;color:#172033}
+.lp-opp-good{border-left:4px solid #16a36a}
+.lp-opp-mid{border-left:4px solid #d89a22}
+.lp-opp-bad{border-left:4px solid #dc3545}
+.lp-customer-last{max-width:280px}
+@media(max-width:1050px){
+ .lp-sale-preview,.lp-ml-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .lp-opp-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .lp-ml-explain{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+ .lp-diff-card{grid-template-columns:1fr}
+ .lp-sale-preview,.lp-ml-summary,.lp-opp-grid{grid-template-columns:1fr}
+}
+</style>
+
+<script id="lepneus-operacao-v7-js">
+(function(){
+  const n=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const brMoney=v=>typeof money==='function'?money(n(v)):n(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const daysSince=v=>{
+    const d=typeof parseBRDateTime==='function'?parseBRDateTime(v):new Date(v);
+    if(!d||isNaN(d))return null;
+    return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+  };
+  const daysText=d=>d===null?'Data não disponível':d===0?'Hoje':d===1?'Há 1 dia':`Há ${d} dias`;
+
+  function lpLowProducts(){ return (data.products||[]).filter(p=>n(p.qty)<1); }
+
+  /* 1) Estoque baixo: somente quando ficar abaixo de 1 unidade (zero). */
+  window.renderDashboard=function(){
+    enhanceData();
+    const day=dashboardSalesIn('day'),month=dashboardSalesIn('month'),year=dashboardSalesIn('year');
+    const sum=a=>a.reduce((t,s)=>t+n(s.total),0);
+    const serviceSales=activeSales().filter(s=>s.origin==='OS'||s.originType==='OS'||String(s.origin||'').toLowerCase().includes('serv'));
+    const serviceValue=serviceSales.reduce((a,s)=>a+n(s.total),0);
+    const entries=(data.cash||[]).filter(c=>c.type==='Entrada').reduce((a,c)=>a+n(c.value),0);
+    const exits=(data.cash||[]).filter(c=>c.type==='Saída').reduce((a,c)=>a+n(c.value),0);
+    const low=lpLowProducts().length;
+    $('#dashboard').innerHTML=heading('Dashboard','Faturamento e operação da Le Pneus em tempo real')+`<div class="cards">
+      ${metric('Faturamento hoje',brMoney(sum(day)),day.length+' venda(s) hoje','green')}
+      ${metric('Faturamento mensal',brMoney(sum(month)),month.length+' venda(s) no mês','green')}
+      ${metric('Faturamento anual',brMoney(sum(year)),year.length+' venda(s) no ano','green')}
+      ${metric('Serviços realizados',brMoney(serviceValue),serviceSales.length+' serviço(s) recebido(s)','green')}
+      ${metric('Saldo do caixa',brMoney(entries-exits),'entradas menos saídas',(entries-exits)>=0?'green':'red')}
+      ${metric('Atenções do estoque',low,low?'somente produtos zerados':'nenhum produto zerado',low?'red':'green')}
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="panel-head"><h3 class="section-title">Faturamento recente</h3><span class="soft-chip">Últimas vendas</span></div><canvas id="chartSales" height="105"></canvas></div>
+      <div class="card"><div class="panel-head"><h3 class="section-title">Atenção</h3><span class="soft-chip">Regra: estoque &lt; 1</span></div>
+        <div class="alert-list">${low?`<div class="alert">⚠️ ${low} produto(s) zerado(s). A mensagem só aparece quando o estoque fica abaixo de 1.</div>`:'<div class="empty">Nenhum produto zerado.</div>'}</div>
+      </div>
+    </div>`;
+    setTimeout(()=>{let ctx=$('#chartSales');if(!ctx)return;let sales=activeSales().slice(0,10).reverse();new Chart(ctx,{type:'bar',data:{labels:sales.map(s=>s.customer||'#'+String(s.id).slice(-5)),datasets:[{label:'Faturamento',data:sales.map(s=>n(s.total)),borderRadius:7}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}})},0);
+  };
+
+  /* 2) Estoque com ordenação por código. */
+  window.sortStock=function(v){
+    const codeCmp=(a,b)=>String(a.code||'').localeCompare(String(b.code||''),'pt-BR',{numeric:true,sensitivity:'base'});
+    if(v==='code') data.products.sort(codeCmp);
+    else if(v==='qtyasc')data.products.sort((a,b)=>n(a.qty)-n(b.qty));
+    else if(v==='qtydesc')data.products.sort((a,b)=>n(b.qty)-n(a.qty));
+    else if(v==='pricedesc')data.products.sort((a,b)=>n(b.price)-n(a.price));
+    else data.products.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+    renderEstoque();
+  };
+
+  window.renderEstoque=function(){
+    const rows=(data.products||[]).map(p=>`<tr>
+      <td><b>${esc(p.code||'')}</b></td><td>${esc(p.name||'')}</td><td>${esc(p.category||'')}</td><td>${esc(p.brand||'')}</td>
+      <td><b>${n(p.qty)}</b></td><td>${brMoney(p.cost)}</td><td>${brMoney(p.price)}</td>
+      <td>${n(p.qty)<1?'<span class="badge danger">Zerado</span>':'<span class="badge ok">Normal</span>'}</td>
+      <td class="actions"><button class="btn ghost small" onclick="stockMovementModal(${p.id})">Movimentar</button><button class="btn ghost small" onclick="productModal(${p.id})">Editar</button><button class="btn ghost small" onclick="deleteProduct(${p.id})">Excluir</button></td>
+    </tr>`).join('');
+    $('#estoque').innerHTML=heading('Estoque','Controle por código, movimentações, custos e preços',`<div class="actions"><button class="btn ghost" onclick="stockHistoryModal()">Histórico</button><button class="btn primary" onclick="productModal()">+ Produto</button></div>`)+
+    `<div class="card"><div class="toolbar">
+      <input id="stockSearch" placeholder="Pesquisar produto, código ou marca" oninput="filterTable('stockSearch','stockTable')">
+      <select onchange="sortStock(this.value)">
+        <option value="code">Ordenar por código</option>
+        <option value="name">Ordenar por nome</option>
+        <option value="qtyasc">Menor estoque</option>
+        <option value="qtydesc">Maior estoque</option>
+        <option value="pricedesc">Maior preço</option>
+      </select>
+    </div><div class="table-wrap"><table id="stockTable"><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum produto cadastrado.</td></tr>'}</tbody></table></div></div>`;
+  };
+
+  /* 3) Vendas: remove a tabela com todo o estoque e mostra só diferenças de importação + histórico. */
+  function pendingSalesDiffs(){
+    return (data.pendingImportDifferences||[]).filter(d=>n(d.diff)<0 && d.status==='Pendente').sort((a,b)=>n(b.id)-n(a.id));
+  }
+  function resolvedSalesDiffs(){
+    return (data.pendingImportDifferences||[]).filter(d=>n(d.diff)<0 && d.status==='Venda confirmada').sort((a,b)=>n(b.id)-n(a.id)).slice(0,20);
+  }
+  window.reviewImportSale=function(id){ lpDifferenceSaleModal(id); };
+  window.reviewImportAdjustment=function(id){ lpResolveDifference(id,'ajuste'); };
+
+  window.renderVendas=function(){
+    enhanceData(); ensureData();
+    const pend=pendingSalesDiffs();
+    const pendCards=pend.map(d=>`<div class="lp-diff-card">
+      <div>
+        <strong>${esc(d.name)}</strong>
+        <small>${esc(d.code||'')} • detectado na importação ${esc(d.createdAt||'')}</small>
+        <div class="lp-diff-values">
+          <span class="lp-pill">Antes: ${n(d.oldQty)}</span>
+          <span class="lp-pill">Agora: ${n(d.newQty)}</span>
+          <span class="lp-pill red">Baixou ${Math.abs(n(d.diff))}</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost small" onclick="reviewImportAdjustment(${d.id})">Foi ajuste</button>
+        <button class="btn primary small" onclick="reviewImportSale(${d.id})">Dar baixa / vendido</button>
+      </div>
+    </div>`).join('');
+
+    const salesRows=(data.sales||[]).map(s=>{
+      const itens=(s.items||[]).map(i=>`${esc(i.name||'Produto')} × ${n(i.qty)}`).join('<br>')||'-';
+      return `<tr><td><b>#${s.id}</b><small class="cell-sub">${esc(s.origin||s.originType||'Venda direta')}</small></td><td>${esc(s.date||'')}</td><td>${esc(s.customer||'Consumidor')}</td><td>${itens}</td><td>${brMoney(s.total)}</td><td>${brMoney(s.profit)}</td><td>${statusBadge(s.status||'Concluída')}</td></tr>`;
+    }).join('');
+
+    $('#vendas').innerHTML=heading('Vendas','Confirme vendas detectadas nas planilhas e acompanhe o resultado',`<button class="btn primary" onclick="saleModal()">+ Nova venda manual</button>`)+
+    `<div class="cards">
+      ${metric('Diferenças para revisar',pend.length,'saídas detectadas na nova importação',pend.length?'red':'green')}
+      ${metric('Vendas ativas',activeSales().length,'registradas no sistema','green')}
+      ${metric('Faturamento',brMoney(activeSales().reduce((a,s)=>a+n(s.total),0)),'sem canceladas','green')}
+      ${metric('Lucro registrado',brMoney(activeSales().reduce((a,s)=>a+n(s.profit),0)),'calculado pelas vendas','green')}
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Baixas detectadas na planilha</h3><small class="cell-sub">Exemplo: tinha 10, foi para 8 → o sistema mostra que baixou 2 e pergunta se foi venda.</small></div><span class="soft-chip">${pend.length} pendente(s)</span></div>
+      <div class="lp-diff-list">${pendCards||'<div class="empty">Nenhuma baixa de estoque aguardando confirmação.</div>'}</div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="panel-head"><h3 class="section-title" style="margin:0">Histórico de vendas</h3><span class="soft-chip">Total e lucro</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Lucro</th><th>Status</th></tr></thead><tbody>${salesRows||'<tr><td colspan="7" class="empty">Nenhuma venda registrada.</td></tr>'}</tbody></table></div>
+    </div>`;
+  };
+
+  /* Modal da diferença com cliente, telefone e prévia do lucro. */
+  window.lpDifferenceSaleModal=function(diffId){
+    const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(diffId));if(!d)return;
+    const q=Math.abs(n(d.diff));
+    showModal(`<h2>Confirmar baixa como venda</h2>
+      <div class="notice"><b>${esc(d.name)}</b><br>Tinha <b>${n(d.oldQty)}</b> e agora a planilha mostra <b>${n(d.newQty)}</b>. Saída detectada: <b>${q} unidade(s)</b>.</div>
+      <div class="form">
+        <label>Quantidade vendida<input id="diqtyview" value="${q}" readonly></label>
+        <label>Preço vendido por unidade<input id="diprice" type="number" step="0.01" value="${n(d.price).toFixed(2)}" oninput="lpUpdateDifferencePreview(${diffId})"></label>
+        <label>Pagamento<select id="dipayment"><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option><option>Cheque</option><option>Transferência</option><option>Boleto</option><option>Outro</option></select></label>
+        <label>Nome de quem comprou<input id="dicustomer" placeholder="Nome do cliente"></label>
+        <label>Telefone / WhatsApp<input id="diphone" placeholder="(00) 00000-0000"></label>
+        <label class="full">Observação<input id="dinote" placeholder="Opcional"></label>
+      </div>
+      <div class="lp-sale-preview">
+        <div><span>Quantidade</span><b id="diprevqty">${q}</b></div>
+        <div><span>Total da venda</span><b id="diprevtotal">-</b></div>
+        <div><span>Custo</span><b id="diprevcost">-</b></div>
+        <div><span>Lucro estimado</span><b id="diprevprofit">-</b></div>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Depois</button><button class="btn ghost" onclick="lpResolveDifference(${d.id},'ajuste')">Foi ajuste</button><button class="btn primary" onclick="lpResolveDifference(${d.id},'venda')">Confirmar venda</button></div>`);
+    setTimeout(()=>window.lpUpdateDifferencePreview(diffId),0);
+  };
+  window.lpUpdateDifferencePreview=function(diffId){
+    const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(diffId));if(!d)return;
+    const q=Math.abs(n(d.diff)),unit=n(document.getElementById('diprice')?.value),cost=n(d.cost)*q,total=unit*q,profit=total-cost;
+    const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val};
+    set('diprevqty',q);set('diprevtotal',brMoney(total));set('diprevcost',brMoney(cost));set('diprevprofit',brMoney(profit));
+  };
+
+  /* 4) Clientes: mostra último produto e botão com histórico item a item + dias. */
+  window.customerPurchaseHistory=function(customerId){
+    const c=(data.customers||[]).find(x=>String(x.id)===String(customerId));if(!c)return;
+    const sales=activeSales().filter(s=>String(s.customerId)===String(c.id)||String(s.customer||'').toLowerCase()===String(c.name||'').toLowerCase());
+    const rows=[];
+    sales.forEach(s=>{
+      const d=daysSince(s.date);
+      (s.items||[]).forEach(i=>rows.push(`<tr><td>${esc(s.date||'-')}</td><td>${esc(i.name||'Produto')}</td><td>${n(i.qty)}</td><td>${brMoney(n(i.price)*n(i.qty))}</td><td><b>${daysText(d)}</b></td></tr>`));
+    });
+    showModal(`<h2>Compras de ${esc(c.name)}</h2><div class="notice"><b>Telefone:</b> ${esc(c.phone||'-')}</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Qtd.</th><th>Valor</th><th>Tempo desde a compra</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="5" class="empty">Nenhuma compra registrada.</td></tr>'}</tbody></table></div>`);
+  };
+  window.renderClientes=function(){
+    enhanceData();
+    const rows=(data.customers||[]).map(c=>{
+      const sales=activeSales().filter(s=>String(s.customerId)===String(c.id)||String(s.customer||'').toLowerCase()===String(c.name||'').toLowerCase());
+      const spent=sales.reduce((a,s)=>a+n(s.total),0);
+      let lastSale=null,lastDate=null;
+      sales.forEach(s=>{const d=typeof parseBRDateTime==='function'?parseBRDateTime(s.date):new Date(s.date);if(d&&!isNaN(d)&&(!lastDate||d>lastDate)){lastDate=d;lastSale=s}});
+      const lastItems=lastSale?(lastSale.items||[]).map(i=>esc(i.name||'Produto')+' × '+n(i.qty)).join(', '):'Nenhuma compra';
+      const days=lastSale?daysSince(lastSale.date):null;
+      return `<tr>
+        <td><b>${esc(c.name)}</b></td><td>${esc(c.phone||'-')}</td><td>${sales.length}</td><td>${brMoney(spent)}</td>
+        <td class="lp-customer-last">${lastItems}<small class="cell-sub">${lastSale?daysText(days):'Nunca comprou'}</small></td>
+        <td class="actions"><button class="btn primary small" onclick="customerPurchaseHistory(${c.id})">Ver compras</button><button class="btn ghost small" onclick="customerModalV2(${c.id})">Editar</button></td>
+      </tr>`;
+    }).join('');
+    $('#clientes').innerHTML=heading('Clientes','Veja o que cada cliente comprou e há quantos dias',`<button class="btn primary" onclick="customerModalV2()">+ Novo cliente</button>`)+
+    `<div class="card table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Compras</th><th>Total gasto</th><th>Último produto</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">Nenhum cliente.</td></tr>'}</tbody></table></div>`;
+  };
+
+  /* 5) Serviços: data, cliente e telefone no cadastro e na tabela. */
+  window.osFillPhone=function(){
+    const id=document.getElementById('oscustomer')?.value;
+    const c=(data.customers||[]).find(x=>String(x.id)===String(id));
+    const p=document.getElementById('osphone');if(p)p.value=c?.phone||'';
+  };
+  window.osModal=function(){
+    const today=new Date();today.setMinutes(today.getMinutes()-today.getTimezoneOffset());
+    showModal(`<h2>Novo serviço</h2><div class="form">
+      <label>Data do serviço<input id="osdate" type="date" value="${today.toISOString().slice(0,10)}"></label>
+      <label>Cliente<select id="oscustomer" onchange="osFillPhone()">${customerOptions()}</select></label>
+      <label>Telefone / WhatsApp<input id="osphone" placeholder="(00) 00000-0000"></label>
+      <label>Responsável<input id="osowner" value="Administrador"></label>
+      <label class="full">Serviço realizado<input id="osservice" placeholder="Ex.: montagem, balanceamento, troca..."></label>
+      <label>Produto utilizado<select id="osproduct"><option value="">Nenhum</option>${productOptions()}</select></label>
+      <label>Quantidade<input id="osqty" type="number" min="0" value="0"></label>
+      <label>Valor da mão de obra<input id="osservicevalue" type="number" step="0.01" value="0"></label>
+      <label>Desconto<input id="osdiscount" type="number" step="0.01" value="0"></label>
+      <label>Status<select id="osstatus"><option>Aberta</option><option>Aguardando</option><option>Em andamento</option><option>Concluída</option></select></label>
+      <label class="full">Observações<textarea id="osnotes" rows="3"></textarea></label>
+    </div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveOS()">Salvar serviço</button></div>`);
+    setTimeout(()=>osFillPhone(),0);
+  };
+  window.saveOS=function(){
+    const p=data.products.find(x=>String(x.id)===String($('#osproduct').value));
+    const qty=n($('#osqty').value),serviceValue=n($('#osservicevalue').value),discount=n($('#osdiscount').value);
+    const customerId=$('#oscustomer').value,phone=$('#osphone').value.trim(),service=$('#osservice').value.trim();
+    if(!service)return alert('Informe o serviço.');
+    if(p&&qty>n(p.qty)&&!data.settings.allowNegativeStock)return alert('Estoque insuficiente para o produto selecionado.');
+    const c=(data.customers||[]).find(x=>String(x.id)===String(customerId));if(c&&phone)c.phone=phone;
+    const productValue=p?n(p.price)*qty:0,total=Math.max(0,serviceValue+productValue-discount);
+    const dateInput=$('#osdate').value;
+    const date=dateInput?new Date(dateInput+'T12:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR');
+    const o={id:Date.now(),number:(data.settings.osPrefix||'OS')+'-'+String(data.serviceOrders.length+1).padStart(4,'0'),date,customerId,customerPhone:phone,responsible:$('#osowner').value,service,productId:p?.id||'',productName:p?.name||'',qty,productValue,serviceValue,discount,total,status:$('#osstatus').value,notes:$('#osnotes').value,stockDeducted:false,received:false};
+    data.serviceOrders.unshift(o);
+    if(p&&qty>0){addStockMovement(p.id,'Saída',qty,'Produto utilizado em OS',o.number);o.stockDeducted=true}
+    log('Criou serviço '+o.number);save();closeModal();renderAll();
+  };
+  window.renderOS=function(){
+    enhanceData();
+    const rows=(data.serviceOrders||[]).map(o=>{
+      const c=(data.customers||[]).find(x=>String(x.id)===String(o.customerId));
+      const phone=o.customerPhone||c?.phone||'-';
+      return `<tr><td><b>${esc(o.number)}</b></td><td>${esc(o.date||'-')}</td><td>${esc(findCustomerName(o.customerId))}</td><td>${esc(phone)}</td><td>${esc(o.service)}</td><td>${o.qty||'-'}</td><td>${brMoney(o.serviceValue||o.total||0)}</td><td>${statusBadge(o.status)}</td><td class="actions"><button class="btn ghost small" onclick="changeOSStatus(${o.id})">Status</button>${o.status==='Concluída'&&!o.received?`<button class="btn primary small" onclick="receiveOSModal(${o.id})">Receber</button>`:''}</td></tr>`;
+    }).join('');
+    $('#os').innerHTML=heading('Serviços','Data, cliente, telefone e serviço em uma visão só',`<button class="btn primary" onclick="osModal()">+ Novo serviço</button>`)+
+    `<div class="cards">${metric('Serviços abertos',data.serviceOrders.filter(o=>!['Concluída','Entregue','Cancelada'].includes(o.status)).length,'em andamento','green')}${metric('Serviços recebidos',data.serviceOrders.filter(o=>o.received).length,'finalizados','green')}${metric('Valor em serviços',brMoney(data.serviceOrders.filter(o=>o.status!=='Cancelada').reduce((a,o)=>a+n(o.serviceValue),0)),'mão de obra registrada','green')}</div>
+    <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Número</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Serviço realizado</th><th>Qtd.</th><th>Mão de obra</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="9" class="empty">Nenhum serviço registrado.</td></tr>'}</tbody></table></div>`;
+  };
+
+  /* 6) Mercado Livre: não mostra o estoque inteiro. Só resumo + botão das 30 melhores oportunidades.
+        Regra adicional: +5% no preço de oportunidade e reserva fiscal de 5% no cálculo. */
+  function mlCalcOpportunity(item){
+    const p=(data.products||[]).find(x=>String(x.id)===String(item.productId));
+    if(!p||n(p.qty)<=0)return null;
+    const cost=n(p.cost),freight=n(item.mlFreight??data.settings.mlDefaultFreight),other=n(item.mlOtherCost??data.settings.mlDefaultOther);
+    const classic=n(item.mlClassicFeePct??item.mlFeePct??data.settings.mlClassicFeePct??14);
+    const premium=n(item.mlPremiumFeePct??data.settings.mlPremiumFeePct??19);
+    const feePct=Math.min(classic||14,premium||19);
+    const listingType=(feePct===classic?'Clássico':'Premium');
+    const marginPct=Math.max(0,n(data.settings.mlMinMarginPct??15))/100;
+    const fiscalPct=.05;
+    const opportunityAdd=.05;
+    const compMin=n(item.mlMarketMin),compAvg=n(item.mlMarketAvg);
+    const discount=Math.max(0,n(data.settings.mlCompetitiveDiscountPct??2))/100;
+    let floor=0;
+    const den=1-(feePct/100)-fiscalPct-marginPct;
+    if(den>0)floor=(cost+freight+other)/den;
+    let marketTarget=compAvg>0?compAvg*(1-discount):(compMin>0?compMin:0);
+    let base=Math.max(floor,marketTarget,n(p.price));
+    let price=base*(1+opportunityAdd);
+    if(data.settings.mlPsychologicalPrice&&price>1)price=Math.floor(price)+.90;
+    const fee=price*(feePct/100),fiscal=price*fiscalPct,profit=price-cost-freight-other-fee-fiscal,margin=price?profit/price*100:0;
+    let score=0;
+    if(profit>0)score+=35;if(margin>=n(data.settings.mlMinMarginPct??15))score+=25;if(n(p.qty)>0)score+=10;
+    if(compAvg>0){const delta=(price-compAvg)/compAvg; if(delta<=.05)score+=25; else if(delta<=.12)score+=12;}
+    else score+=5;
+    score=Math.max(0,Math.min(100,Math.round(score)));
+    const cls=profit>0&&margin>=n(data.settings.mlMinMarginPct??15)&&(compAvg<=0||price<=compAvg*1.12)?'good':profit>0?'mid':'bad';
+    return {item,p,cost,freight,other,feePct,listingType,fiscalPct,price,fee,fiscal,profit,margin,score,compMin,compAvg,cls};
+  }
+  function mlOpportunities(){
+    return (data.mercadoLivreItems||[]).map(mlCalcOpportunity).filter(Boolean).sort((a,b)=>b.score-a.score||b.profit-a.profit);
+  }
+  window.mlShowTop30=function(){
+    const arr=mlOpportunities().slice(0,30);
+    const cards=arr.map((r,i)=>`<div class="lp-opp-card ${r.cls==='good'?'lp-opp-good':r.cls==='mid'?'lp-opp-mid':'lp-opp-bad'}">
+      <div class="lp-opp-head"><div><b>#${i+1} • ${esc(r.p.name)}</b><small class="cell-sub">${esc(r.p.code||'')} • estoque ${n(r.p.qty)} • ${r.listingType}</small></div>
+      <span class="badge ${r.cls==='good'?'ok':r.cls==='mid'?'warn':'danger'}">${r.cls==='good'?'Compensa':r.cls==='mid'?'Revisar':'Não compensa'}</span></div>
+      <div class="lp-opp-grid">
+        <div class="lp-opp-box"><span>Você paga</span><b>${brMoney(r.cost)}</b></div>
+        <div class="lp-opp-box"><span>Preço sugerido</span><b>${brMoney(r.price)}</b></div>
+        <div class="lp-opp-box"><span>Taxa ML</span><b>${brMoney(r.fee)} (${r.feePct.toFixed(1)}%)</b></div>
+        <div class="lp-opp-box"><span>Reserva fiscal</span><b>${brMoney(r.fiscal)} (5%)</b></div>
+        <div class="lp-opp-box"><span>Frete + outros</span><b>${brMoney(r.freight+r.other)}</b></div>
+        <div class="lp-opp-box"><span>Lucro estimado</span><b>${brMoney(r.profit)} (${r.margin.toFixed(1)}%)</b></div>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn ghost small" onclick="searchMLSimilar(${r.item.id})">Buscar anúncios</button>
+        <button class="btn ghost small" onclick="mlV6CompetitorModal(${r.item.id})">Registrar concorrentes</button>
+      </div>
+    </div>`).join('');
+    showModal(`<h2>30 melhores oportunidades</h2><div class="notice">O ranking usa seus custos e os preços de concorrentes que você registrar. O preço de oportunidade recebe <b>+5%</b> e o cálculo separa uma <b>reserva fiscal de 5%</b>. Não é consulta automática ao Mercado Livre.</div>${cards||'<div class="empty">Nenhuma oportunidade disponível.</div>'}`);
+  };
+  window.renderMercadoLivre=function(){
+    if(typeof mlV6Ensure==='function')mlV6Ensure();
+    const arr=mlOpportunities(),top=arr.slice(0,30),good=top.filter(r=>r.cls==='good'),mid=top.filter(r=>r.cls==='mid'),bad=top.filter(r=>r.cls==='bad');
+    const best=good[0]||mid[0]||top[0];
+    const avgProfit=good.length?good.reduce((a,r)=>a+r.profit,0)/good.length:0;
+    $('#mercadolivre').innerHTML=heading('Mercado Livre','Somente oportunidades que ajudam na decisão — sem listar todo o estoque',`<button class="btn primary" onclick="mlShowTop30()">Ver 30 melhores oportunidades</button>`)+
+    `<div class="notice"><b>Regra atual:</b> o controle acrescenta 5% ao preço calculado de oportunidade e separa 5% do preço como reserva fiscal. A comparação usa os preços de concorrentes que você cadastra manualmente; sem integração oficial, o HTML não consegue saber sozinho os preços ou vendas atuais do Mercado Livre.</div>
+    <div class="lp-ml-summary">
+      ${metric('Compensam',good.length,'entre as 30 melhores','green')}
+      ${metric('Revisar',mid.length,'ainda têm lucro, mas exigem atenção',mid.length?'red':'green')}
+      ${metric('Não compensam',bad.length,'lucro/margem insuficiente',bad.length?'red':'green')}
+      ${metric('Lucro médio',brMoney(avgProfit),'nas oportunidades que compensam','green')}
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Como o preço é montado</h3><small class="cell-sub">Tudo separado para você enxergar onde o dinheiro vai.</small></div></div>
+      <div class="lp-ml-explain">
+        <div><b>1. Custo do pneu</b><span class="cell-sub">Valor vindo da planilha.</span></div>
+        <div><b>2. Mercado Livre + fiscal</b><span class="cell-sub">Taxa estimada do anúncio + reserva fiscal fixa de 5%.</span></div>
+        <div><b>3. Oportunidade</b><span class="cell-sub">O preço calculado recebe +5% e é comparado com a concorrência informada.</span></div>
+      </div>
+      ${best?`<div class="notice" style="margin-top:14px"><b>Melhor oportunidade agora:</b> ${esc(best.p.name)} • custo ${brMoney(best.cost)} • preço sugerido ${brMoney(best.price)} • lucro estimado ${brMoney(best.profit)}.</div>`:''}
+      <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="mlShowTop30()">Abrir as 30 melhores</button></div>
+    </div>`;
+  };
+
+  /* Garante aplicação das novas telas. */
+  const oldRenderAll=window.renderAll;
+  window.renderAll=function(){
+    ensureData();enhanceData();
+    renderDashboard();renderEstoque();renderPlanilhas();renderCatalogo();renderMercadoLivre();renderVendas();
+    renderOrcamentos();renderFinanceiro();renderCaixa();renderCompras();renderClientes();renderFornecedores();renderOS();renderAgenda();renderWhatsApp();renderRelatorios();renderUsuarios();
+  };
+
+  if(document.readyState!=='loading'){try{renderAll()}catch(e){console.warn('Ajustes operacionais:',e)}}
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{renderAll()}catch(e){console.warn('Ajustes operacionais:',e)}},80)});
+})();
+</script>
+
 </body>
 </html>
