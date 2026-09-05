@@ -6610,5 +6610,834 @@ tbody tr:hover{background:#f8fafc!important}
 })();
 </script>
 
+
+<style id="lp-modal-scroll-v21-css">
+/* ===== Modal robusto: X sempre visível + rolagem em toda a área ===== */
+#modal{
+  position:fixed!important;
+  inset:0!important;
+  display:none;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:18px!important;
+  overflow:hidden!important;
+  z-index:9999!important;
+}
+#modal.show{
+  display:flex!important;
+  pointer-events:auto!important;
+}
+#modal .modal-card{
+  position:relative!important;
+  width:min(920px,calc(100vw - 36px))!important;
+  max-height:calc(100dvh - 36px)!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior:contain!important;
+  -webkit-overflow-scrolling:touch!important;
+  scrollbar-gutter:stable!important;
+  padding:24px!important;
+}
+#modal .modal-card.lp-ml-wide{
+  width:min(1160px,calc(100vw - 36px))!important;
+  max-height:calc(100dvh - 36px)!important;
+}
+#modalBody{
+  min-height:0!important;
+  overflow:visible!important;
+  padding-top:2px!important;
+}
+#modal .modal-close-x{
+  position:sticky!important;
+  top:0!important;
+  float:right!important;
+  z-index:50!important;
+  width:40px!important;
+  height:40px!important;
+  margin:-8px -8px 8px 12px!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:11px!important;
+  font-size:24px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  cursor:pointer!important;
+  background:#fff!important;
+  color:#172033!important;
+  border:1px solid #d7e0ea!important;
+  box-shadow:0 5px 16px rgba(15,23,42,.12)!important;
+}
+#modal .modal-close-x:hover{
+  background:#ef3340!important;
+  color:#fff!important;
+  border-color:#ef3340!important;
+}
+/* Faz a roda do mouse funcionar sem "morrer" em cards internos */
+#modal .lp-ml-rank-list,
+#modal .lp-notification-list,
+#modal .table-wrap,
+#modal .card{
+  overscroll-behavior:auto!important;
+}
+/* Não cria uma rolagem interna concorrente nas tabelas do modal, apenas horizontal */
+#modal .table-wrap{
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+}
+@media(max-width:800px){
+  #modal{padding:8px!important}
+  #modal .modal-card,
+  #modal .modal-card.lp-ml-wide{
+    width:calc(100vw - 16px)!important;
+    max-height:calc(100dvh - 16px)!important;
+    padding:16px!important;
+  }
+}
+</style>
+
+<script id="lp-modal-scroll-v21-js">
+(function(){
+  const getModal=()=>document.getElementById('modal');
+
+  function ensureCloseButton(){
+    const m=getModal();
+    if(!m)return;
+    const body=m.querySelector('#modalBody');
+    if(!body)return;
+
+    let x=body.querySelector(':scope > .modal-close-x');
+    if(!x){
+      x=document.createElement('button');
+      x.type='button';
+      x.className='modal-close-x';
+      x.setAttribute('aria-label','Fechar');
+      x.setAttribute('title','Fechar');
+      x.textContent='×';
+      body.prepend(x);
+    }
+    x.onclick=function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      window.closeModal();
+    };
+  }
+
+  /* Última definição de showModal: sempre injeta o X. */
+  window.showModal=function(content){
+    const m=getModal();
+    if(!m)return;
+    const body=m.querySelector('#modalBody');
+    if(!body)return;
+
+    body.innerHTML=content;
+    ensureCloseButton();
+
+    m.style.display='flex';
+    m.style.pointerEvents='auto';
+    m.classList.add('show');
+    document.body.style.overflow='hidden';
+
+    const card=m.querySelector('.modal-card');
+    if(card){
+      card.scrollTop=0;
+      card.focus?.({preventScroll:true});
+    }
+
+    /* Clicar fora não fecha. */
+    m.onclick=function(ev){
+      if(ev.target===m){
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    };
+  };
+
+  window.closeModal=function(){
+    const m=getModal();
+    if(!m)return;
+    m.classList.remove('show');
+    m.style.display='none';
+    m.style.pointerEvents='none';
+    document.body.style.overflow='';
+    const card=m.querySelector('.modal-card');
+    card?.classList.remove('lp-ml-wide');
+    if(card)card.scrollTop=0;
+  };
+
+  /* Garante rolagem com roda do mouse mesmo sobre elementos internos do modal. */
+  function bindModalWheel(){
+    const m=getModal();
+    if(!m || m.dataset.lpWheelBound==='1')return;
+    m.dataset.lpWheelBound='1';
+
+    m.addEventListener('wheel',function(ev){
+      if(!m.classList.contains('show'))return;
+      const card=m.querySelector('.modal-card');
+      if(!card)return;
+
+      /* Se estiver sobre textarea/select ou um elemento realmente rolável, deixe o navegador cuidar. */
+      const target=ev.target;
+      const inner=target?.closest?.('textarea,select,.lp-inner-scroll');
+      if(inner)return;
+
+      const max=card.scrollHeight-card.clientHeight;
+      if(max<=0)return;
+
+      const next=Math.max(0,Math.min(max,card.scrollTop+ev.deltaY));
+      if(next!==card.scrollTop){
+        card.scrollTop=next;
+        ev.preventDefault();
+      }
+    },{passive:false,capture:true});
+  }
+
+  /* Bloqueia ESC como solicitado anteriormente. */
+  document.addEventListener('keydown',function(ev){
+    if(ev.key==='Escape' && getModal()?.classList.contains('show')){
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+    }
+  },true);
+
+  function boot(){
+    ensureCloseButton();
+    bindModalWheel();
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,50));
+  }else{
+    setTimeout(boot,50);
+  }
+})();
+</script>
+
+
+<style id="lp-catalog-dedupe-v22-css">
+.lp-cat-repair-box{
+  margin-top:14px;padding:14px;border:1px solid #dce4ee;border-radius:14px;background:#f8fafc
+}
+.lp-cat-repair-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:10px
+}
+.lp-cat-repair-grid>div{
+  background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:10px
+}
+.lp-cat-repair-grid span{
+  display:block;font-size:9px;text-transform:uppercase;font-weight:900;color:#64748b
+}
+.lp-cat-repair-grid b{display:block;margin-top:4px;color:#172033;font-size:15px}
+@media(max-width:800px){.lp-cat-repair-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.lp-cat-repair-grid{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-catalog-dedupe-v22-js">
+(function(){
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+
+  function dbSafe(){
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return window.lpDb||null;
+  }
+  function userSafe(){
+    try{if(typeof lpFirebaseUser!=='undefined'&&lpFirebaseUser)return lpFirebaseUser}catch(e){}
+    return window.lpFirebaseUser||window.lpAuth?.currentUser||null;
+  }
+  function norm(v){
+    return String(v??'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+  }
+  function normCode(v){
+    let s=String(v??'').trim().toUpperCase();
+    s=s.replace(/\.0+$/,'').replace(/\s+/g,'');
+    return s;
+  }
+  function productKey(p){
+    const code=normCode(p?.code);
+    if(code)return 'C:'+code;
+    const brand=norm(p?.brand);
+    const model=norm(p?.name||p?.model);
+    const size=norm(p?.size);
+    const aro=norm(p?.aro);
+    return 'P:'+brand+'|'+model+'|'+size+'|'+aro;
+  }
+  function docKey(d){
+    const code=normCode(d?.code);
+    if(code)return 'C:'+code;
+    return 'P:'+norm(d?.brand)+'|'+norm(d?.model||d?.name)+'|'+norm(d?.size)+'|'+norm(d?.aro);
+  }
+  function brandKey(v){
+    return norm(v).split(' ')[0]||'LE PNEUS';
+  }
+  function isCatalogTire(p){
+    const s=norm((p?.category||'')+' '+(p?.name||'')+' '+(p?.location||''));
+    if(N(p?.qty)<=0)return false;
+    if(/ACESS|PECA|CAMARA|RODA|MATERIAL/.test(s))return false;
+    return /PNEU|MOTO|CARRO|R13|R14|R15|R16|R17|R18|R19|R20|R21|R22/.test(s);
+  }
+
+  function brandFallback(brand){
+    const b=brandKey(brand).toLowerCase();
+    const domains={
+      pirelli:'pirelli.com',michelin:'michelin.com',bridgestone:'bridgestone.com',
+      continental:'continental-tires.com',goodyear:'goodyear.com',dunlop:'dunloptires.com',
+      hankook:'hankooktire.com',yokohama:'yokohamatire.com',kumho:'kumhotire.com',
+      maxxis:'maxxis.com',firestone:'firestone.com',nexen:'nexentire.com',
+      metzeler:'metzeler.com',borilli:'borilli.com.br',maggion:'maggion.com.br',
+      levorin:'levorin.com.br',delinte:'delintetires.com',linglong:'linglongtire.com',
+      westlake:'westlaketire.com',goodride:'goodridetire.com'
+    };
+    if(domains[b])return `https://logo.clearbit.com/${domains[b]}?size=512`;
+    const safe=String(brand||'Le Pneus').replace(/[&<>"']/g,'').slice(0,32);
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600"><rect width="900" height="600" rx="40" fill="#101827"/><circle cx="450" cy="230" r="120" fill="#ffffff" opacity=".07"/><text x="450" y="270" text-anchor="middle" font-family="Arial,sans-serif" font-size="68" font-weight="700" fill="#ffffff">${safe}</text><text x="450" y="355" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#cbd5e1">IMAGEM DA MARCA</text></svg>`;
+    return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+  }
+
+  async function cloudSnapshot(){
+    const db=dbSafe();
+    if(!db)throw new Error('Firestore indisponível');
+    const snap=await db.collection('produtos').get();
+    return snap.docs.map(doc=>({id:doc.id,data:doc.data()}));
+  }
+
+  function groupCloud(docs){
+    const groups=new Map();
+    docs.forEach(x=>{
+      const key=docKey(x.data);
+      if(!key)return;
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(x);
+    });
+    return groups;
+  }
+
+  function buildBrandImages(docs){
+    const map=new Map();
+    docs.forEach(x=>{
+      const img=String(x.data?.image||'').trim();
+      const brand=brandKey(x.data?.brand);
+      if(img&&brand&&!map.has(brand))map.set(brand,img);
+    });
+    (data.catalogItems||[]).forEach(x=>{
+      const img=String(x.image||'').trim();
+      const brand=brandKey(x.brand);
+      if(img&&brand&&!map.has(brand))map.set(brand,img);
+    });
+    return map;
+  }
+
+  function choosePrimary(group,p){
+    let best=group[0],scoreBest=-1;
+    group.forEach(x=>{
+      const d=x.data||{};
+      let score=0;
+      if(String(d.controlId||'')===String(p?.id||''))score+=100;
+      if(normCode(d.code)&&normCode(d.code)===normCode(p?.code))score+=50;
+      if(String(d.image||'').trim())score+=25;
+      if(N(d.stock)>0)score+=5;
+      if(score>scoreBest){scoreBest=score;best=x}
+    });
+    return best;
+  }
+
+  async function imageFor(p,group,brandImages){
+    /* 1. Qualquer foto já existente deste mesmo produto tem prioridade. */
+    for(const x of group||[]){
+      const img=String(x.data?.image||'').trim();
+      if(img)return img;
+    }
+
+    /* 2. Foto local já vinculada ao produto. */
+    const local=(data.catalogItems||[]).find(x=>
+      String(x.productId)===String(p.id) || normCode(x.code)===normCode(p.code)
+    );
+    if(String(local?.image||'').trim())return local.image;
+
+    /* 3. Foto de outro pneu da mesma marca. */
+    const bk=brandKey(p.brand);
+    if(brandImages.has(bk))return brandImages.get(bk);
+
+    /* 4. Resolver antigo, se disponível. */
+    try{
+      if(typeof window.lpResolveCatalogImage==='function'){
+        const img=await window.lpResolveCatalogImage(p,{});
+        if(String(img||'').trim())return img;
+      }
+    }catch(e){console.warn(e)}
+
+    /* 5. Fallback garantido da marca. */
+    return brandFallback(p.brand||'Le Pneus');
+  }
+
+  function payloadFor(p,existing,image){
+    let payload=null;
+    try{
+      if(typeof productToFirebaseCatalog==='function'){
+        payload=productToFirebaseCatalog(p,{...(existing||{}),image});
+      }
+    }catch(e){}
+    if(!payload){
+      payload={
+        categoria:p.category||'Pneu',
+        brand:p.brand||'',
+        model:p.name||'',
+        size:p.size||'',
+        aro:p.aro||'',
+        load:p.load||'',
+        app:p.app||'',
+        price:N(p.price),
+        stock:N(p.qty),
+        promo:!!p.promo,
+        image,
+        code:String(p.code||''),
+        controlId:String(p.id)
+      };
+    }
+    payload.image=image;
+    payload.code=String(p.code||'');
+    payload.controlId=String(p.id);
+    payload.stock=N(p.qty);
+    payload.price=N(p.price);
+    payload.updatedAt=firebase.firestore.FieldValue.serverTimestamp();
+    return payload;
+  }
+
+  function dedupeLocal(){
+    data.catalogItems=Array.isArray(data.catalogItems)?data.catalogItems:[];
+    const map=new Map(),clean=[];
+    for(const x of data.catalogItems){
+      const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));
+      const key=p?productKey(p):(normCode(x.code)?'C:'+normCode(x.code):'P:'+norm(x.brand)+'|'+norm(x.name));
+      if(!key){clean.push(x);continue}
+      if(!map.has(key)){
+        map.set(key,x);clean.push(x);continue;
+      }
+      const keep=map.get(key);
+      /* Mescla a melhor foto/ID do Firebase antes de descartar o clone local. */
+      if(!String(keep.image||'').trim()&&String(x.image||'').trim())keep.image=x.image;
+      if(!keep.firebaseId&&x.firebaseId)keep.firebaseId=x.firebaseId;
+      if(N(x.qty)>N(keep.qty))keep.qty=N(x.qty);
+    }
+    const removed=data.catalogItems.length-clean.length;
+    data.catalogItems=clean;
+    return removed;
+  }
+
+  async function repairCore({syncProducts=true,deleteDuplicates=true}={}){
+    if(!userSafe())throw new Error('Firebase desconectado');
+    const db=dbSafe();
+    const docs=await cloudSnapshot();
+    const groups=groupCloud(docs);
+    const brandImages=buildBrandImages(docs);
+    const tires=(data.products||[]).filter(isCatalogTire);
+
+    let duplicatesRemoved=0,photosFilled=0,updated=0,created=0,errors=0;
+    const liveIds=new Set();
+
+    for(const p of tires){
+      try{
+        const key=productKey(p);
+        const group=groups.get(key)||[];
+        const primary=group.length?choosePrimary(group,p):null;
+        const image=await imageFor(p,group,brandImages);
+
+        if(image && !(group||[]).some(x=>String(x.data?.image||'').trim()))photosFilled++;
+
+        let docId;
+        if(primary){
+          docId=primary.id;
+          if(syncProducts){
+            const payload=payloadFor(p,primary.data,image);
+            await db.collection('produtos').doc(docId).set(payload,{merge:true});
+            updated++;
+          }
+        }else{
+          const payload=payloadFor(p,{},image);
+          const ref=await db.collection('produtos').add(payload);
+          docId=ref.id;created++;
+          groups.set(key,[{id:docId,data:payload}]);
+        }
+        liveIds.add(docId);
+
+        /* Remove clones deste mesmo produto no Firestore. */
+        if(deleteDuplicates && group.length>1){
+          for(const x of group){
+            if(x.id===docId)continue;
+            await db.collection('produtos').doc(x.id).delete();
+            duplicatesRemoved++;
+          }
+        }
+
+        let local=(data.catalogItems||[]).find(x=>
+          String(x.productId)===String(p.id) || normCode(x.code)===normCode(p.code)
+        );
+        const vals={
+          productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,
+          qty:N(p.qty),price:N(p.price),image,firebaseId:docId,status:'Publicado',
+          updatedAt:new Date().toLocaleString('pt-BR')
+        };
+        if(local)Object.assign(local,vals);
+        else{
+          data.catalogItems=data.catalogItems||[];
+          data.catalogItems.unshift({id:Date.now()+Math.random(),importedAt:new Date().toLocaleString('pt-BR'),...vals});
+        }
+      }catch(e){
+        console.error('Reparo catálogo:',p?.code,p?.name,e);
+        errors++;
+      }
+    }
+
+    /* Remove clones na nuvem mesmo em grupos que não estejam mais no estoque atual,
+       desde que a chave seja realmente igual (código ou identificação estrita). */
+    if(deleteDuplicates){
+      for(const [key,group] of groups){
+        if(group.length<=1)continue;
+        const localP=tires.find(p=>productKey(p)===key);
+        if(localP)continue; /* já tratado acima */
+        const primary=group.find(x=>String(x.data?.image||'').trim())||group[0];
+        for(const x of group){
+          if(x.id===primary.id)continue;
+          try{
+            /* preserva foto no primário antes de remover */
+            if(!String(primary.data?.image||'').trim()&&String(x.data?.image||'').trim()){
+              await db.collection('produtos').doc(primary.id).set({image:x.data.image},{merge:true});
+              primary.data.image=x.data.image;
+            }
+            await db.collection('produtos').doc(x.id).delete();
+            duplicatesRemoved++;
+          }catch(e){errors++}
+        }
+      }
+    }
+
+    const localDuplicatesRemoved=dedupeLocal();
+    save();
+
+    return {
+      scanned:docs.length,
+      products:tires.length,
+      updated,created,
+      duplicatesRemoved,
+      localDuplicatesRemoved,
+      photosFilled,
+      errors
+    };
+  }
+
+  window.lpRepairCatalogNow=async function(){
+    if(!userSafe()){
+      alert('Conecte o Firebase em Usuários antes de reparar o catálogo.');
+      return;
+    }
+    if(!confirm('Reparar o catálogo agora?\n\nO sistema vai identificar produtos duplicados pelo código, manter apenas um registro por pneu, preservar fotos existentes e preencher fotos que estiverem faltando pela marca.'))return;
+
+    try{
+      const r=await repairCore({syncProducts:true,deleteDuplicates:true});
+      renderCatalogo();
+      alert(
+        `Catálogo reparado.\n\n`+
+        `Pneus processados: ${r.products}\n`+
+        `Atualizados: ${r.updated}\n`+
+        `Novos: ${r.created}\n`+
+        `Duplicados removidos do Firebase: ${r.duplicatesRemoved}\n`+
+        `Duplicados removidos do Controle: ${r.localDuplicatesRemoved}\n`+
+        `Fotos preenchidas: ${r.photosFilled}\n`+
+        `Erros: ${r.errors}`
+      );
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível reparar o catálogo. Confira a conexão Firebase.');
+    }
+  };
+
+  /* Enviar todos agora também faz deduplicação antes/durante a sincronização. */
+  window.lpSendAllCloud=async function(){
+    if(!userSafe()){
+      alert('O Firebase ainda não reconheceu a sessão. Abra Usuários e conecte novamente.');
+      return;
+    }
+    const tires=(data.products||[]).filter(isCatalogTire);
+    if(!tires.length)return alert('Nenhum pneu com estoque disponível.');
+    if(!confirm(`Enviar/atualizar ${tires.length} pneu(s)?\n\nAntes de concluir, o sistema também vai eliminar clones encontrados e corrigir fotos ausentes.`))return;
+
+    try{
+      const r=await repairCore({syncProducts:true,deleteDuplicates:true});
+      renderCatalogo();
+      alert(
+        `Sincronização concluída.\n\n`+
+        `Pneus: ${r.products}\nAtualizados: ${r.updated}\nNovos: ${r.created}\n`+
+        `Clones removidos: ${r.duplicatesRemoved+r.localDuplicatesRemoved}\n`+
+        `Fotos corrigidas: ${r.photosFilled}\nErros: ${r.errors}`
+      );
+    }catch(e){
+      console.error(e);
+      alert('Falha na sincronização. Confira Firebase e tente novamente.');
+    }
+  };
+
+  /* Publicação unitária também procura por código normalizado antes de criar novo doc. */
+  window.publishProductToFirebase=async function(productId,silent=false){
+    if(!userSafe()){
+      if(!silent&&typeof firebaseLoginModal==='function')firebaseLoginModal();
+      return {ok:false,reason:'auth'};
+    }
+    const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+    if(!p)return {ok:false,reason:'missing'};
+    if(N(p.qty)<=0)return {ok:false,reason:'stock'};
+
+    try{
+      const db=dbSafe();
+      const docs=await cloudSnapshot();
+      const key=productKey(p);
+      const group=docs.filter(x=>docKey(x.data)===key);
+      const brandImages=buildBrandImages(docs);
+      const primary=group.length?choosePrimary(group,p):null;
+      const image=await imageFor(p,group,brandImages);
+      const payload=payloadFor(p,primary?.data||{},image);
+      let docId;
+
+      if(primary){
+        docId=primary.id;
+        await db.collection('produtos').doc(docId).set(payload,{merge:true});
+      }else{
+        const ref=await db.collection('produtos').add(payload);
+        docId=ref.id;
+      }
+
+      /* Se já havia clones, limpa no mesmo clique. */
+      for(const x of group){
+        if(x.id!==docId)await db.collection('produtos').doc(x.id).delete();
+      }
+
+      dedupeLocal();
+      let local=(data.catalogItems||[]).find(x=>
+        String(x.productId)===String(p.id)||normCode(x.code)===normCode(p.code)
+      );
+      const vals={productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:N(p.qty),price:N(p.price),image,firebaseId:docId,status:'Publicado',updatedAt:new Date().toLocaleString('pt-BR')};
+      if(local)Object.assign(local,vals);
+      else{
+        data.catalogItems=data.catalogItems||[];
+        data.catalogItems.unshift({id:Date.now()+Math.random(),importedAt:new Date().toLocaleString('pt-BR'),...vals});
+      }
+      save();
+      if(!silent)alert('Produto sincronizado sem criar duplicado.');
+      return {ok:true,docId,image};
+    }catch(e){
+      console.error('Sync unitário:',e);
+      if(!silent)alert('Não foi possível sincronizar este produto.');
+      return {ok:false,error:e};
+    }
+  };
+
+  /* Injeta botão de reparo na tela final do Catálogo */
+  const prevRenderCatalogV22=window.renderCatalogo;
+  window.renderCatalogo=function(){
+    const r=prevRenderCatalogV22?.();
+    const page=document.getElementById('catalogo');
+    if(!page)return r;
+
+    const actions=page.querySelector('.heading .actions');
+    if(actions&&!page.querySelector('[data-lp-repair-catalog]')){
+      const b=document.createElement('button');
+      b.className='btn ghost';
+      b.dataset.lpRepairCatalog='1';
+      b.textContent='Reparar catálogo';
+      b.onclick=window.lpRepairCatalogNow;
+      actions.prepend(b);
+    }
+
+    if(!page.querySelector('.lp-cat-repair-box')){
+      const cards=page.querySelector('.cards');
+      const box=document.createElement('div');
+      box.className='lp-cat-repair-box';
+      box.innerHTML='<b>Proteção contra duplicados e fotos ausentes</b><div class="cell-sub" style="margin-top:4px">O envio identifica o pneu principalmente pelo código. Se já existir no Firebase, ele é atualizado em vez de criar outro. Fotos existentes são preservadas; produtos sem foto tentam usar uma imagem já cadastrada da mesma marca.</div>';
+      if(cards)cards.insertAdjacentElement('afterend',box);
+    }
+    return r;
+  };
+})();
+</script>
+
+
+<style id="lp-catalog-missing-v23-css">
+.lp-missing-list{
+  display:grid;gap:10px;margin-top:12px
+}
+.lp-missing-item{
+  display:flex;justify-content:space-between;gap:12px;align-items:center;
+  padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff
+}
+.lp-missing-item b{display:block;color:#172033}
+.lp-missing-item small{display:block;margin-top:3px;color:#64748b}
+</style>
+
+<script id="lp-catalog-missing-v23-js">
+(function(){
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const E=v=>typeof esc==='function'?esc(v):String(v??'');
+
+  function norm(v){
+    return String(v??'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+  }
+  function normCode(v){
+    return String(v??'').trim().toUpperCase().replace(/\.0+$/,'').replace(/\s+/g,'');
+  }
+  function productKey(p){
+    const code=normCode(p?.code);
+    if(code)return 'C:'+code;
+    return 'P:'+norm(p?.brand)+'|'+norm(p?.name||p?.model)+'|'+norm(p?.size)+'|'+norm(p?.aro);
+  }
+  function docKey(d){
+    const code=normCode(d?.code);
+    if(code)return 'C:'+code;
+    return 'P:'+norm(d?.brand)+'|'+norm(d?.model||d?.name)+'|'+norm(d?.size)+'|'+norm(d?.aro);
+  }
+  function dbSafe(){
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return window.lpDb||null;
+  }
+  function userSafe(){
+    try{if(typeof lpFirebaseUser!=='undefined'&&lpFirebaseUser)return lpFirebaseUser}catch(e){}
+    return window.lpFirebaseUser||window.lpAuth?.currentUser||null;
+  }
+  function isTire(p){
+    const s=norm((p?.category||'')+' '+(p?.name||'')+' '+(p?.location||''));
+    if(N(p?.qty)<=0)return false;
+    if(/ACESS|PECA|CAMARA|RODA|MATERIAL/.test(s))return false;
+    return /PNEU|MOTO|CARRO|R13|R14|R15|R16|R17|R18|R19|R20|R21|R22/.test(s);
+  }
+
+  async function fetchCloud(){
+    const db=dbSafe();
+    if(!db)throw new Error('Firestore indisponível');
+    const snap=await db.collection('produtos').get();
+    return snap.docs.map(doc=>({id:doc.id,data:doc.data()}));
+  }
+
+  async function missingProducts(){
+    const cloud=await fetchCloud();
+    const keys=new Set(cloud.map(x=>docKey(x.data)).filter(Boolean));
+    const tires=(data.products||[]).filter(isTire);
+    return {
+      cloud,
+      tires,
+      missing:tires.filter(p=>!keys.has(productKey(p)))
+    };
+  }
+
+  window.lpFindOnlyMissingCatalog=async function(){
+    if(!userSafe()){
+      alert('Conecte o Firebase em Usuários primeiro.');
+      return;
+    }
+    try{
+      const r=await missingProducts();
+      const rows=r.missing.map(p=>`
+        <div class="lp-missing-item">
+          <div><b>${E(p.name||'Pneu')}</b><small>Código ${E(p.code||'-')} • ${E(p.brand||'')} • estoque ${N(p.qty)}</small></div>
+          <button class="btn primary small" onclick="lpSendMissingOne('${String(p.id)}')">Enviar</button>
+        </div>`).join('');
+      showModal(`<h2>Pneus que ainda não estão no catálogo</h2>
+        <div class="notice">
+          O sistema encontrou <b>${r.missing.length}</b> pneu(s) faltando.
+          Os pneus que já existem no Firebase não serão alterados nem terão a foto trocada.
+        </div>
+        <div class="lp-missing-list">${rows||'<div class="empty">Todos os pneus atuais já existem no catálogo.</div>'}</div>
+        <div class="modal-actions">
+          <button class="btn ghost" onclick="closeModal()">Fechar</button>
+          ${r.missing.length?'<button class="btn primary" onclick="closeModal();lpSendOnlyMissingCatalog()">Enviar somente os faltantes</button>':''}
+        </div>`);
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível comparar o Controle com o Firebase.');
+    }
+  };
+
+  window.lpSendMissingOne=async function(id){
+    const p=(data.products||[]).find(x=>String(x.id)===String(id));
+    if(!p)return;
+    try{
+      const r=await window.publishProductToFirebase(p.id,true);
+      if(r?.ok){
+        alert('Pneu enviado ao catálogo.');
+        closeModal();
+        renderCatalogo();
+      }else{
+        alert('Não foi possível enviar esse pneu.');
+      }
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível enviar esse pneu.');
+    }
+  };
+
+  window.lpSendOnlyMissingCatalog=async function(){
+    if(!userSafe()){
+      alert('Conecte o Firebase em Usuários primeiro.');
+      return;
+    }
+    try{
+      const r=await missingProducts();
+      if(!r.missing.length){
+        alert('Não há pneus faltando. O catálogo já possui todos os pneus atuais.');
+        return;
+      }
+
+      let ok=0,err=0;
+      for(const p of r.missing){
+        try{
+          const res=await window.publishProductToFirebase(p.id,true);
+          res?.ok?ok++:err++;
+        }catch(e){err++}
+      }
+
+      renderCatalogo();
+      alert(`Envio concluído.\n\nPneus faltando encontrados: ${r.missing.length}\nEnviados: ${ok}\nErros: ${err}\n\nOs pneus que já estavam no catálogo não foram alterados.`);
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível enviar os pneus faltantes.');
+    }
+  };
+
+  /* Envio normal agora trabalha SOMENTE com faltantes. */
+  window.lpSendAllCloud=window.lpSendOnlyMissingCatalog;
+
+  /* Mantém o reparo separado: use Reparar catálogo só quando quiser limpar clones/antigos. */
+  const oldRenderCatalog=window.renderCatalogo;
+  window.renderCatalogo=function(){
+    const r=oldRenderCatalog?.();
+    const page=document.getElementById('catalogo');
+    if(!page)return r;
+
+    const actions=page.querySelector('.heading .actions');
+    if(actions){
+      const send=[...actions.querySelectorAll('button')].find(b=>/enviar todos ao site/i.test(b.textContent||''));
+      if(send){
+        send.textContent='Enviar somente os faltantes';
+        send.onclick=window.lpSendOnlyMissingCatalog;
+      }
+      if(!page.querySelector('[data-lp-find-missing]')){
+        const b=document.createElement('button');
+        b.className='btn ghost';
+        b.dataset.lpFindMissing='1';
+        b.textContent='Ver pneus faltando';
+        b.onclick=window.lpFindOnlyMissingCatalog;
+        actions.prepend(b);
+      }
+    }
+
+    const notes=[...page.querySelectorAll('.notice')];
+    const target=notes.find(n=>/Como usar|Proteção contra duplicados/i.test(n.textContent||''));
+    if(target){
+      target.innerHTML='<b>Sincronização:</b> o envio normal compara os códigos do Controle com o Firebase e envia <b>somente os pneus que ainda não existem no catálogo</b>. Produtos que já existem não têm preço/foto alterados por esse botão. Para remover clones ou produtos antigos, use <b>Reparar catálogo</b>.';
+    }
+    return r;
+  };
+})();
+</script>
+
 </body>
 </html>
