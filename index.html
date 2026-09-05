@@ -5619,5 +5619,996 @@ tbody tr:hover{background:#f8fafc!important}
 })();
 </script>
 
+
+<style id="lp-runtime-fix-v17-css">
+/* ===== Enquadramento: remove o espaço branco entre menu e conteúdo ===== */
+.app{
+  grid-template-columns:238px minmax(0,1fr)!important;
+  width:100%!important;
+}
+.main{
+  margin-left:0!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+}
+.sidebar{
+  width:auto!important;
+  min-width:0!important;
+}
+.content{
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+
+/* O botão de 3 barras agora recolhe o menu também no desktop */
+.app.lp-sidebar-collapsed{
+  grid-template-columns:82px minmax(0,1fr)!important;
+}
+.app.lp-sidebar-collapsed .brand-copy,
+.app.lp-sidebar-collapsed .nav-label,
+.app.lp-sidebar-collapsed .nav-text{
+  display:none!important;
+}
+.app.lp-sidebar-collapsed .brand{
+  justify-content:center!important;
+  padding-left:4px!important;
+  padding-right:4px!important;
+}
+.app.lp-sidebar-collapsed .brand .brand-logo{
+  width:54px!important;height:54px!important;min-width:54px!important;
+}
+.app.lp-sidebar-collapsed .nav button{
+  justify-content:center!important;
+  padding:13px 8px!important;
+}
+.app.lp-sidebar-collapsed .nav button svg{
+  margin:0!important;
+}
+
+/* Notificações */
+.lp-notification-list{display:grid;gap:9px;margin-top:12px}
+.lp-notification-item{
+  display:grid;grid-template-columns:36px 1fr;gap:10px;align-items:start;
+  padding:12px;border:1px solid #e1e7ef;border-radius:12px;background:#f8fafc;
+}
+.lp-notification-item .ico{
+  width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  background:#fff;border:1px solid #e2e8f0;font-size:16px;
+}
+.lp-notification-item b{display:block;color:#172033!important}
+.lp-notification-item small{display:block;margin-top:3px;color:#64748b!important}
+
+/* Modal ML mais bem enquadrado */
+.modal-card.lp-ml-wide{
+  width:min(1120px,calc(100vw - 42px))!important;
+  max-height:92vh!important;
+  padding:20px!important;
+}
+.lp-ml-rank-list{display:grid;gap:12px;margin-top:14px}
+.lp-ml-rank-card{
+  border:1px solid #dce4ee;border-radius:15px;background:#fff;padding:14px;
+  border-left:4px solid #16a36a;
+}
+.lp-ml-rank-card.warn{border-left-color:#e0a126}
+.lp-ml-rank-card.bad{border-left-color:#dc3545}
+.lp-ml-rank-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+}
+.lp-ml-rank-name{display:flex;gap:10px;align-items:flex-start}
+.lp-ml-rank-number{
+  width:32px;height:32px;min-width:32px;border-radius:50%;display:grid;place-items:center;
+  background:#101c2d;color:#fff;font-size:12px;font-weight:900;
+}
+.lp-ml-detail-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px;
+}
+.lp-ml-detail-box{
+  padding:10px;border:1px solid #e3e9f0;border-radius:11px;background:#f8fafc;
+}
+.lp-ml-detail-box span{
+  display:block;font-size:9px;text-transform:uppercase;font-weight:900;color:#6b7c91;
+}
+.lp-ml-detail-box b{
+  display:block;margin-top:4px;color:#172033!important;font-size:13px;
+}
+.lp-ml-rank-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+
+/* Tela do ML: começa com 20 itens, sem deixar tudo amontoado */
+#mercadolivre .lp-ml-list{
+  align-items:start!important;
+}
+#mercadolivre .lp-ml-card{
+  height:auto!important;
+}
+#mercadolivre .lp-ml-card .lp-ml-actions{
+  align-items:center!important;
+}
+
+/* Evita content-visibility esconder trechos em navegadores específicos */
+#mercadolivre .card,#mercadolivre .metric,#dashboard .card,#dashboard .metric{
+  content-visibility:visible!important;
+}
+
+/* Mobile */
+@media(max-width:800px){
+  .app{grid-template-columns:1fr!important}
+  .main{margin-left:0!important}
+  .sidebar{
+    width:272px!important;
+    transform:translateX(-105%)!important;
+    left:0!important;
+  }
+  .sidebar.open{transform:translateX(0)!important}
+  .app.lp-sidebar-collapsed{grid-template-columns:1fr!important}
+  .app.lp-sidebar-collapsed .brand-copy,
+  .app.lp-sidebar-collapsed .nav-label,
+  .app.lp-sidebar-collapsed .nav-text{display:initial!important}
+  .app.lp-sidebar-collapsed .brand{justify-content:flex-start!important}
+  .app.lp-sidebar-collapsed .brand .brand-logo{
+    width:86px!important;height:86px!important;min-width:86px!important;
+  }
+  .app.lp-sidebar-collapsed .nav button{justify-content:flex-start!important}
+  .lp-ml-detail-grid{grid-template-columns:1fr 1fr}
+  .modal-card.lp-ml-wide{width:calc(100vw - 18px)!important;padding:14px!important}
+}
+@media(max-width:520px){
+  .lp-ml-detail-grid{grid-template-columns:1fr}
+}
+</style>
+
+<script id="lp-runtime-fix-v17-js">
+(function(){
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const E=v=>typeof esc==='function'?esc(v):String(v??'');
+
+  /* ===== 3 barras ===== */
+  window.toggleSidebar=function(){
+    const sidebar=document.getElementById('sidebar');
+    const app=document.querySelector('.app');
+    if(!sidebar||!app)return;
+    if(window.innerWidth<=800){
+      sidebar.classList.toggle('open');
+      return;
+    }
+    app.classList.toggle('lp-sidebar-collapsed');
+    try{
+      localStorage.setItem('lp_sidebar_collapsed',app.classList.contains('lp-sidebar-collapsed')?'1':'0');
+    }catch(e){}
+  };
+
+  function restoreSidebar(){
+    if(window.innerWidth<=800)return;
+    try{
+      if(localStorage.getItem('lp_sidebar_collapsed')==='1'){
+        document.querySelector('.app')?.classList.add('lp-sidebar-collapsed');
+      }
+    }catch(e){}
+  }
+
+  /* ===== Sininho ===== */
+  function notificationData(){
+    const zero=(data.products||[]).filter(p=>N(p.qty)<1);
+    const pending=(data.pendingImportDifferences||[]).filter(x=>x.status==='Pendente');
+    const overdueServices=(data.serviceOrders||[]).filter(o=>{
+      if(!o.dueDate||['Concluída','Entregue','Cancelada'].includes(o.status))return false;
+      const d=new Date(o.dueDate+'T23:59:59');
+      return !isNaN(d)&&d<new Date();
+    });
+    const reminders=(data.reminders||[]).filter(r=>r.status!=='Concluído');
+    return {zero,pending,overdueServices,reminders};
+  }
+
+  window.lpOpenNotifications=function(){
+    const d=notificationData();
+    const total=d.zero.length+d.pending.length+d.overdueServices.length+d.reminders.length;
+    const rows=[
+      d.zero.length?`<div class="lp-notification-item"><div class="ico">📦</div><div><b>${d.zero.length} produto(s) zerado(s)</b><small>Abra o Estoque para conferir os produtos sem unidade.</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('estoque')">Ver estoque</button></div></div></div>`:'',
+      d.pending.length?`<div class="lp-notification-item"><div class="ico">↘</div><div><b>${d.pending.length} baixa(s) de planilha aguardando revisão</b><small>Confirme se a redução foi venda ou ajuste.</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('vendas')">Revisar vendas</button></div></div></div>`:'',
+      d.overdueServices.length?`<div class="lp-notification-item"><div class="ico">🔧</div><div><b>${d.overdueServices.length} serviço(s) atrasado(s)</b><small>Há serviços que passaram da previsão de entrega.</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('os')">Ver serviços</button></div></div></div>`:'',
+      d.reminders.length?`<div class="lp-notification-item"><div class="ico">📅</div><div><b>${d.reminders.length} lembrete(s) em aberto</b><small>Confira a agenda e os lembretes pendentes.</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('agenda')">Abrir agenda</button></div></div></div>`:''
+    ].join('');
+    showModal(`<h2>Notificações</h2><div class="notice"><b>${total}</b> alerta(s) disponível(is) no Controle.</div><div class="lp-notification-list">${rows||'<div class="empty">Nenhuma notificação pendente.</div>'}</div>`);
+  };
+
+  function bindBell(){
+    const wrap=document.querySelector('.lp-bell-wrap');
+    if(!wrap)return;
+    const btn=wrap.querySelector('button');
+    if(btn){
+      btn.onclick=window.lpOpenNotifications;
+      btn.setAttribute('aria-label','Abrir notificações');
+    }
+    const d=notificationData();
+    const count=d.zero.length+d.pending.length+d.overdueServices.length+d.reminders.length;
+    let dot=wrap.querySelector('.lp-bell-dot');
+    if(count){
+      if(!dot){dot=document.createElement('span');dot.className='lp-bell-dot';wrap.appendChild(dot)}
+      dot.textContent=Math.min(count,99);
+    }else if(dot)dot.remove();
+  }
+
+  /* ===== Cálculo detalhado e consistente do Mercado Livre ===== */
+  function mlCalc(x){
+    const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));
+    if(!p||N(p.qty)<=0)return null;
+    const s=data.settings||{};
+    const classic=N(x.mlClassicFeePct??x.mlFeePct??s.mlClassicFeePct??16);
+    const premium=N(x.mlPremiumFeePct??s.mlPremiumFeePct??21);
+    const feePct=Math.min(classic||16,premium||21);
+    const type=feePct===classic?'Clássico':'Premium';
+    const cost=N(p.cost);
+    const freight=N(x.mlFreight??s.mlDefaultFreight??0);
+    const other=N(x.mlOtherCost??s.mlDefaultOther??0);
+    const fiscalPct=.05;
+    const marginMin=N(s.mlMinMarginPct??5)/100;
+    const den=1-(feePct/100)-fiscalPct-marginMin;
+    const minPrice=den>0?(cost+freight+other)/den:(cost+freight+other);
+    const marketAvg=N(x.mlMarketAvg),marketMin=N(x.mlMarketMin);
+    const discount=N(s.mlCompetitiveDiscountPct??1)/100;
+    const marketTarget=marketAvg>0?marketAvg*(1-discount):(marketMin>0?marketMin*1.02:0);
+    let base=Math.max(N(p.price),minPrice,marketTarget);
+    let price=base*1.05; /* +5% de oportunidade conforme solicitado anteriormente */
+    if(s.mlPsychologicalPrice!==false&&price>1)price=Math.ceil(price)-.10;
+    const fee=price*feePct/100;
+    const fiscal=price*fiscalPct;
+    const profit=price-cost-fee-fiscal-freight-other;
+    const margin=price?profit/price*100:0;
+    let score=0;
+    if(profit>0)score+=35;
+    if(margin>=N(s.mlMinMarginPct??5))score+=25;
+    if(N(p.qty)>=3)score+=10;
+    if(marketAvg>0){
+      const delta=(price-marketAvg)/marketAvg;
+      if(delta<=.05)score+=25;
+      else if(delta<=.12)score+=12;
+    }else score+=5;
+    score=Math.max(0,Math.min(100,Math.round(score)));
+    let cls='warn',label='Falta comparar';
+    if(profit<=0){cls='bad';label='Não compensa'}
+    else if(marketAvg>0 && margin>=N(s.mlMinMarginPct??5) && price<=marketAvg*1.12){cls='good';label='Compensa'}
+    else if(marketAvg>0){cls='warn';label='Revisar'}
+    return {x,p,cost,freight,other,fiscal,fee,feePct,type,minPrice,price,profit,margin,score,marketAvg,marketMin,similar:N(x.mlSimilarListings),cls,label};
+  }
+
+  function mlRank(limit){
+    return (data.mercadoLivreItems||[]).map(mlCalc).filter(Boolean).sort((a,b)=>b.score-a.score||b.profit-a.profit).slice(0,limit);
+  }
+
+  function detailCard(r,i){
+    return `<div class="lp-ml-rank-card ${r.cls}">
+      <div class="lp-ml-rank-head">
+        <div class="lp-ml-rank-name"><span class="lp-ml-rank-number">${i+1}</span><div><b>${E(r.p.name)}</b><small class="cell-sub">${E(r.p.code||'')} • estoque ${N(r.p.qty)} • ${E(r.type)}</small></div></div>
+        <div><span class="badge ${r.cls==='good'?'ok':r.cls==='bad'?'danger':'warn'}">${E(r.label)}</span> <span class="soft-chip">${r.score}/100</span></div>
+      </div>
+      <div class="lp-ml-detail-grid">
+        <div class="lp-ml-detail-box"><span>Custo do produto</span><b>${M(r.cost)}</b></div>
+        <div class="lp-ml-detail-box"><span>Preço sugerido</span><b>${M(r.price)}</b></div>
+        <div class="lp-ml-detail-box"><span>Lucro estimado</span><b>${M(r.profit)}</b></div>
+        <div class="lp-ml-detail-box"><span>Margem</span><b>${r.margin.toFixed(1)}%</b></div>
+        <div class="lp-ml-detail-box"><span>Taxa Mercado Livre</span><b>${M(r.fee)} • ${r.feePct.toFixed(1)}%</b></div>
+        <div class="lp-ml-detail-box"><span>Reserva fiscal</span><b>${M(r.fiscal)} • 5%</b></div>
+        <div class="lp-ml-detail-box"><span>Frete + outros</span><b>${M(r.freight+r.other)}</b></div>
+        <div class="lp-ml-detail-box"><span>Preço mínimo</span><b>${M(r.minPrice)}</b></div>
+        <div class="lp-ml-detail-box"><span>Menor concorrente</span><b>${r.marketMin?M(r.marketMin):'Não informado'}</b></div>
+        <div class="lp-ml-detail-box"><span>Média concorrentes</span><b>${r.marketAvg?M(r.marketAvg):'Não informada'}</b></div>
+        <div class="lp-ml-detail-box"><span>Anúncios similares</span><b>${r.similar||'Não informado'}</b></div>
+        <div class="lp-ml-detail-box"><span>Tipo recomendado</span><b>${E(r.type)}</b></div>
+      </div>
+      <div class="lp-ml-rank-actions">
+        <button class="btn ghost small" onclick="searchMLSimilar(${r.x.id})">Buscar anúncios</button>
+        <button class="btn ghost small" onclick="mlV6CompetitorModal(${r.x.id})">Registrar preços</button>
+        <button class="btn ghost small" onclick="mlV6Details(${r.x.id})">Detalhes completos</button>
+        <button class="btn primary small" onclick="mlV6ApplyPrice(${r.x.id})">Aplicar preço</button>
+      </div>
+    </div>`;
+  }
+
+  function openRank(title,limit){
+    const arr=mlRank(limit);
+    showModal(`<h2>${title}</h2>
+      <div class="notice">Ranking interno considerando custo, estoque, taxa estimada do Mercado Livre, reserva fiscal de 5%, frete/outros custos, margem e os preços de concorrentes que você registrar. Não representa garantia de venda.</div>
+      <div class="lp-ml-rank-list">${arr.map(detailCard).join('')||'<div class="empty">Nenhum produto disponível para gerar o ranking.</div>'}</div>`);
+    document.querySelector('#modal .modal-card')?.classList.add('lp-ml-wide');
+  }
+
+  /* Top 10 com as informações adicionais pedidas */
+  window.mlV6Top10=function(){openRank('Top 10 para preparar anúncio',10)};
+
+  /* Botão real dos 20 melhores */
+  window.lpMLTop20=function(){openRank('20 melhores oportunidades do Mercado Livre',20)};
+
+  /* Se o usuário já tinha o botão “Só os melhores”, ele vira o botão dos 20 melhores */
+  const oldRenderML=window.renderMercadoLivre;
+  window.renderMercadoLivre=function(){
+    window.__lpMLVisibleCount=Math.max(20,N(window.__lpMLVisibleCount||20));
+    const r=oldRenderML?.();
+    const page=document.getElementById('mercadolivre');
+    if(!page)return r;
+
+    const oldBest=page.querySelector('[data-lp-best-ml]');
+    if(oldBest){
+      oldBest.textContent='20 melhores';
+      oldBest.onclick=window.lpMLTop20;
+    }
+
+    /* Acrescenta explicação mais específica sem poluir os cartões */
+    if(!page.querySelector('.lp-ml-specific-note')){
+      const help=page.querySelector('.lp-ml-help');
+      const note=document.createElement('div');
+      note.className='notice lp-ml-specific-note';
+      note.style.marginTop='12px';
+      note.innerHTML='<b>Leitura dos valores:</b> custo = valor pago no produto; taxa ML = estimativa do anúncio; reserva fiscal = 5%; frete + outros = despesas adicionais; lucro = valor que sobra depois desses custos. Para comparar com o mercado, registre o menor preço e a média dos concorrentes.';
+      if(help)help.insertAdjacentElement('afterend',note);
+    }
+    return r;
+  };
+
+  /* Remove classe de modal largo quando fechar */
+  const oldClose=window.closeModal;
+  window.closeModal=function(){
+    document.querySelector('#modal .modal-card')?.classList.remove('lp-ml-wide');
+    return oldClose?.();
+  };
+
+  function boot(){
+    /* enquadramento */
+    const main=document.querySelector('.main');
+    if(main)main.style.marginLeft='0px';
+    restoreSidebar();
+    bindBell();
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,120));
+  setTimeout(boot,320);
+
+  /* Atualiza o sininho quando telas são renderizadas */
+  const oldRenderAll=window.renderAll;
+  window.renderAll=function(){
+    const r=oldRenderAll?.();
+    setTimeout(bindBell,0);
+    return r;
+  };
+})();
+</script>
+
+
+<style id="lp-modal-client-v18-css">
+/* Modal fecha somente por X ou botões explícitos */
+#modal{pointer-events:auto!important}
+#modal .modal-card{pointer-events:auto!important}
+
+/* Campo de cliente livre + lista existente */
+.lp-client-mode{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px
+}
+.lp-client-mode button{
+  height:36px;border:1px solid #d7e0ea;border-radius:10px;background:#fff;
+  color:#334155;font-weight:800;cursor:pointer
+}
+.lp-client-mode button.active{
+  background:#0f1f33;color:#fff;border-color:#0f1f33
+}
+.lp-client-free-wrap{display:grid;gap:8px}
+</style>
+
+<script id="lp-modal-client-v18-js">
+(function(){
+  /* ===== 1) MODAL NÃO FECHA MAIS AO CLICAR FORA ===== */
+  const modal=document.getElementById('modal');
+  if(modal){
+    /* remove o comportamento anterior de fechar ao clicar no backdrop */
+    const clone=modal.cloneNode(true);
+    modal.parentNode.replaceChild(clone,modal);
+  }
+
+  /* Reaponta show/close para o modal atual, mantendo X e botões */
+  const getModal=()=>document.getElementById('modal');
+  window.closeModal=function(){
+    const m=getModal();
+    if(!m)return;
+    m.classList.remove('show');
+    m.style.display='none';
+    m.style.pointerEvents='none';
+    document.body.style.overflow='';
+  };
+
+  const oldShow=window.showModal;
+  window.showModal=function(content){
+    const m=getModal();
+    if(!m)return;
+    const body=m.querySelector('#modalBody');
+    if(body)body.innerHTML=content;
+    m.style.display='flex';
+    m.style.pointerEvents='auto';
+    m.classList.add('show');
+    document.body.style.overflow='hidden';
+
+    /* garante X funcional */
+    const x=m.querySelector('.modal-close-x');
+    if(x)x.onclick=window.closeModal;
+
+    /* clicar fora NÃO fecha */
+    m.onclick=function(ev){
+      if(ev.target===m){
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    };
+  };
+
+  /* ESC também não fecha mais, conforme pedido */
+  document.addEventListener('keydown',function(ev){
+    if(ev.key==='Escape' && getModal()?.classList.contains('show')){
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  },true);
+
+  /* ===== 2) CLIENTE LIVRE NA TELA DE SERVIÇO ===== */
+  window.lpOSClientMode='existing';
+
+  window.lpToggleOSClientMode=function(mode){
+    window.lpOSClientMode=mode;
+    const existing=document.getElementById('lp-os-existing');
+    const free=document.getElementById('lp-os-free');
+    const b1=document.getElementById('lp-os-mode-existing');
+    const b2=document.getElementById('lp-os-mode-free');
+    if(existing)existing.style.display=mode==='existing'?'grid':'none';
+    if(free)free.style.display=mode==='free'?'grid':'none';
+    b1?.classList.toggle('active',mode==='existing');
+    b2?.classList.toggle('active',mode==='free');
+    if(mode==='existing')window.osFillPhone?.();
+  };
+
+  const originalOsModal=window.osModal;
+  window.osModal=function(){
+    const today=new Date();
+    today.setMinutes(today.getMinutes()-today.getTimezoneOffset());
+    const todayVal=today.toISOString().slice(0,10);
+
+    showModal(`<h2>Novo serviço</h2>
+      <div class="form">
+        <label>Data do serviço<input id="osdate" type="date" value="${todayVal}"></label>
+        <label>Previsão de entrega<input id="osdue" type="date"></label>
+
+        <label class="full">Cliente
+          <div class="lp-client-mode">
+            <button type="button" id="lp-os-mode-existing" class="active" onclick="lpToggleOSClientMode('existing')">Cliente cadastrado</button>
+            <button type="button" id="lp-os-mode-free" onclick="lpToggleOSClientMode('free')">Digitar nome</button>
+          </div>
+          <div id="lp-os-existing" class="lp-client-free-wrap">
+            <select id="oscustomer" onchange="osFillPhone()">${typeof customerOptions==='function'?customerOptions():''}</select>
+          </div>
+          <div id="lp-os-free" class="lp-client-free-wrap" style="display:none">
+            <input id="oscustomerfree" placeholder="Digite o nome do cliente">
+          </div>
+        </label>
+
+        <label>Telefone / WhatsApp<input id="osphone" placeholder="(00) 00000-0000"></label>
+        <label>Responsável<input id="osowner" value="Administrador"></label>
+
+        <label class="full">Serviço<input id="osservice" placeholder="Descrição do serviço"></label>
+        <label>Produto utilizado<select id="osproduct"><option value="">Nenhum</option>${typeof productOptions==='function'?productOptions():''}</select></label>
+        <label>Quantidade<input id="osqty" type="number" min="0" value="0"></label>
+        <label>Valor do serviço<input id="osservicevalue" type="number" step="0.01" value="0"></label>
+        <label>Desconto<input id="osdiscount" type="number" step="0.01" value="0"></label>
+        <label>Status<select id="osstatus"><option>Aberta</option><option>Aguardando</option><option>Em andamento</option><option>Concluída</option></select></label>
+        <label class="full">Observações<textarea id="osnotes" rows="3"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" onclick="lpSaveOSFlexibleClient()">Salvar serviço</button>
+      </div>`);
+    window.lpOSClientMode='existing';
+    setTimeout(()=>window.osFillPhone?.(),0);
+  };
+
+  window.lpSaveOSFlexibleClient=function(){
+    const freeMode=window.lpOSClientMode==='free';
+    const typedName=String(document.getElementById('oscustomerfree')?.value||'').trim();
+    const phone=String(document.getElementById('osphone')?.value||'').trim();
+
+    if(freeMode && !typedName){
+      alert('Digite o nome do cliente.');
+      return;
+    }
+
+    /* se digitou nome livre, cria cliente automaticamente */
+    if(freeMode){
+      data.customers=Array.isArray(data.customers)?data.customers:[];
+      let c=data.customers.find(x=>String(x.name||'').trim().toLowerCase()===typedName.toLowerCase() && String(x.phone||'').trim()===phone);
+      if(!c){
+        c={
+          id:Date.now(),
+          name:typedName,
+          phone:phone,
+          createdAt:new Date().toLocaleString('pt-BR')
+        };
+        data.customers.unshift(c);
+      }
+      let sel=document.getElementById('oscustomer');
+      if(sel){
+        const opt=document.createElement('option');
+        opt.value=c.id;
+        opt.textContent=c.name;
+        opt.selected=true;
+        sel.appendChild(opt);
+      }else{
+        const fake=document.createElement('select');
+        fake.id='oscustomer';
+        fake.style.display='none';
+        const opt=document.createElement('option');
+        opt.value=c.id;
+        opt.selected=true;
+        fake.appendChild(opt);
+        document.getElementById('modalBody')?.appendChild(fake);
+      }
+    }
+
+    if(typeof window.saveOS==='function'){
+      window.saveOS();
+    }
+  };
+
+})();
+</script>
+
+
+<script id="lp-catalog-firebase-v19-js">
+(function(){
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+
+  function fbUser(){
+    try{
+      if(typeof lpFirebaseUser!=='undefined' && lpFirebaseUser) return lpFirebaseUser;
+    }catch(e){}
+    return window.lpFirebaseUser||null;
+  }
+  function fbAuth(){
+    try{
+      if(typeof lpAuth!=='undefined' && lpAuth) return lpAuth;
+    }catch(e){}
+    return window.lpAuth||null;
+  }
+  function fbDb(){
+    try{
+      if(typeof lpDb!=='undefined' && lpDb) return lpDb;
+    }catch(e){}
+    return window.lpDb||null;
+  }
+
+  /* Mantém o estado Firebase espelhado no window para os botões novos */
+  function syncFirebaseState(){
+    try{
+      if(typeof lpFirebaseUser!=='undefined') window.lpFirebaseUser=lpFirebaseUser||null;
+      if(typeof lpAuth!=='undefined') window.lpAuth=lpAuth||null;
+      if(typeof lpDb!=='undefined') window.lpDb=lpDb||null;
+    }catch(e){}
+  }
+  syncFirebaseState();
+
+  try{
+    const a=fbAuth();
+    if(a&&typeof a.onAuthStateChanged==='function'){
+      a.onAuthStateChanged(user=>{
+        try{ lpFirebaseUser=user||null; }catch(e){}
+        window.lpFirebaseUser=user||null;
+        syncFirebaseState();
+        if(document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo();
+        if(document.getElementById('usuarios')?.classList.contains('active'))renderUsuarios();
+      });
+    }
+  }catch(e){console.warn('Firebase state bridge:',e)}
+
+  function isTire(p){
+    const s=(String(p?.category||'')+' '+String(p?.name||'')+' '+String(p?.location||'')).toLowerCase();
+    if(N(p?.qty)<=0)return false;
+    if(s.includes('acess')||s.includes('peça')||s.includes('peca')||s.includes('câmara')||s.includes('camara')||s.includes('roda')||s.includes('material'))return false;
+    return s.includes('pneu')||s.includes('moto')||s.includes('carro')||s.includes('r13')||s.includes('r14')||s.includes('r15')||s.includes('r16')||s.includes('r17')||s.includes('r18')||s.includes('r19')||s.includes('r20');
+  }
+
+  /* Preserva a foto existente no Firebase; se não houver, reutiliza uma da mesma marca; senão usa a imagem de marca */
+  async function resolveImageStrict(p,existing={}){
+    const existingImage=String(existing?.image||'').trim();
+    if(existingImage)return existingImage;
+
+    const brand=String(p?.brand||existing?.brand||'').trim();
+    const db=fbDb();
+
+    if(brand&&db){
+      try{
+        const snap=await db.collection('produtos').where('brand','==',brand).limit(30).get();
+        for(const doc of snap.docs){
+          const img=String(doc.data()?.image||'').trim();
+          if(img)return img;
+        }
+      }catch(e){console.warn('Imagem por marca:',e)}
+    }
+
+    try{
+      if(typeof lpBrandFallbackImage==='function') return lpBrandFallbackImage(brand||'Le Pneus');
+    }catch(e){}
+    try{
+      if(typeof window.lpResolveCatalogImage==='function'){
+        return await window.lpResolveCatalogImage(p,existing);
+      }
+    }catch(e){}
+    return '';
+  }
+
+  /* Reforça publicação unitária com a regra de foto solicitada */
+  const oldPublish=window.publishProductToFirebase;
+  window.publishProductToFirebase=async function(productId,silent=false){
+    syncFirebaseState();
+    const user=fbUser();
+    if(!user){
+      if(!silent&&typeof firebaseLoginModal==='function')firebaseLoginModal();
+      return {ok:false,reason:'auth'};
+    }
+    const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+    if(!p)return {ok:false,reason:'missing'};
+
+    try{
+      const db=fbDb();
+      if(!db)throw new Error('Firestore indisponível');
+
+      let found=null;
+      if(typeof findFirebaseCatalogDoc==='function'){
+        found=await findFirebaseCatalogDoc(p);
+      }
+      const existing=found?found.data():{};
+
+      if(N(p.qty)<=0){
+        if(found){
+          await db.collection('produtos').doc(found.id).set({
+            stock:0,
+            updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+          },{merge:true});
+        }
+        data.catalogItems=(data.catalogItems||[]).filter(x=>String(x.productId)!==String(p.id));
+        save();
+        return {ok:true,outOfStock:true,docId:found?.id||''};
+      }
+
+      const image=await resolveImageStrict(p,existing);
+
+      let payload;
+      if(typeof productToFirebaseCatalog==='function'){
+        payload=productToFirebaseCatalog(p,{...existing,image});
+      }else{
+        payload={
+          categoria:p.category||'Pneu',
+          brand:p.brand||'',
+          model:p.name||'',
+          size:p.size||'',
+          aro:p.aro||'',
+          load:p.load||'',
+          app:p.app||'',
+          price:N(p.price),
+          stock:N(p.qty),
+          promo:!!p.promo,
+          image,
+          code:p.code||'',
+          controlId:String(p.id),
+          updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+        };
+      }
+
+      let docId;
+      if(found){
+        docId=found.id;
+        await db.collection('produtos').doc(docId).set(payload,{merge:true});
+      }else{
+        const ref=await db.collection('produtos').add(payload);
+        docId=ref.id;
+      }
+
+      let local=(data.catalogItems||[]).find(x=>String(x.productId)===String(p.id));
+      const vals={
+        code:p.code,name:p.name,brand:p.brand,category:p.category,
+        qty:N(p.qty),price:N(p.price),status:'Publicado',
+        firebaseId:docId,image,updatedAt:new Date().toLocaleString('pt-BR')
+      };
+      if(local)Object.assign(local,vals);
+      else{
+        data.catalogItems=data.catalogItems||[];
+        data.catalogItems.unshift({
+          id:Date.now()+Math.random(),productId:p.id,...vals,
+          importedAt:new Date().toLocaleString('pt-BR')
+        });
+      }
+      save();
+      if(!silent)alert('Produto sincronizado com o catálogo.');
+      return {ok:true,docId};
+    }catch(e){
+      console.error('Publicação Firebase:',e);
+      if(!silent)alert('Não foi possível atualizar o catálogo.');
+      return {ok:false,error:e};
+    }
+  };
+
+  /* Envia TODOS os pneus elegíveis, mesmo que ainda não estejam em catalogItems */
+  window.lpSendAllCloud=async function(){
+    syncFirebaseState();
+    if(!fbUser()){
+      alert('O Firebase ainda não reconheceu a sessão. Abra Usuários e conecte novamente.');
+      return;
+    }
+
+    const tires=(data.products||[]).filter(isTire);
+    if(!tires.length){
+      alert('Nenhum pneu com estoque disponível para enviar.');
+      return;
+    }
+
+    if(!confirm(`Enviar/atualizar ${tires.length} pneu(s) no catálogo público?`))return;
+
+    let ok=0,err=0,created=0,updated=0,withPhoto=0;
+    const start=Date.now();
+
+    for(const p of tires){
+      try{
+        const existed=(data.catalogItems||[]).some(x=>String(x.productId)===String(p.id));
+        const r=await window.publishProductToFirebase(p.id,true);
+        if(r?.ok){
+          ok++;
+          existed?updated++:created++;
+          const local=(data.catalogItems||[]).find(x=>String(x.productId)===String(p.id));
+          if(String(local?.image||'').trim())withPhoto++;
+        }else err++;
+      }catch(e){
+        console.error('Sync all:',p?.code,p?.name,e);
+        err++;
+      }
+    }
+
+    save();
+    renderCatalogo();
+
+    const secs=((Date.now()-start)/1000).toFixed(1);
+    alert(`Sincronização concluída.\n\nPneus processados: ${tires.length}\nSucesso: ${ok}\nNovos no catálogo: ${created}\nAtualizados: ${updated}\nCom imagem: ${withPhoto}\nErros: ${err}\nTempo: ${secs}s`);
+  };
+
+  /* Botão equivalente para catálogo local + nuvem */
+  window.lpSendAllTiresToCatalog=async function(){
+    syncFirebaseState();
+    const tires=(data.products||[]).filter(isTire);
+    if(!tires.length)return alert('Nenhum pneu com estoque disponível.');
+
+    data.catalogItems=data.catalogItems||[];
+    for(const p of tires){
+      let item=data.catalogItems.find(x=>String(x.productId)===String(p.id));
+      const vals={
+        code:p.code,name:p.name,brand:p.brand,category:p.category,
+        qty:N(p.qty),price:N(p.price),updatedAt:new Date().toLocaleString('pt-BR')
+      };
+      if(item)Object.assign(item,vals);
+      else data.catalogItems.unshift({
+        id:Date.now()+Math.random(),productId:p.id,status:'Pronto para publicar',
+        importedAt:new Date().toLocaleString('pt-BR'),...vals
+      });
+    }
+    save();
+
+    if(fbUser()){
+      await window.lpSendAllCloud();
+    }else{
+      renderCatalogo();
+      alert(`Todos os ${tires.length} pneu(s) foram preparados no catálogo local. Para publicar no site, conecte o Firebase em Usuários.`);
+    }
+  };
+
+  /* Corrige os indicadores de conexão no Catálogo e Usuários */
+  const oldRenderCatalog=window.renderCatalogo;
+  window.renderCatalogo=function(){
+    syncFirebaseState();
+    const r=oldRenderCatalog?.();
+    const page=document.getElementById('catalogo');
+    if(page){
+      page.querySelectorAll('*').forEach(()=>{});
+      const statusText=fbUser()?'Conectado':'Desconectado';
+      const badges=[...page.querySelectorAll('.badge')];
+      badges.forEach(b=>{
+        if(/firebase/i.test(b.textContent||'')){
+          b.textContent='Firebase '+statusText;
+          b.className='badge '+(fbUser()?'ok':'warn');
+        }
+      });
+    }
+    return r;
+  };
+
+  const oldRenderUsers=window.renderUsuarios;
+  window.renderUsuarios=function(){
+    syncFirebaseState();
+    return oldRenderUsers?.();
+  };
+
+  setTimeout(syncFirebaseState,100);
+  setTimeout(syncFirebaseState,500);
+})();
+</script>
+
+
+<style id="lp-users-v20-css">
+/* ===== Usuários e Firebase ===== */
+.lp-users-layout{
+  display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr);
+  gap:16px;align-items:start
+}
+.lp-users-card,.lp-firebase-admin-card{
+  background:#fff;border:1px solid #dce4ee;border-radius:16px;
+  box-shadow:0 10px 28px rgba(20,35,58,.06);padding:16px
+}
+.lp-user-head,.lp-fb-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px
+}
+.lp-user-head h3,.lp-fb-head h3{margin:0;color:#172033}
+.lp-user-head small,.lp-fb-head small{display:block;margin-top:4px;color:#64748b}
+.lp-fb-account{
+  display:grid;gap:8px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;margin-top:10px
+}
+.lp-fb-account div{display:flex;justify-content:space-between;gap:12px}
+.lp-fb-account span{color:#64748b;font-size:11px}
+.lp-fb-account b{color:#172033;font-size:12px;text-align:right;word-break:break-word}
+.lp-permission-note{
+  margin-top:12px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;
+  color:#475569;font-size:12px;line-height:1.5
+}
+.lp-role-chip{
+  display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;
+  background:#eef3f8;color:#334155;font-weight:800;font-size:10px
+}
+@media(max-width:980px){
+  .lp-users-layout{grid-template-columns:1fr}
+}
+</style>
+
+<script id="lp-users-v20-js">
+(function(){
+  const E=v=>typeof esc==='function'?esc(v):String(v??'');
+
+  function fbAuthSafe(){
+    try{ if(typeof lpAuth!=='undefined'&&lpAuth)return lpAuth; }catch(e){}
+    return window.lpAuth||null;
+  }
+  function fbUserSafe(){
+    try{ if(typeof lpFirebaseUser!=='undefined'&&lpFirebaseUser)return lpFirebaseUser; }catch(e){}
+    return window.lpFirebaseUser||fbAuthSafe()?.currentUser||null;
+  }
+  function fbDbSafe(){
+    try{ if(typeof lpDb!=='undefined'&&lpDb)return lpDb; }catch(e){}
+    return window.lpDb||null;
+  }
+
+  window.lpFirebaseConnectionTest=async function(){
+    const user=fbUserSafe();
+    if(!user)return alert('Firebase desconectado. Entre com a conta do Firebase primeiro.');
+    try{
+      const db=fbDbSafe();
+      if(!db)throw new Error('Firestore não disponível');
+      await db.collection('produtos').limit(1).get();
+      alert('Conexão Firebase OK.\n\nAutenticação: OK\nFirestore: OK\nCatálogo: acessível');
+    }catch(e){
+      console.error('Teste Firebase:',e);
+      alert('A autenticação está ativa, mas o Firestore não respondeu corretamente. Confira as regras e a conexão.');
+    }
+  };
+
+  window.lpFirebaseAdminLogin=function(){
+    if(typeof firebaseLoginModal==='function')return firebaseLoginModal();
+    alert('A tela de login do Firebase ainda não carregou.');
+  };
+
+  window.lpFirebaseAdminLogout=async function(){
+    try{
+      const auth=fbAuthSafe();
+      if(auth)await auth.signOut();
+      try{lpFirebaseUser=null}catch(e){}
+      window.lpFirebaseUser=null;
+      alert('Firebase desconectado.');
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível desconectar o Firebase.');
+    }
+    if(document.getElementById('usuarios')?.classList.contains('active'))renderUsuarios();
+    if(document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo();
+  };
+
+  /* Tela final única de usuários, evitando os vários layouts antigos sobrepostos */
+  window.renderUsuarios=function(){
+    try{ensureData();enhanceData()}catch(e){}
+    data.users=Array.isArray(data.users)?data.users:[];
+    if(!data.users.length){
+      data.users.push({id:1,name:'Administrador',username:'admin',role:'ADMINISTRADOR',active:true});
+      try{save()}catch(e){}
+    }
+
+    const user=fbUserSafe();
+    window.lpFirebaseUser=user||null;
+
+    const rows=data.users.map(u=>`
+      <tr>
+        <td><b>${E(u.name||'Usuário')}</b></td>
+        <td>${E(u.username||'-')}</td>
+        <td><span class="lp-role-chip">${E(u.role||'USUÁRIO')}</span></td>
+        <td>${u.active!==false?'<span class="badge ok">Ativo</span>':'<span class="badge danger">Inativo</span>'}</td>
+        <td class="actions">
+          <button class="btn ghost small" onclick="userModal(${u.id})">Editar</button>
+          ${u.id!==1?`<button class="btn ghost small" onclick="toggleUser(${u.id})">${u.active!==false?'Desativar':'Ativar'}</button>`:''}
+        </td>
+      </tr>`).join('');
+
+    const email=user?.email||'—';
+    const uid=user?.uid?String(user.uid).slice(0,10)+'…':'—';
+
+    document.getElementById('usuarios').innerHTML=
+      heading('Usuários e Permissões','Perfis internos do Controle e conexão do catálogo com o Firebase',
+        `<button class="btn primary" onclick="userModal()">+ Novo perfil</button>`)+
+      `<div class="lp-users-layout">
+        <div class="lp-users-card">
+          <div class="lp-user-head">
+            <div><h3>Perfis do Controle</h3><small>Organizam nome, função e permissões internas.</small></div>
+            <span class="soft-chip">${data.users.length} perfil(is)</span>
+          </div>
+          <div class="notice"><b>Importante:</b> esses perfis são internos do Controle. O login que libera a sincronização do Catálogo é o Firebase, mostrado ao lado.</div>
+          <div class="table-wrap" style="box-shadow:none;margin-top:12px">
+            <table>
+              <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <div class="lp-permission-note">
+            <b>Perfis:</b> Administrador = acesso completo; Gerente = operação e relatórios;
+            Financeiro = caixa/financeiro; Vendedor = vendas/clientes; Estoque = produtos/compras.
+          </div>
+        </div>
+
+        <div class="lp-firebase-admin-card">
+          <div class="lp-fb-head">
+            <div><h3>Firebase • Catálogo LePneus</h3><small>Conta usada somente para sincronizar o site público.</small></div>
+            ${user?'<span class="badge ok">Conectado</span>':'<span class="badge warn">Desconectado</span>'}
+          </div>
+
+          <div class="lp-fb-account">
+            <div><span>Status</span><b>${user?'Autenticado':'Sem sessão'}</b></div>
+            <div><span>E-mail</span><b>${E(email)}</b></div>
+            <div><span>ID da sessão</span><b>${E(uid)}</b></div>
+            <div><span>Coleção</span><b>produtos</b></div>
+          </div>
+
+          <div class="actions" style="margin-top:12px">
+            ${user
+              ?`<button class="btn ghost" onclick="lpFirebaseConnectionTest()">Testar conexão</button>
+                <button class="btn ghost" onclick="lpFirebaseAdminLogout()">Desconectar</button>`
+              :`<button class="btn primary" onclick="lpFirebaseAdminLogin()">Entrar no Firebase</button>`}
+          </div>
+
+          <div class="notice" style="margin-top:12px">
+            A senha é validada pelo Firebase e <b>não fica salva no HTML</b>.
+            Quando estiver conectado, o Catálogo deve reconhecer a mesma sessão para o envio em massa.
+          </div>
+        </div>
+      </div>`;
+  };
+
+  /* Mantém a tela atualizada quando a sessão muda */
+  try{
+    const auth=fbAuthSafe();
+    if(auth&&typeof auth.onAuthStateChanged==='function'){
+      auth.onAuthStateChanged(user=>{
+        try{lpFirebaseUser=user||null}catch(e){}
+        window.lpFirebaseUser=user||null;
+        if(document.getElementById('usuarios')?.classList.contains('active'))renderUsuarios();
+        if(document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo();
+      });
+    }
+  }catch(e){console.warn('Auth users:',e)}
+})();
+</script>
+
 </body>
 </html>
