@@ -3796,15 +3796,15 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
    data.spreadsheetConnections=data.spreadsheetConnections||{};
    data.pendingImportDifferences=data.pendingImportDifferences||[];
    const types=['carro','moto','acessorios','pecas'];
-   const desc={carro:'Pneus de carro',moto:'Pneus de moto',acessorios:'Câmaras, rodas e acessórios',pecas:'Peças de caminhão • campo reservado'};
+   const desc={carro:'Pneus de carro',moto:'Pneus de moto',acessorios:'Câmaras, rodas e acessórios',pecas:'Peças de caminhão • importação configurada'};
    const cards=types.map(type=>{
      const c=data.spreadsheetConnections[type];
      const pending=data.pendingImportDifferences.filter(x=>x.type===type&&x.status==='Pendente').length;
      const reserved=type==='pecas';
-     return `<div class="card ${reserved?'lp-sheet-reserved':''}"><div class="panel-head"><div><h3 class="section-title" style="margin:0">${E(window.sheetConnectionLabel(type))}</h3><small class="cell-sub">${E(desc[type])}</small></div>${reserved?'<span class="badge warn">Reservado</span>':c?'<span class="badge ok">Configurada</span>':'<span class="badge warn">Não selecionada</span>'}</div>
-       ${c?`<div class="notice"><b>Arquivo:</b> ${E(c.name||'')}${c.lastImportedAt?`<br><b>Última importação:</b> ${E(c.lastImportedAt)}`:''}</div>`:reserved?'<div class="notice">Já deixei a área pronta. A estrutura será configurada quando você enviar a planilha amanhã.</div>':'<p style="color:var(--muted);font-size:13px">Escolha a planilha original deste estoque.</p>'}
+     return `<div class="card ${reserved?'lp-sheet-reserved':''}"><div class="panel-head"><div><h3 class="section-title" style="margin:0">${E(window.sheetConnectionLabel(type))}</h3><small class="cell-sub">${E(desc[type])}</small></div>${reserved?'<span class="badge ok">Importação disponível</span>':c?'<span class="badge ok">Configurada</span>':'<span class="badge warn">Não selecionada</span>'}</div>
+       ${c?`<div class="notice"><b>Arquivo:</b> ${E(c.name||'')}${c.lastImportedAt?`<br><b>Última importação:</b> ${E(c.lastImportedAt)}`:''}</div>`:reserved?'<div class="notice">Selecione Planilha de Estoque.xlsx. Importa as peças separadamente, incluindo itens sem código e quantidades fracionadas. Confira as diferenças de estoque em Vendas.</div>':'<p style="color:var(--muted);font-size:13px">Escolha a planilha original deste estoque.</p>'}
        <input id="${spreadsheetInputId(type)}" type="file" accept=".xlsx,.xls" style="width:100%;margin:10px 0 12px">
-       <div class="actions"><button class="btn ghost" onclick="connectSpreadsheet('${type}')">Selecionar arquivo</button>${reserved?`<button class="btn primary" onclick="lpReservedPartsImport()">Configurar quando enviar</button>`:`<button class="btn primary" onclick="importSpreadsheet('${type}')">Importar / Atualizar agora</button>`}${pending?`<button class="btn ghost" onclick="lpNextDifference()">Revisar diferenças</button>`:''}</div>
+       <div class="actions"><button class="btn ghost" onclick="connectSpreadsheet('${type}')">Selecionar arquivo</button>${reserved?`<button class="btn primary" onclick="importSpreadsheet('pecas')">Importar / Atualizar peças</button><button class="btn primary" onclick="lpPartsML()">Analisar peças no Mercado Livre</button>`:`<button class="btn primary" onclick="importSpreadsheet('${type}')">Importar / Atualizar agora</button>`}${pending?`<button class="btn ghost" onclick="lpNextDifference()">Revisar diferenças</button>`:''}</div>
      </div>`;
    }).join('');
    const connected=['carro','moto','acessorios'].filter(t=>data.spreadsheetConnections[t]).length;
@@ -3812,7 +3812,7 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
    document.getElementById('planilhas').innerHTML=
      heading('Conexão Planilhas','Carro, Moto, Acessórios e campo reservado para Peças')+
      `<div class="notice"><b>Hoje:</b> a importação atualiza o Controle quando você seleciona o Excel. Depois da importação de Carro ou Moto, o Catálogo local é reconciliado automaticamente e, se o Firebase estiver conectado, a nuvem também é atualizada.</div>
-      <div class="cards">${metric('Planilhas ativas','3','Carro • Moto • Acessórios','green')}${metric('Selecionadas',connected,'neste navegador',connected===3?'green':'red')}${metric('Campo Peças','Pronto','aguardando a planilha','green')}${metric('Diferenças pendentes',pending,'aguardando revisão',pending?'red':'green')}</div>
+      <div class="cards">${metric('Planilhas ativas','3','Carro • Moto • Acessórios','green')}${metric('Selecionadas',connected,'neste navegador',connected===3?'green':'red')}${metric('Peças','Configurada','importação manual e análise ML','green')}${metric('Diferenças pendentes',pending,'aguardando revisão',pending?'red':'green')}</div>
       <div class="settings-grid" style="margin-top:16px">${cards}</div>
       <div class="lp-auto-sync-box"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Conexão automática — próxima etapa</h3><small class="cell-sub">Para a planilha alterar o sistema sozinha, sem clicar em Importar.</small></div><span class="badge warn">Precisa de ponte/backend</span></div>
         <div class="lp-auto-sync-steps"><div><b>1. Fonte da planilha</b><small>Excel no OneDrive/SharePoint ou uma pasta no PC monitorada por um programa ponte.</small></div><div><b>2. Serviço de sincronização</b><small>Um backend seguro lê a planilha periodicamente ou recebe alteração e envia os dados ao Controle/Firebase.</small></div><div><b>3. Regras de estoque</b><small>Comparar código, custo, preço e estoque; redução continua pedindo confirmação de venda/ajuste.</small></div><div><b>4. Catálogo</b><small>Carro/Moto sincronizam para Firebase automaticamente; acessórios e peças ficam conforme regra definida.</small></div></div>
@@ -7935,7 +7935,7 @@ button[disabled],.btn[disabled]{opacity:.58;cursor:not-allowed;pointer-events:no
       heading('Mercado Livre','Oportunidades calculadas sem carregar todo o estoque de uma vez',`
         <div class="actions">
           <button class="btn ghost" onclick="lpMLToggleSettings()">Custos e taxas</button>
-          <button class="btn primary" onclick="lpFastMLTop20()">20 melhores</button>
+          <button class="btn primary" onclick="lpFastMLTop20()">20 melhores</button><button class="btn ghost" onclick="lpPartsML()">Analisar peças</button>
         </div>`)+
       `<div class="cards">
         ${metric('Oportunidades',arr.length,'produtos calculados','green')}
@@ -10235,5 +10235,63 @@ button[disabled],.btn[disabled]{opacity:.58;cursor:not-allowed;pointer-events:no
 })();
 </script>
 
-</body>
+<script>
+/* Peças: análise independente da importação de pneus. */
+(function(){
+  const parts=()=> (data.products||[]).filter(p=>/pe[çc]a|caminh/i.test(String(p.category||'')+' '+String(p.sourceType||'')));
+  window.lpPartsML=function(){
+    const list=parts();
+    showModal(`<h2>Peças • análise Mercado Livre</h2><p>Selecione uma peça cadastrada ou preencha uma simulação manual. Os valores são por unidade.</p><div class="notice">Informe as taxas e o frete do anúncio que você está avaliando. A comparação com concorrentes é manual. Esta análise não publica anúncios nem altera o estoque.</div><form id="partsMLForm" onsubmit="event.preventDefault();lpPartsCalculate()"><div class="form"><label class="full">Peça cadastrada<select id="partsPick" onchange="lpPartsChoose(this.value)"><option value="">Simulação manual</option>${list.map((p,i)=>`<option value="${i}">${esc(p.code||'')} — ${esc(p.name)}</option>`).join('')}</select></label><label class="full">Nome da peça<input id="partsName" required></label>${[['cost','Custo da peça (R$)'],['price','Preço de venda (R$)'],['fee','Taxa do anúncio (%)'],['fixed','Tarifa fixa (R$)'],['freight','Frete pago por você (R$)'],['other','Embalagem e outros custos (R$)'],['tax','Reserva fiscal (%)'],['margin','Margem desejada (%)'],['market','Preço de concorrente comparável (R$, opcional)']].map(([id,label])=>`<label>${label}<input id="parts-${id}" type="number" min="0" ${['fee','tax','margin'].includes(id)?'max="99.99"':''} step="0.01" ${id==='market'?'':'required'} ${['tax','margin'].includes(id)?'value="5"':''}></label>`).join('')}</div><div class="modal-actions"><button type="button" class="btn ghost" onclick="closeModal()">Fechar</button><button class="btn primary" type="submit">Calcular lucro</button></div></form><div id="partsResult" aria-live="polite"></div>`);
+  };
+  window.lpPartsChoose=function(index){const p=index===''?null:parts()[Number(index)];document.getElementById('partsName').value=p?.name||'';document.getElementById('parts-cost').value=p?.cost??'';document.getElementById('parts-price').value=p?.price??'';document.getElementById('partsResult').innerHTML='';};
+  window.lpPartsProfit=function(v){const deduction=(v.fee+v.tax)/100;const expenses=v.cost+v.fixed+v.freight+v.other;const profit=v.price*(1-deduction)-expenses;const den=1-deduction-v.margin/100;return {profit,margin:v.price>0?profit/v.price*100:0,min:den>0?expenses/den:null,fee:v.price*v.fee/100,tax:v.price*v.tax/100};};
+  window.lpPartsCalculate=function(){const form=document.getElementById('partsMLForm');if(!form.reportValidity())return;const v={};for(const id of ['cost','price','fee','fixed','freight','other','tax','margin','market'])v[id]=Number(document.getElementById('parts-'+id).value);const r=lpPartsProfit(v);let status=v.price<=0?'Informe um preço maior que zero':r.profit<=0?'Não compensa nesse preço':r.min===null?'Margem desejada inviável com essas taxas':r.margin+1e-8<v.margin?'Lucro abaixo da margem desejada':!v.market?'Margem atingida • falta comparar concorrentes':v.price>v.market?'Margem atingida • preço acima do concorrente':'Margem atingida e preço competitivo';document.getElementById('partsResult').innerHTML=`<div class="notice"><b>${status}</b></div><div class="form"><div>Lucro estimado por unidade<br><b>${money(r.profit)}</b></div><div>Margem sobre a venda<br><b>${r.margin.toFixed(2)}%</b></div><div>Preço para a margem desejada<br><b>${r.min===null?'Inviável':money(r.min)}</b></div><div>Taxa + tarifa fixa<br><b>${money(r.fee+v.fixed)}</b></div><div>Reserva fiscal<br><b>${money(r.tax)}</b></div><div>Frete + embalagem/outros<br><b>${money(v.freight+v.other)}</b></div></div><p>Estimativa baseada nos valores informados; não garante venda. A reserva fiscal é uma hipótese editável.</p>`;};
+})();
+
+</script>
+<script>
+(function(){
+ const oldParse=window.lpParseWorkbook, oldImport=window.importSpreadsheet;
+ window.lpParseWorkbook=function(wb,type){
+  if(type!=='pecas')return oldParse(wb,type);
+  const products=[],keys=new Set();
+  for(const sheet of wb.SheetNames){
+   const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,defval:'',raw:true});
+   if(!rows.slice(0,5).some(r=>r[0]==='Cod'&&r[1]==='Pneu'&&r[8]==='Estoque'))throw Error('Cabeçalhos diferentes do arquivo conferido: '+sheet);
+   for(let i=2;i<rows.length;i++){
+    const r=rows[i],name=String(r[1]||'').trim();if(!name||/^(total|subtotal|pneu)$/i.test(name))continue;
+    const number=(v,label)=>{if(v==='')return 0;const n=Number(v);if(!Number.isFinite(n)||n<0)throw Error(sheet+', linha '+(i+1)+': '+label+' inválido');return n;};
+    const sourceCode=String(r[0]??'').trim();
+    const code='PECAS:'+encodeURIComponent(sheet)+':'+encodeURIComponent(sourceCode)+':'+encodeURIComponent(name.toLocaleUpperCase('pt-BR'));
+    if(keys.has(code))throw Error('Peça repetida na aba '+sheet+': '+name+'. Confira antes de importar.');keys.add(code);
+    products.push({code,sourceCode,name,qty:number(r[8],'Estoque'),cost:number(r[2],'Custo'),price:number(r[4],'Valor Venda'),vista:number(r[3],'Vista'),category:'Peças',brand:'',sheet,row:i+1});
+   }
+  }
+  return {products,warnings:[]};
+ };
+ window.importSpreadsheet=async function(type){
+  if(type!=='pecas')return oldImport(type);
+  try{
+   const f=document.getElementById(spreadsheetInputId(type))?.files?.[0]||lpSheetFiles[type];if(!f)throw Error('Selecione a Planilha de Estoque.xlsx na área de Peças.');
+   if(typeof XLSX==='undefined')throw Error('Leitor Excel indisponível. Confira a conexão e recarregue.');
+   const parsed=lpParseWorkbook(XLSX.read(await f.arrayBuffer(),{type:'array'}),type);if(!parsed.products.length)throw Error('Nenhuma peça encontrada.');
+   if(!confirm('Importar '+parsed.products.length+' peças? Alterações de quantidade irão para revisão de venda/ajuste. Nenhum anúncio será publicado.'))return;
+   ensureData();data.pendingImportDifferences||=[];data.mercadoLivreItems||=[];data.spreadsheetConnections||={};let count=0;
+   for(const imp of parsed.products){
+    let p=data.products.find(x=>x.code===imp.code);
+    if(!p){p={...imp,id:idNow(),min:0,sourceType:'pecas',sourceSheet:imp.sheet,sourceRow:imp.row};data.products.push(p);}
+    else{
+     if(Number(p.qty)!==imp.qty&&!data.pendingImportDifferences.some(d=>d.productId===p.id&&d.status==='Pendente'&&d.newQty===imp.qty)){
+      data.pendingImportDifferences.push({id:idNow(),batchId:Date.now(),type,productId:p.id,code:p.code,name:imp.name,oldQty:Number(p.qty),newQty:imp.qty,diff:imp.qty-Number(p.qty),cost:imp.cost,price:imp.price,file:f.name,sheet:imp.sheet,createdAt:nowBR(),status:'Pendente'});count++;
+     }
+     Object.assign(p,{name:imp.name,cost:imp.cost,price:imp.price,vista:imp.vista,sourceCode:imp.sourceCode,sourceSheet:imp.sheet,sourceRow:imp.row});
+    }
+    if(p.qty>0&&!data.mercadoLivreItems.some(x=>String(x.productId)===String(p.id)))data.mercadoLivreItems.push({id:idNow(),productId:p.id,code:p.code,name:p.name,category:'Peças',qty:p.qty,price:p.price,status:'Importado',sales:0});
+   }
+   data.spreadsheetConnections.pecas={name:f.name,lastImportedAt:nowBR(),status:'Importada'};save();renderAll();alert('Peças importadas. '+count+' diferenças para revisar em Vendas. A análise de peças está disponível em Mercado Livre.');
+  }catch(e){alert('Importação de peças: '+e.message);}
+ };
+})();
+
+</script></body>
 </html>
