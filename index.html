@@ -10688,5 +10688,159 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
 })();
 </script>
 
+
+<script id="lp-auto-images-firebase-v42">
+(function(){
+  if(window.__lpAutoImagesFirebaseV42)return;
+  window.__lpAutoImagesFirebaseV42=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+
+  function prodForItem(item){
+    const ps=Array.isArray(window.data?.products)?data.products:[];
+    return ps.find(p=>String(p?.id)===String(item?.productId)||(T(p?.code)&&T(item?.code)&&N(p.code)===N(item.code)))||null;
+  }
+  function cat(p){
+    const s=N([p?.category,p?.categoria,p?.name,p?.model,p?.location].filter(Boolean).join(' '));
+    if(/MOTO|MOTOCICLETA/.test(s))return'moto';
+    if(/CAMARA|CAMARAS|ACESS|RODA|MATERIAL/.test(s))return'acessorios';
+    if(/PECA|CAMINH/.test(s))return'pecas';
+    return'carro';
+  }
+  function desired(p){return (cat(p)==='carro'||cat(p)==='moto')&&Number(p?.qty??p?.stock??0)>0}
+  function approved(img){
+    let d=T(img).toLowerCase();
+    if(!d)return false;
+    try{if(d.startsWith('data:image/svg'))d=decodeURIComponent(d)}catch(e){}
+    return d.includes('id="topshade"')&&d.includes('x="505"')&&d.includes('width="365"');
+  }
+  function legacy(img,p){
+    const raw=T(img).toLowerCase();
+    if(!raw)return true;
+    if(raw.includes('logo.clearbit.com')||raw.includes('imagem%20da%20marca')||raw.includes('imagem da marca')||raw.includes('no-image')||raw.includes('sem-imagem'))return true;
+    let d=raw;
+    try{if(raw.startsWith('data:image/svg'))d=decodeURIComponent(raw)}catch(e){}
+    if(raw.startsWith('data:image/svg')&&!approved(img)&&(d.includes('pneu de carro')||d.includes('pneu de moto')||d.includes('imagem da marca')))return true;
+    const b=N(p?.brand||p?.marca);
+    if((b==='STRONGER'||b==='HIFLY')&&raw.startsWith('data:image/svg')&&!approved(img))return true;
+    return false;
+  }
+  function auto(p){
+    try{if(typeof window.lpApprovedAutoImage==='function')return window.lpApprovedAutoImage(p)}catch(e){}
+    return '';
+  }
+  function localItem(p){
+    data.catalogItems=Array.isArray(data.catalogItems)?data.catalogItems:[];
+    return data.catalogItems.find(x=>String(x?.productId)===String(p?.id)||(T(x?.code)&&T(p?.code)&&N(x.code)===N(p.code)))||null;
+  }
+  function ensureLocal(p){
+    if(!desired(p))return null;
+    let item=localItem(p);
+    if(!item){
+      item={id:Date.now()+Math.random(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Pronto para publicar',importedAt:new Date().toLocaleString('pt-BR')};
+      data.catalogItems.unshift(item);
+    }
+    if(legacy(item.image,p)){
+      const im=auto(p);
+      if(im){item.image=im;item.autoImage=true;item.autoImageUpdatedAt=new Date().toLocaleString('pt-BR')}
+    }
+    return item;
+  }
+  function matchDoc(p,d){
+    const x=d.data?d.data():d;
+    const pc=N(p?.code),dc=N(x?.code);
+    if(pc&&dc&&pc!=='SC'&&pc===dc)return true;
+    const pi=N(p?.controlId||p?.id),di=N(x?.controlId);
+    if(pi&&di&&pi===di)return true;
+    const pb=N(p?.brand),db=N(x?.brand);
+    const pn=N(p?.name||p?.model),dn=N(x?.model||x?.name);
+    const ps=N(p?.size),ds=N(x?.size);
+    return !!(pb&&db&&pb===db&&pn&&dn&&pn===dn&&ps===ds);
+  }
+
+  async function repair(show=false){
+    try{
+      if(!window.data)return {ok:false,reason:'data'};
+      const user=window.lpFirebaseUser||window.lpAuth?.currentUser||null;
+      const db=window.lpDb||null;
+      let localChanged=0,cloudChanged=0,preserved=0,errors=0;
+      const ps=(data.products||[]).filter(desired);
+
+      for(const p of ps){
+        const before=T(localItem(p)?.image);
+        const item=ensureLocal(p);
+        if(item&&T(item.image)!==before)localChanged++;
+      }
+      try{if(localChanged&&typeof save==='function')save()}catch(e){}
+
+      if(!user||!db){
+        if(show)alert(`Imagens conferidas no Controle.\nCorrigidas localmente: ${localChanged}\n\nConecte o Firebase para enviar as correções ao site.`);
+        return {ok:true,localChanged,cloudChanged:0,reason:'auth'};
+      }
+
+      const snap=await db.collection('produtos').get();
+      const docs=snap.docs||[];
+      const writes=[];
+      for(const p of ps){
+        const matched=docs.filter(d=>matchDoc(p,d));
+        const good=matched.find(d=>!legacy(d.data()?.image,p));
+        const item=localItem(p)||ensureLocal(p);
+        if(good&&T(good.data()?.image)){
+          if(item&&T(item.image)!==T(good.data().image)){item.image=good.data().image;item.autoImage=false;preserved++}
+          continue;
+        }
+        const im=(item&&!legacy(item.image,p))?item.image:auto(p);
+        if(!im)continue;
+        if(item){item.image=im;item.autoImage=true}
+        for(const d of matched){
+          if(legacy(d.data()?.image,p))writes.push({ref:d.ref,image:im});
+        }
+      }
+      for(let i=0;i<writes.length;i+=400){
+        const chunk=writes.slice(i,i+400);
+        const batch=db.batch();
+        chunk.forEach(w=>batch.set(w.ref,{image:w.image,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));
+        try{await batch.commit();cloudChanged+=chunk.length}catch(e){errors+=chunk.length;console.warn('V42 batch imagens:',e)}
+      }
+      try{if(typeof save==='function')save()}catch(e){}
+      try{if(typeof renderCatalogo==='function'&&document.getElementById('catalogo')?.classList.contains('active'))renderCatalogo()}catch(e){}
+      if(show)alert(`Imagens do catálogo conferidas.\nPneus analisados: ${ps.length}\nCorrigidas no Controle: ${localChanged}\nFotos reais preservadas: ${preserved}\nCorrigidas no Firebase: ${cloudChanged}\nErros: ${errors}`);
+      return {ok:errors===0,total:ps.length,localChanged,preserved,cloudChanged,errors};
+    }catch(e){
+      console.error('V42 correção imagens:',e);
+      if(show)alert('Não foi possível concluir a correção das imagens. Confira a conexão com o Firebase.');
+      return {ok:false,error:e};
+    }
+  }
+
+  window.lpRepairAutoImagesCloudV42=repair;
+  window.lpRepairAutoImagesCloudV41=repair;
+
+  const pub=window.publishProductToFirebase;
+  if(typeof pub==='function'&&!pub.__lpV42){
+    const w=async function(productId,silent=false){
+      const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+      if(p)ensureLocal(p);
+      const r=await pub.apply(this,arguments);
+      if(p&&desired(p))await repair(false);
+      return r;
+    };w.__lpV42=true;window.publishProductToFirebase=w;
+  }
+
+  const mirror=window.lpCatalogMirrorExact;
+  if(typeof mirror==='function'&&!mirror.__lpV42){
+    const w=async function(silent=false){
+      (data.products||[]).filter(desired).forEach(ensureLocal);
+      const r=await mirror.apply(this,arguments);
+      const imgs=await repair(false);
+      return {...(r||{}),imagesV42:imgs};
+    };w.__lpV42=true;window.lpCatalogMirrorExact=w;
+  }
+
+  setTimeout(()=>{try{(data.products||[]).filter(desired).forEach(ensureLocal);if(typeof save==='function')save()}catch(e){}},350);
+})();
+</script>
+
 </body>
 </html>
