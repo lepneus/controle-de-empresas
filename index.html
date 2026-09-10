@@ -2879,7 +2879,7 @@ function renderMercadoLivre(){
       const batchId=Date.now();
       for(const imp of parsed.products){
         let p=data.products.find(x=>lpKey(x.code)===lpKey(imp.code));
-        if(!p && Number(imp.qty||0)<=0){skippedZero++;continue;}
+        if(Number(imp.qty||0)<=0)zeroItems++;
 
         if(!p){
           p={id:idNow(),code:imp.code,name:imp.name,category:imp.category,brand:imp.brand,qty:Number(imp.qty||0),min:Number(data.settings.defaultMinStock||0),cost:Number(imp.cost||0),price:Number(imp.price||0),vista:Number(imp.vista||0),location:'Planilha: '+imp.sheet,sourceSheet:imp.sheet,sourceRow:imp.row};
@@ -10287,6 +10287,404 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
   const oldImport=window.importSpreadsheet;if(typeof oldImport==='function'&&!oldImport.__lpApprovedWrapped){const w=async function(...args){const r=await oldImport.apply(this,args);repairLocal();try{if(typeof renderAll==='function')renderAll();}catch(e){}return r;};w.__lpApprovedWrapped=true;window.importSpreadsheet=w;}
   const oldRender=window.renderCatalogo;if(typeof oldRender==='function'){window.renderCatalogo=function(...args){repairLocal();const r=oldRender.apply(this,args);const page=document.getElementById('catalogo');if(page){const toolbar=page.querySelector('.lp-catalog-toolbar,.heading .actions');if(toolbar&&!toolbar.querySelector('[data-lp-approved-images]')){const b=document.createElement('button');b.className='btn ghost';b.dataset.lpApprovedImages='1';b.textContent='Aplicar padrão de imagens';b.onclick=()=>window.lpRepairApprovedImagesCloud(true);toolbar.appendChild(b);}let n=page.querySelector('.lp-approved-image-note');if(!n){n=document.createElement('div');n.className='notice lp-approved-image-note';n.style.marginTop='10px';n.innerHTML='<b>Padrão automático aprovado:</b> quando um pneu novo estiver sem foto, o Controle usa uma imagem fotográfica preta/vermelha com o pneu inteiro e a marca no canto superior direito. Todas as câmaras de ar usam o mesmo padrão visual.';page.querySelector('.lp-catalog-connection-box')?.after(n);}}return r;};}
   setTimeout(function(){try{const r=repairLocal();if(r.changed){if(typeof save==='function')save();if(typeof renderAll==='function')renderAll();}}catch(e){console.warn('Padrão automático inicial:',e)}},300);
+})();
+</script>
+
+<script id="lp-pecas-autoimagens-v41">
+(function(){
+  if(window.__lpPecasAutoImagesV41)return;
+  window.__lpPecasAutoImagesV41=true;
+
+  const text=v=>String(v??'').trim();
+  const norm=v=>text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+  const key=v=>norm(v).replace(/[^a-z0-9]/g,'');
+  const num=v=>{
+    if(typeof v==='number')return Number.isFinite(v)?v:0;
+    let s=text(v);if(!s)return 0;
+    s=s.replace(/R\$\s*/gi,'').replace(/\s/g,'');
+    if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+    else if(s.includes(','))s=s.replace(',','.');
+    s=s.replace(/[^0-9.-]/g,'');const n=Number(s);return Number.isFinite(n)?n:0;
+  };
+  const esc=v=>typeof window.esc==='function'?window.esc(v):text(v).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c));
+  const now=()=>typeof window.nowBR==='function'?window.nowBR():new Date().toLocaleString('pt-BR');
+
+  function exactHeaderIndex(row,labels){
+    const keys=(row||[]).map(v=>key(v));
+    for(const label of labels){const i=keys.indexOf(key(label));if(i>=0)return i;}
+    return -1;
+  }
+  function shortHash(value){
+    let h=2166136261;const s=String(value||'');
+    for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
+    return (h>>>0).toString(36).toUpperCase().padStart(6,'0').slice(-6);
+  }
+  function genericPartCode(v){
+    const k=key(v);return !k||['sn','sc','semcodigo','semcod','0'].includes(k);
+  }
+  function partSourceKey(sheetName,sourceCode,name){
+    const c=genericPartCode(sourceCode)?'SEM-CODIGO':key(sourceCode);
+    return `pecas|${key(sheetName)}|${c}|${key(name)}`;
+  }
+  function partDisplayCode(sheetName,sourceCode,name){
+    if(!genericPartCode(sourceCode))return text(sourceCode);
+    return 'SC-'+shortHash(`${sheetName}|${name}`);
+  }
+
+  function parsePartsWorkbook(wb){
+    const products=[],warnings=[];
+    for(const sheetName of (wb?.SheetNames||[])){
+      const ws=wb.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+      if(!rows.length)continue;
+      let hi=-1,map=null;
+      for(let r=0;r<Math.min(rows.length,15);r++){
+        const row=rows[r]||[];
+        const code=exactHeaderIndex(row,['Cod','Código','Codigo']);
+        const name=exactHeaderIndex(row,['Pneu','Produto','Descrição','Descricao']);
+        const cost=exactHeaderIndex(row,['Custo']);
+        const vista=exactHeaderIndex(row,['Vista']);
+        const price=exactHeaderIndex(row,['Valor Venda']);
+        const stock=exactHeaderIndex(row,['Estoque']);
+        if(code>=0&&name>=0&&cost>=0&&price>=0&&stock>=0){hi=r;map={code,name,cost,vista,price,stock};break;}
+      }
+      if(hi<0){warnings.push(sheetName+': cabeçalho não identificado; aba ignorada.');continue;}
+
+      for(let r=hi+1;r<rows.length;r++){
+        const row=rows[r]||[];
+        const sourceCode=text(row[map.code]);
+        const name=text(row[map.name]);
+        if(!sourceCode&&!name)continue;
+        if(!name||/^(total|subtotal|estoque|codigo|código|cod)$/i.test(norm(name)))continue;
+        const qty=Math.max(0,num(row[map.stock]));
+        const cost=Math.max(0,num(row[map.cost]));
+        const price=Math.max(0,num(row[map.price]));
+        const vista=map.vista>=0?Math.max(0,num(row[map.vista])):0;
+        const sourceKey=partSourceKey(sheetName,sourceCode,name);
+        products.push({
+          code:partDisplayCode(sheetName,sourceCode,name),
+          sourceCode,
+          sourceKey,
+          name,
+          qty,
+          cost,
+          price,
+          vista,
+          category:'Peças',
+          brand:'',
+          sheet:sheetName,
+          row:r+1,
+          sourceType:'pecas'
+        });
+      }
+    }
+    return {products,warnings};
+  }
+  window.lpParsePartsWorkbookV41=parsePartsWorkbook;
+
+  const oldSheetLabel=window.sheetConnectionLabel;
+  window.sheetConnectionLabel=function(type){
+    if(type==='pecas')return 'Planilha de Peças';
+    return typeof oldSheetLabel==='function'?oldSheetLabel(type):(type==='carro'?'Planilha Carro':type==='moto'?'Planilha Moto':'Planilha Acessórios');
+  };
+
+  const oldCategory=window.lpCategory;
+  window.lpCategory=function(type){
+    if(type==='pecas')return 'Peças';
+    return typeof oldCategory==='function'?oldCategory(type):(type==='carro'?'Pneu':type==='moto'?'Pneu de moto':'Acessórios');
+  };
+
+  const oldMlImport=window.lpEnsureMLImportItem;
+  if(typeof oldMlImport==='function'){
+    window.lpEnsureMLImportItem=function(p,type){
+      if(type==='pecas'||type==='acessorios')return;
+      return oldMlImport.apply(this,arguments);
+    };
+  }
+
+  function getSelectedFile(type){
+    let f=null;
+    try{if(typeof lpSheetFiles!=='undefined')f=lpSheetFiles[type]||null;}catch(e){}
+    const input=document.getElementById(typeof spreadsheetInputId==='function'?spreadsheetInputId(type):'sheetFile_'+type);
+    if(input?.files?.[0]){
+      f=input.files[0];
+      try{if(typeof lpSheetFiles!=='undefined')lpSheetFiles[type]=f;}catch(e){}
+    }
+    return f;
+  }
+
+  async function importParts(){
+    try{if(typeof lpEnsureV3==='function')lpEnsureV3();else if(typeof ensureData==='function')ensureData();}catch(e){}
+    const f=getSelectedFile('pecas');
+    if(!f)return alert('Escolha novamente a Planilha de Peças e depois clique em Importar / Atualizar.');
+    if(typeof XLSX==='undefined')return alert('O leitor de Excel não carregou. Verifique a internet e abra o arquivo novamente.');
+
+    try{
+      const buf=await f.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array',cellDates:true});
+      const parsed=parsePartsWorkbook(wb);
+      if(!parsed.products.length)return alert('Nenhuma peça válida foi encontrada nesta planilha.');
+
+      data.products=Array.isArray(data.products)?data.products:[];
+      data.stockMovements=Array.isArray(data.stockMovements)?data.stockMovements:[];
+      data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+      data.spreadsheetConnections=data.spreadsheetConnections||{};
+      data.importAudits=Array.isArray(data.importAudits)?data.importAudits:[];
+      data.archivedProducts=Array.isArray(data.archivedProducts)?data.archivedProducts:[];
+
+      const batchId=Date.now();
+      const activeKeys=new Set(parsed.products.map(x=>x.sourceKey));
+      let created=0,updated=0,diffs=0,zeroItems=0,archived=0;
+
+      for(const imp of parsed.products){
+        let p=data.products.find(x=>x?.sourceType==='pecas'&&text(x?.sourceKey)===imp.sourceKey);
+        if(Number(imp.qty||0)<=0)zeroItems++;
+
+        if(!p){
+          p={
+            id:typeof idNow==='function'?idNow():Date.now()+Math.random(),
+            code:imp.code,name:imp.name,category:'Peças',brand:'',qty:Number(imp.qty||0),
+            min:Number(data.settings?.defaultMinStock||0),cost:Number(imp.cost||0),price:Number(imp.price||0),vista:Number(imp.vista||0),
+            location:'Planilha de Peças: '+imp.sheet,sourceType:'pecas',sourceSheet:imp.sheet,sourceRow:imp.row,
+            sourceCode:imp.sourceCode,sourceKey:imp.sourceKey
+          };
+          data.products.push(p);created++;
+          if(Number(p.qty||0)>0){
+            data.stockMovements.unshift({id:typeof idNow==='function'?idNow():Date.now()+Math.random(),date:now(),productId:p.id,product:p.name,type:'Entrada',qty:Number(p.qty||0),before:0,after:Number(p.qty||0),reason:'Importação inicial da Planilha de Peças',ref:f.name+' • '+imp.sheet,user:'Administrador'});
+          }
+        }else{
+          const oldQty=Number(p.qty||0),newQty=Number(imp.qty||0);
+          p.code=imp.code;p.name=imp.name;p.category='Peças';p.brand='';p.cost=Number(imp.cost||0);p.price=Number(imp.price||0);p.vista=Number(imp.vista||0);
+          p.location='Planilha de Peças: '+imp.sheet;p.sourceType='pecas';p.sourceSheet=imp.sheet;p.sourceRow=imp.row;p.sourceCode=imp.sourceCode;p.sourceKey=imp.sourceKey;
+          updated++;
+          if(oldQty!==newQty){
+            data.pendingImportDifferences.push({id:typeof idNow==='function'?idNow():Date.now()+Math.random(),batchId,type:'pecas',productId:p.id,code:p.code,name:p.name,oldQty,newQty,diff:newQty-oldQty,cost:p.cost,price:p.price,file:f.name,sheet:imp.sheet,createdAt:now(),status:'Pendente'});
+            diffs++;
+          }
+          try{if(typeof syncProductChannels==='function')syncProductChannels(p);}catch(e){}
+        }
+      }
+
+      /* Peças vindas da planilha e que deixaram de existir no arquivo atual são arquivadas, nunca apagadas do histórico. */
+      const removed=[];
+      data.products=data.products.filter(p=>{
+        if(p?.sourceType!=='pecas')return true;
+        if(activeKeys.has(text(p.sourceKey)))return true;
+        removed.push(p);return false;
+      });
+      if(removed.length){
+        const stamp=now();
+        for(const p of removed)data.archivedProducts.unshift({...p,archivedAt:stamp,archiveReason:'Não consta mais na Planilha de Peças'});
+        archived=removed.length;
+      }
+
+      data.spreadsheetConnections.pecas={name:f.name,size:f.size,lastModified:f.lastModified,connectedAt:data.spreadsheetConnections.pecas?.connectedAt||now(),lastImportedAt:now(),status:'Importada'};
+      data.importAudits.unshift({id:batchId,date:now(),type:'pecas',file:f.name,created,updated,differences:diffs,zeroItems,archived,warnings:parsed.warnings});
+      data.importAudits=data.importAudits.slice(0,100);
+      try{if(typeof save==='function')save();}catch(e){}
+      try{if(typeof renderAll==='function')renderAll();}catch(e){}
+
+      const warn=parsed.warnings.length?`\nAvisos: ${parsed.warnings.length}`:'';
+      const zero=zeroItems?`\nItens com estoque zero importados: ${zeroItems}`:'';
+      const arq=archived?`\nPeças antigas arquivadas: ${archived}`:'';
+      if(diffs){
+        alert(`Planilha de Peças importada.\nNovas: ${created}\nAtualizadas: ${updated}\nDiferenças de estoque: ${diffs}${zero}${arq}${warn}\n\nAgora confirme as diferenças de estoque.`);
+        try{if(typeof lpNextDifference==='function')setTimeout(()=>lpNextDifference(batchId),50);}catch(e){}
+      }else{
+        alert(`Planilha de Peças importada.\nNovas: ${created}\nAtualizadas: ${updated}${zero}${arq}${warn}`);
+      }
+      return {ok:true,created,updated,differences:diffs,zeroItems,archived,warnings:parsed.warnings};
+    }catch(e){
+      console.error('Importação Planilha de Peças:',e);
+      alert('Não foi possível importar a Planilha de Peças. Confira o arquivo e tente novamente.');
+      return {ok:false,error:e};
+    }
+  }
+  window.lpImportPartsV41=importParts;
+
+  const oldImport=window.importSpreadsheet;
+  window.importSpreadsheet=async function(type){
+    if(type==='pecas')return importParts();
+    return typeof oldImport==='function'?oldImport.apply(this,arguments):undefined;
+  };
+
+  window.renderPlanilhas=function(){
+    try{if(typeof lpEnsureV3==='function')lpEnsureV3();else if(typeof ensureData==='function')ensureData();}catch(e){}
+    data.spreadsheetConnections=data.spreadsheetConnections||{};
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+    const types=['carro','moto','acessorios','pecas'];
+    const desc={carro:'Pneus de carro',moto:'Pneus de moto',acessorios:'Câmaras, rodas e acessórios',pecas:'Peças, parafusos e componentes de caminhão'};
+    const cards=types.map(type=>{
+      const c=data.spreadsheetConnections[type];
+      const pending=data.pendingImportDifferences.filter(x=>x.type===type&&x.status==='Pendente').length;
+      return `<div class="card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">${esc(window.sheetConnectionLabel(type))}</h3><small class="cell-sub">${esc(desc[type])}</small></div>${c?'<span class="badge ok">Configurada</span>':'<span class="badge warn">Não selecionada</span>'}</div>
+        ${c?`<div class="notice"><b>Arquivo:</b> ${esc(c.name||'')}${c.lastImportedAt?`<br><b>Última importação:</b> ${esc(c.lastImportedAt)}`:''}${pending?`<br><b>Pendências:</b> ${pending}`:''}</div>`:'<p style="color:var(--muted);font-size:13px">Escolha a planilha original deste estoque.</p>'}
+        <input id="${typeof spreadsheetInputId==='function'?spreadsheetInputId(type):'sheetFile_'+type}" type="file" accept=".xlsx,.xls" style="width:100%;margin:10px 0 12px">
+        <div class="actions"><button class="btn ghost" onclick="connectSpreadsheet('${type}')">Selecionar arquivo</button><button class="btn primary" onclick="importSpreadsheet('${type}')">Importar / Atualizar agora</button>${pending?'<button class="btn ghost" onclick="lpNextDifference()">Revisar diferenças</button>':''}</div>
+      </div>`;
+    }).join('');
+    const connected=types.filter(t=>data.spreadsheetConnections[t]).length;
+    const pending=data.pendingImportDifferences.filter(x=>x.status==='Pendente').length;
+    document.getElementById('planilhas').innerHTML=
+      heading('Conexão Planilhas','Carro, Moto, Acessórios e Peças em fontes separadas')+
+      `<div class="notice"><b>Planilha de Peças configurada:</b> lê todas as abas do arquivo e usa exatamente as colunas <b>Cod, Pneu, Custo, Vista, Valor Venda e Estoque</b>. Linhas sem código ou com “SC” recebem um identificador interno estável sem misturar com pneus.</div>
+       <div class="cards">${metric('Planilhas ativas','4','Carro • Moto • Acessórios • Peças','green')}${metric('Selecionadas',connected,'neste navegador',connected===4?'green':'red')}${metric('Peças','Ativa','fonte separada dos pneus','green')}${metric('Diferenças pendentes',pending,'aguardando revisão',pending?'red':'green')}</div>
+       <div class="settings-grid" style="margin-top:16px">${cards}</div>`;
+  };
+
+  /* ===== Correção definitiva das imagens automáticas no catálogo ===== */
+  function productCat(p){
+    const s=norm([p?.category,p?.location,p?.name].filter(Boolean).join(' '));
+    if(s.includes('moto'))return 'moto';
+    if(s.includes('acess')||s.includes('camara')||s.includes('câmara')||s.includes('roda')||s.includes('material'))return 'acessorios';
+    if(s.includes('peca')||s.includes('peça')||s.includes('caminh'))return 'pecas';
+    return 'carro';
+  }
+  function desiredTire(p){return (productCat(p)==='carro'||productCat(p)==='moto')&&Number(p?.qty||0)>0;}
+  function localCatalogItem(p){
+    data.catalogItems=Array.isArray(data.catalogItems)?data.catalogItems:[];
+    return data.catalogItems.find(x=>String(x?.productId)===String(p?.id)||(text(x?.code)&&text(p?.code)&&key(x.code)===key(p.code)))||null;
+  }
+  function decodedImage(img){let s=text(img);try{if(s.startsWith('data:image/svg'))s=decodeURIComponent(s);}catch(e){}return s.toLowerCase();}
+  function approvedAuto(img){const s=decodedImage(img);return s.includes('id="topshade"')&&s.includes('x="505"')&&s.includes('width="365"');}
+  function oldOrMissingImage(img){
+    const s=decodedImage(img);if(!s)return true;
+    if(s.includes('logo.clearbit.com')||s.includes('imagem da marca')||s.includes('imagem%20da%20marca'))return true;
+    if(s.startsWith('data:image/svg')&&!approvedAuto(img)&&(s.includes('pneu de carro')||s.includes('pneu de moto')))return true;
+    return false;
+  }
+  function autoImageFor(p){
+    try{if(typeof window.lpApprovedAutoImage==='function')return window.lpApprovedAutoImage(p);}catch(e){}
+    try{if(typeof window.lpResolveCatalogImage==='function')return window.lpResolveCatalogImage(p,{image:''});}catch(e){}
+    return '';
+  }
+  function ensureAutoLocal(p,forceLegacy=true){
+    if(!desiredTire(p))return {item:null,changed:false,image:''};
+    let item=localCatalogItem(p);
+    if(!item){
+      item={id:Date.now()+Math.random(),productId:p.id,code:p.code,name:p.name,brand:p.brand,category:p.category,qty:p.qty,price:p.price,status:'Pronto para publicar',importedAt:now()};
+      data.catalogItems.unshift(item);
+    }
+    const current=text(item.image);
+    if(!current||(forceLegacy&&oldOrMissingImage(current))){
+      const image=autoImageFor(p);
+      if(image&&typeof image!=='object'){
+        item.image=image;item.autoImage=true;item.autoImageUpdatedAt=now();
+        return {item,changed:true,image};
+      }
+    }
+    return {item,changed:false,image:text(item.image)};
+  }
+  function ensureAllAutoLocal(){
+    let changed=0,total=0;
+    for(const p of (data.products||[]).filter(desiredTire)){
+      const r=ensureAutoLocal(p,true);total++;if(r.changed)changed++;
+    }
+    if(changed){try{if(typeof save==='function')save();}catch(e){}}
+    return {total,changed};
+  }
+
+  async function dbSafe(){
+    try{return window.lpDb||((typeof lpDb!=='undefined')?lpDb:null);}catch(e){return null;}
+  }
+  function userSafe(){
+    try{return window.lpFirebaseUser||window.lpAuth?.currentUser||((typeof lpFirebaseUser!=='undefined')?lpFirebaseUser:null);}catch(e){return null;}
+  }
+  async function pushAutoImageOne(p,item,preferredDocId){
+    const db=await dbSafe();if(!db||!userSafe()||!item?.image)return {ok:false,reason:'auth-or-image'};
+    try{
+      let ref=null;
+      if(preferredDocId)ref=db.collection('produtos').doc(String(preferredDocId));
+      else if(item.firebaseId)ref=db.collection('produtos').doc(String(item.firebaseId));
+      else if(text(p.code)){
+        const snap=await db.collection('produtos').where('code','==',String(p.code)).limit(3).get();
+        if(!snap.empty){
+          for(const d of snap.docs){
+            const cloudImg=text(d.data()?.image);
+            if(!cloudImg||oldOrMissingImage(cloudImg)||item.autoImage){await d.ref.set({image:item.image,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}
+          }
+          item.firebaseId=item.firebaseId||snap.docs[0].id;return {ok:true,docId:item.firebaseId};
+        }
+      }
+      if(ref){await ref.set({image:item.image,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});return {ok:true,docId:preferredDocId||item.firebaseId};}
+      return {ok:false,reason:'not-found'};
+    }catch(e){console.warn('Envio de imagem automática:',e);return {ok:false,error:e};}
+  }
+  async function repairAutoImagesCloud(silent=true){
+    const local=ensureAllAutoLocal();
+    if(!userSafe())return {...local,cloud:0,errors:0,reason:'auth'};
+    let cloud=0,errors=0;
+    for(const p of (data.products||[]).filter(desiredTire)){
+      const item=localCatalogItem(p);if(!item?.image)continue;
+      const r=await pushAutoImageOne(p,item,item.firebaseId||'');
+      if(r.ok)cloud++;else if(r.error)errors++;
+    }
+    try{if(typeof save==='function')save();}catch(e){}
+    if(!silent)alert(`Imagens automáticas conferidas.\nPneus revisados: ${local.total}\nImagens locais geradas/corrigidas: ${local.changed}\nImagens enviadas ao Firebase: ${cloud}\nErros: ${errors}`);
+    return {...local,cloud,errors};
+  }
+  window.lpRepairAutoImagesCloudV41=repairAutoImagesCloud;
+
+  const publishBeforeImages=window.publishProductToFirebase;
+  if(typeof publishBeforeImages==='function'){
+    window.publishProductToFirebase=async function(productId,silent=false){
+      const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+      let prepared=null;
+      if(p&&desiredTire(p))prepared=ensureAutoLocal(p,true);
+      const result=await publishBeforeImages.apply(this,arguments);
+      if(p&&desiredTire(p)){
+        const item=localCatalogItem(p)||prepared?.item;
+        if(item?.image)await pushAutoImageOne(p,item,result?.docId||item?.firebaseId||'');
+      }
+      return result;
+    };
+  }
+
+  const mirrorBeforeImages=window.lpCatalogMirrorExact;
+  if(typeof mirrorBeforeImages==='function'){
+    window.lpCatalogMirrorExact=async function(silent=false){
+      /* A imagem é criada ANTES do espelho, então já entra no payload enviado ao Firestore. */
+      ensureAllAutoLocal();
+      const result=await mirrorBeforeImages.apply(this,arguments);
+      const images=await repairAutoImagesCloud(true);
+      if(!silent&&result?.ok){
+        console.info('Imagens automáticas após espelho:',images);
+      }
+      return {...(result||{}),autoImages:images};
+    };
+  }
+
+  const syncAllBeforeImages=window.syncAllCatalogToFirebase;
+  if(typeof syncAllBeforeImages==='function'){
+    window.syncAllCatalogToFirebase=async function(){ensureAllAutoLocal();const r=await syncAllBeforeImages.apply(this,arguments);await repairAutoImagesCloud(true);return r;};
+  }
+
+  const renderCatalogBeforeV41=window.renderCatalogo;
+  if(typeof renderCatalogBeforeV41==='function'){
+    window.renderCatalogo=function(...args){
+      ensureAllAutoLocal();
+      const r=renderCatalogBeforeV41.apply(this,args);
+      const page=document.getElementById('catalogo');
+      if(page){
+        const toolbar=page.querySelector('.lp-catalog-toolbar,.heading .actions');
+        if(toolbar&&!toolbar.querySelector('[data-lp-v41-images]')){
+          const b=document.createElement('button');b.className='btn ghost';b.dataset.lpV41Images='1';b.textContent='Conferir / enviar imagens';b.onclick=()=>window.lpRepairAutoImagesCloudV41(false);toolbar.appendChild(b);
+        }
+        let note=page.querySelector('.lp-v41-image-note');
+        if(!note){
+          note=document.createElement('div');note.className='notice lp-v41-image-note';note.style.marginTop='10px';
+          note.innerHTML='<b>Imagens automáticas corrigidas:</b> pneus de Carro/Moto que estiverem sem foto recebem o modelo preto/vermelho aprovado <b>antes</b> de serem enviados ao Firebase. Fotos reais já existentes continuam preservadas.';
+          const conn=page.querySelector('.lp-catalog-connection-box,.card');
+          conn?.after(note);
+        }
+      }
+      return r;
+    };
+  }
+
+  setTimeout(function(){
+    try{ensureAllAutoLocal();if(typeof save==='function')save();}catch(e){console.warn('Inicialização V41:',e);}
+  },450);
 })();
 </script>
 
