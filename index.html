@@ -806,12 +806,31 @@ tbody tr:hover{background:#fbfcff!important}
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 
+
+<style id="lp-required-firebase-login-v45-css">
+/* Login obrigatório: o Controle nunca aparece antes do Firebase confirmar a sessão. */
+body.lp-auth-required-v45:not(.lp-auth-ok-v45) #login,
+body.lp-auth-required-v45:not(.lp-auth-ok-v45) #login.hidden{
+  display:flex!important;
+}
+body.lp-auth-required-v45:not(.lp-auth-ok-v45) .app{
+  display:none!important;
+}
+body.lp-auth-required-v45.lp-auth-ok-v45 #login,
+body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
+  display:none!important;
+}
+body.lp-auth-required-v45.lp-auth-ok-v45 .app{
+  display:block!important;
+}
+</style>
+
 </head>
-<body>
+<body class="lp-auth-required-v45">
 <div id="login" class="login">
   <div class="login-card">
     <div class="login-logo">LP</div><h2>Le Pneus • Administrador</h2><p>Entre com a mesma conta administrativa usada no Catálogo LePneus</p>
-    <input id="loginUser" type="email" autocomplete="username" placeholder="E-mail" value="lepneus@outlook.com">
+    <input id="loginUser" type="email" autocomplete="username" placeholder="E-mail" value="">
     <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha">
     <button id="loginButton" onclick="doLogin()">Entrar com Firebase</button>
     <div id="loginMessage" class="hint">A senha é validada pelo Firebase e não fica salva neste HTML.</div>
@@ -11032,6 +11051,514 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
   window.lpExcelAutoSyncStatus=state;
   window.addEventListener('load',()=>setTimeout(start,1800));
   setInterval(()=>{if(!state.started)start(); if(currentPage()==='planilhas')renderStatus()},5000);
+})();
+</script>
+
+
+<script id="lp-ml-auto-products-v43">
+(function(){
+  if(window.__lpMLAutoProductsV43)return;
+  window.__lpMLAutoProductsV43=true;
+
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const T=v=>String(v??'').trim();
+  const E=v=>typeof esc==='function'?esc(v):T(v);
+  const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+  function typeOf(p){
+    const st=T(p?.sourceType).toLowerCase();
+    if(st==='pecas')return 'pecas';
+    if(st==='carro')return 'carro';
+    if(st==='moto')return 'moto';
+    if(st==='acessorios')return 'acessorios';
+    const s=(T(p?.category)+' '+T(p?.name)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+    if(/PECA|CAMINH/.test(s))return 'pecas';
+    if(/MOTO|MOTOC/.test(s))return 'moto';
+    if(/ACESS|CAMARA|RODA/.test(s))return 'acessorios';
+    return 'carro';
+  }
+
+  function ensureMLItem(p){
+    data.mercadoLivreItems=Array.isArray(data.mercadoLivreItems)?data.mercadoLivreItems:[];
+    let x=data.mercadoLivreItems.find(x=>String(x.productId)===String(p.id));
+    if(!x){
+      x={
+        id:Date.now()+Math.random(),
+        productId:p.id,
+        status:'Oportunidade automática',
+        orderStatus:'Analisar',
+        mlAutoDraft:true,
+        createdAt:typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR')
+      };
+      data.mercadoLivreItems.push(x);
+    }
+    return x;
+  }
+
+  function rows(){
+    const s=data.settings||{};
+    const all=(data.products||[]).filter(p=>N(p.qty)>0 && N(p.price)>0 && N(p.cost)>=0);
+    const out=[];
+
+    for(const p of all){
+      const tp=typeOf(p);
+      if(tp==='acessorios')continue;
+
+      const x=ensureMLItem(p);
+      const feePct=N(x.mlFeePct??x.mlClassicFeePct??s.mlClassicFeePct??16) || 16;
+      const freight=N(x.mlFreight??s.mlDefaultFreight??0);
+      const other=N(x.mlOtherCost??s.mlDefaultOther??0);
+      const reservePct=.05;
+      const localPrice=N(p.price);
+      const cost=N(p.cost);
+      const localProfit=localPrice-cost-(localPrice*feePct/100)-(localPrice*reservePct)-freight-other;
+      const localMargin=localPrice?localProfit/localPrice*100:0;
+
+      const targetMargin=tp==='pecas'?8:12;
+      const den=1-(feePct/100)-reservePct-(targetMargin/100);
+      let suggested=den>0?(cost+freight+other)/den:localPrice;
+      suggested=Math.max(localPrice,suggested);
+      if(s.mlPsychologicalPrice!==false && suggested>1)suggested=Math.ceil(suggested)-.10;
+
+      const fee=suggested*feePct/100;
+      const fiscal=suggested*reservePct;
+      const profit=suggested-cost-fee-fiscal-freight-other;
+      const margin=suggested?profit/suggested*100:0;
+
+      /* Peças têm prioridade. Pneus só entram com margem líquida razoável. */
+      if((tp==='carro'||tp==='moto') && localMargin<8 && margin<12)continue;
+
+      let score=0;
+      if(tp==='pecas')score+=45;              // foco principal em peças
+      else score+=15;                         // pneus bons também entram
+      score+=Math.min(25,Math.max(0,margin));
+      score+=Math.min(15,N(p.qty)*2);
+      if(profit>0)score+=15;
+      score=Math.round(Math.min(100,score));
+
+      let cls='warn',label='Revisar';
+      if(profit<=0){cls='bad';label='Não compensa'}
+      else if(margin>=targetMargin){cls='good';label=tp==='pecas'?'Boa peça':'Bom pneu'}
+
+      out.push({p,x,tp,cost,localPrice,localProfit,localMargin,suggested,profit,margin,fee,fiscal,feePct,freight,other,score,cls,label});
+    }
+
+    return out.sort((a,b)=>{
+      const ap=a.tp==='pecas'?1:0,bp=b.tp==='pecas'?1:0;
+      return bp-ap || b.score-a.score || b.profit-a.profit;
+    });
+  }
+
+  window.renderMercadoLivre=function(){
+    const arr=rows();
+    const pecas=arr.filter(r=>r.tp==='pecas');
+    const pneus=arr.filter(r=>r.tp==='carro'||r.tp==='moto');
+    const good=arr.filter(r=>r.profit>0);
+    const visible=arr.slice(0,20);
+
+    const cards=visible.map((r,i)=>`
+      <div class="lp-fast-card ${r.cls}">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+          <div>
+            <b>${E(r.p.name)}</b>
+            <small class="cell-sub">${E(r.p.code||'')} • ${r.tp==='pecas'?'Peça':r.tp==='moto'?'Pneu Moto':'Pneu Carro'} • estoque ${N(r.p.qty)}</small>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge ${r.cls==='good'?'ok':r.cls==='bad'?'danger':'warn'}">${E(r.label)}</span>
+            <span class="soft-chip">${r.score}/100</span>
+          </div>
+        </div>
+        <div class="lp-fast-grid">
+          <div class="lp-fast-box"><span>Custo</span><b>${M(r.cost)}</b></div>
+          <div class="lp-fast-box"><span>Preço sugerido</span><b>${M(r.suggested)}</b></div>
+          <div class="lp-fast-box"><span>Lucro estimado</span><b>${M(r.profit)} (${r.margin.toFixed(1)}%)</b></div>
+        </div>
+        <div class="lp-fast-actions">
+          <button class="btn ghost small" onclick="searchMLSimilar(${r.x.id})">Buscar anúncios</button>
+          <button class="btn ghost small" onclick="mlV6CompetitorModal(${r.x.id})">Registrar preços</button>
+          <button class="btn primary small" onclick="mlV6ApplyPrice(${r.x.id})">Aplicar preço</button>
+        </div>
+      </div>`).join('');
+
+    document.getElementById('mercadolivre').innerHTML=
+      heading('Mercado Livre','Foco principal em Peças; pneus entram quando apresentam margem interessante.',`
+        <div class="actions">
+          <button class="btn ghost" onclick="lpMLToggleSettings?.()">Custos e taxas</button>
+          <button class="btn primary" onclick="lpFastMLTop20?.()">20 melhores</button>
+        </div>`)+
+      `<div class="cards">
+        ${metric('Peças analisadas',pecas.length,'prioridade principal','green')}
+        ${metric('Pneus com margem',pneus.length,'Carro e Moto selecionados','green')}
+        ${metric('Oportunidades positivas',good.length,'lucro estimado acima de zero','green')}
+        ${metric('Melhor lucro',M(arr[0]?.profit||0),'estimado por unidade','green')}
+      </div>
+      <div class="notice" style="margin-top:14px"><b>Nova regra:</b> Peças recebem prioridade no ranking. Pneus de Carro/Moto só aparecem quando a margem estimada é interessante. Produtos com estoque zero não entram.</div>
+      <div class="lp-fast-list">${cards||'<div class="card empty">Nenhuma oportunidade disponível com estoque e preço válidos.</div>'}</div>
+      <small class="cell-sub" style="display:block;margin-top:14px">Os valores são estimativas. Para comparar com o Mercado Livre de verdade, use “Buscar anúncios” e “Registrar preços”.</small>`;
+
+    try{save()}catch(e){}
+  };
+
+  /* Regra explícita do catálogo: nunca manter pneus zerados no catálogo local. */
+  function pruneZeroLocalCatalog(){
+    if(!Array.isArray(data?.catalogItems))return;
+    data.catalogItems=data.catalogItems.filter(x=>{
+      const p=(data.products||[]).find(p=>String(p.id)===String(x.productId));
+      if(!p)return false;
+      const tp=typeOf(p);
+      if((tp==='carro'||tp==='moto')&&N(p.qty)<=0)return false;
+      return true;
+    });
+  }
+
+  const oldSync=window.syncProductChannels;
+  if(typeof oldSync==='function'){
+    window.syncProductChannels=function(p){
+      const r=oldSync.apply(this,arguments);
+      pruneZeroLocalCatalog();
+      return r;
+    };
+  }
+
+  const oldRenderCat=window.renderCatalogo;
+  if(typeof oldRenderCat==='function'){
+    window.renderCatalogo=function(...args){
+      pruneZeroLocalCatalog();
+      return oldRenderCat.apply(this,args);
+    };
+  }
+
+  setTimeout(()=>{try{pruneZeroLocalCatalog();save()}catch(e){}},500);
+})();
+</script>
+
+
+<style id="lp-stock-filters-v44-css">
+.lp-stock-quick{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.lp-stock-quick .btn.active{background:#ef2735!important;color:#fff!important;border-color:#ef2735!important}
+.lp-stock-info{margin:12px 0;padding:11px 13px;border:1px solid #e1e7ef;border-radius:11px;background:#f8fafc;color:#526176;font-size:12px}
+.lp-stock-danger{margin-left:auto}
+@media(max-width:850px){.lp-stock-danger{margin-left:0;width:100%}}
+</style>
+
+<script id="lp-stock-filters-v44">
+(function(){
+  if(window.__lpStockFiltersV44)return;
+  window.__lpStockFiltersV44=true;
+
+  const num=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const text=v=>String(v??'').trim();
+  const esc2=v=>typeof E==='function'?E(v):(typeof esc==='function'?esc(v):text(v));
+  const money2=v=>typeof M==='function'?M(v):(typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}));
+
+  function aroOf(p){
+    const direct=text(p?.aro).match(/\d{2}/);
+    if(direct)return direct[0];
+    const s=text(p?.name)+' '+text(p?.size);
+    const m=s.match(/(?:R|\-|\s)(1[0-9]|2[0-4])\b/i);
+    return m?m[1]:'';
+  }
+
+  function kindOf(p){
+    const st=text(p?.sourceType).toLowerCase();
+    if(st==='carro')return 'Carro';
+    if(st==='moto')return 'Moto';
+    if(st==='acessorios')return 'Acessórios';
+    if(st==='pecas')return 'Peças';
+
+    const s=(text(p?.category)+' '+text(p?.name)+' '+text(p?.location))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(s.includes('moto'))return 'Moto';
+    if(s.includes('peca')||s.includes('caminh'))return 'Peças';
+    if(s.includes('acess')||s.includes('camara')||s.includes('roda')||s.includes('material'))return 'Acessórios';
+    return 'Carro';
+  }
+
+  function inScope(p,scope){
+    const k=kindOf(p);
+    if(scope==='Pneus')return k==='Carro'||k==='Moto';
+    if(scope==='Todos')return true;
+    return k===scope;
+  }
+
+  window.__lpStockFiltersV44 = window.__lpStockFiltersV44 || {
+    q:'',scope:'Todos',brand:'Todas',aro:'Todos',qty:'todos'
+  };
+
+  window.lpStockQuickV44=function(scope,qty){
+    const f=window.__lpStockFiltersV44||{};
+    f.scope=scope||f.scope||'Todos';
+    f.qty=qty||'todos';
+    f.aro='Todos';
+    f.brand='Todas';
+    window.__lpStockFiltersV44=f;
+    window.__lpStockVisible=60;
+    window.renderEstoque();
+  };
+
+  window.lpStockFilterV44=function(){
+    window.__lpStockFiltersV44={
+      q:text(document.getElementById('lpStockQ44')?.value).toLowerCase(),
+      scope:document.getElementById('lpStockScope44')?.value||'Todos',
+      brand:document.getElementById('lpStockBrand44')?.value||'Todas',
+      aro:document.getElementById('lpStockAro44')?.value||'Todos',
+      qty:document.getElementById('lpStockQty44')?.value||'todos'
+    };
+    window.__lpStockVisible=60;
+    clearTimeout(window.__lpStockFilterTimer44);
+    window.__lpStockFilterTimer44=setTimeout(()=>window.renderEstoque(),80);
+  };
+
+  function currentFiltered(){
+    const products=Array.isArray(data?.products)?data.products:[];
+    const f=window.__lpStockFiltersV44||{q:'',scope:'Todos',brand:'Todas',aro:'Todos',qty:'todos'};
+    return products.filter(p=>{
+      if(f.q&&!`${p.code||''} ${p.name||''} ${p.brand||''} ${p.category||''}`.toLowerCase().includes(f.q))return false;
+      if(!inScope(p,f.scope))return false;
+      if(f.brand!=='Todas'&&text(p.brand)!==f.brand)return false;
+      if(f.aro!=='Todos'&&aroOf(p)!==f.aro)return false;
+      const q=num(p.qty);
+      if(f.qty==='zero'&&q!==0)return false;
+      if(f.qty==='baixo'&&!(q>0&&q<=2))return false;
+      if(f.qty==='disponivel'&&q<1)return false;
+      return true;
+    });
+  }
+
+  window.lpDeleteFilteredStockV44=function(){
+    const list=currentFiltered();
+    if(!list.length)return alert('Não há produtos neste filtro.');
+    const f=window.__lpStockFiltersV44||{};
+    const msg=`Excluir ${list.length} produto(s) deste filtro do Controle?\n\nFiltro: ${f.scope} • ${f.qty}\n\nATENÇÃO: produtos que continuam nas planilhas automáticas podem voltar na próxima sincronização.`;
+    if(!confirm(msg))return;
+    const ids=new Set(list.map(p=>String(p.id)));
+    data.products=(data.products||[]).filter(p=>!ids.has(String(p.id)));
+    if(Array.isArray(data.catalogItems))data.catalogItems=data.catalogItems.filter(x=>!ids.has(String(x.productId)));
+    if(Array.isArray(data.mercadoLivreItems))data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>!ids.has(String(x.productId)));
+    try{save()}catch(e){}
+    window.__lpStockVisible=60;
+    window.renderEstoque();
+  };
+
+  window.lpStockShowMoreV44=function(){
+    window.__lpStockVisible=(window.__lpStockVisible||60)+60;
+    window.renderEstoque();
+  };
+
+  window.renderEstoque=function(){
+    const products=Array.isArray(data?.products)?data.products:[];
+    const f=window.__lpStockFiltersV44||{q:'',scope:'Todos',brand:'Todas',aro:'Todos',qty:'todos'};
+
+    const scopeProducts=products.filter(p=>inScope(p,f.scope));
+    const brands=[...new Set(scopeProducts.map(p=>text(p.brand)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const aros=[...new Set(scopeProducts.filter(p=>['Carro','Moto'].includes(kindOf(p))).map(aroOf).filter(Boolean))]
+      .sort((a,b)=>num(a)-num(b));
+
+    const filtered=currentFiltered();
+    const visible=filtered.slice(0,window.__lpStockVisible||60);
+
+    const units=filtered.reduce((a,p)=>a+num(p.qty),0);
+    const zero=filtered.filter(p=>num(p.qty)===0).length;
+    const low=filtered.filter(p=>num(p.qty)>0&&num(p.qty)<=2).length;
+    const pneusAll=products.filter(p=>['Carro','Moto'].includes(kindOf(p)));
+    const pneusUnits=pneusAll.reduce((a,p)=>a+num(p.qty),0);
+    const avgCost=filtered.length?filtered.reduce((a,p)=>a+num(p.cost),0)/filtered.length:0;
+
+    const mixed=f.scope==='Todos';
+    const unitsLabel=mixed?'—':units.toLocaleString('pt-BR');
+    const unitsSub=mixed?'escolha uma categoria para somar corretamente':'soma das quantidades do filtro';
+
+    const rows=visible.map(p=>{
+      const q=num(p.qty), cls=q===0?'lp-zero-row':q<=2?'lp-low-row':'';
+      return `<tr class="${cls}">
+        <td><b>${esc2(p.code||'')}</b></td>
+        <td>${esc2(p.name||'')}</td>
+        <td>${esc2(kindOf(p))}</td>
+        <td>${esc2(p.brand||'')}</td>
+        <td>${esc2(aroOf(p)||'-')}</td>
+        <td><b>${q.toLocaleString('pt-BR')}</b></td>
+        <td>${money2(p.cost)}</td>
+        <td>${money2(p.price)}</td>
+        <td>${q===0?'<span class="badge danger">Zerado</span>':q<=2?'<span class="badge warn">Baixo</span>':'<span class="badge ok">Normal</span>'}</td>
+        <td class="actions">
+          <button class="btn ghost small" onclick="stockMovementModal(${p.id})">Movimentar</button>
+          <button class="btn ghost small" onclick="productModal(${p.id})">Editar</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('estoque').innerHTML=
+      heading('Estoque','Separe pneus, peças, zerados e aros para não carregar tudo de uma vez.',
+        `<div class="actions"><button class="btn primary" onclick="productModal()">+ Produto</button><button class="btn ghost" onclick="lpDeleteFilteredStockV44()">Excluir filtrados</button></div>`)+
+
+      `<div class="lp-stock-kpis">
+        <div><span>Produtos no filtro</span><b>${filtered.length}</b></div>
+        <div><span>Unidades no filtro</span><b>${unitsLabel}</b><small>${unitsSub}</small></div>
+        <div><span>Pneus em estoque</span><b>${pneusUnits.toLocaleString('pt-BR')}</b><small>Carro + Moto</small></div>
+        <div><span>Zerados no filtro</span><b>${zero}</b></div>
+        <div><span>Baixo (1–2)</span><b>${low}</b></div>
+      </div>
+
+      <div class="lp-stock-info"><b>Por que antes aparecia mais de 11 mil?</b> O número somava tudo junto: pneus, acessórios e principalmente peças/parafusos. Agora, quando estiver em “Todos os produtos”, não somamos categorias diferentes numa única quantidade. Para ver quantidade real de pneus, use “Todos os pneus”, “Carro” ou “Moto”.</div>
+
+      <div class="lp-stock-quick">
+        <button class="btn ${f.scope==='Todos'&&f.qty==='todos'?'active':''}" onclick="lpStockQuickV44('Todos','todos')">Todos os produtos</button>
+        <button class="btn ${f.scope==='Pneus'&&f.qty==='todos'?'active':''}" onclick="lpStockQuickV44('Pneus','todos')">Todos os pneus</button>
+        <button class="btn ${f.scope==='Carro'&&f.qty==='todos'?'active':''}" onclick="lpStockQuickV44('Carro','todos')">Carro</button>
+        <button class="btn ${f.scope==='Moto'&&f.qty==='todos'?'active':''}" onclick="lpStockQuickV44('Moto','todos')">Moto</button>
+        <button class="btn ${f.scope==='Acessórios'&&f.qty==='todos'?'active':''}" onclick="lpStockQuickV44('Acessórios','todos')">Acessórios</button>
+        <button class="btn ${f.scope==='Peças'&&f.qty==='todos'?'active':''}" onclick="lpStockQuickV44('Peças','todos')">Peças</button>
+        <button class="btn ${f.qty==='zero'?'active':''}" onclick="lpStockQuickV44('${f.scope||'Todos'}','zero')">Zerados</button>
+      </div>
+
+      <div class="card">
+        <div class="lp-stock-filter-grid">
+          <input id="lpStockQ44" placeholder="Código, produto ou marca" value="${esc2(f.q||'')}" oninput="lpStockFilterV44()">
+          <select id="lpStockScope44" onchange="lpStockFilterV44()">
+            ${['Todos','Pneus','Carro','Moto','Acessórios','Peças'].map(x=>`<option value="${x}" ${f.scope===x?'selected':''}>${x==='Todos'?'Todos os produtos':x==='Pneus'?'Todos os pneus':x}</option>`).join('')}
+          </select>
+          <select id="lpStockBrand44" onchange="lpStockFilterV44()"><option>Todas</option>${brands.map(x=>`<option ${f.brand===x?'selected':''}>${esc2(x)}</option>`).join('')}</select>
+          <select id="lpStockAro44" onchange="lpStockFilterV44()"><option>Todos</option>${aros.map(x=>`<option ${f.aro===x?'selected':''}>Aro ${x}</option>`).join('')}</select>
+          <select id="lpStockQty44" onchange="lpStockFilterV44()">
+            <option value="todos" ${f.qty==='todos'?'selected':''}>Todas quantidades</option>
+            <option value="disponivel" ${f.qty==='disponivel'?'selected':''}>Somente disponíveis</option>
+            <option value="baixo" ${f.qty==='baixo'?'selected':''}>Baixo (1–2)</option>
+            <option value="zero" ${f.qty==='zero'?'selected':''}>Somente zerados</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Marca</th><th>Aro</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody>${rows||'<tr><td colspan="10" class="empty">Nenhum produto neste filtro.</td></tr>'}</tbody>
+          </table>
+        </div>
+        ${filtered.length>visible.length?`<div class="lp-load-more"><button class="btn ghost" onclick="lpStockShowMoreV44()">Mostrar mais (${visible.length} de ${filtered.length})</button></div>`:''}
+        <div class="lp-performance-note">Exibindo ${visible.length} de ${filtered.length} produto(s). Use categoria, aro e status para reduzir a lista.</div>
+      </div>`;
+  };
+})();
+</script>
+
+
+<script id="lp-required-firebase-login-v45-js">
+(function(){
+  if(window.__lpRequiredFirebaseLoginV45)return;
+  window.__lpRequiredFirebaseLoginV45=true;
+
+  function setGate(user){
+    const body=document.body;
+    if(!body)return;
+    const login=document.getElementById('login');
+    const msg=document.getElementById('loginMessage');
+    const pass=document.getElementById('loginPass');
+
+    if(user){
+      body.classList.add('lp-auth-ok-v45');
+      if(login)login.classList.add('hidden');
+      if(msg)msg.textContent='Acesso autorizado.';
+      if(pass)pass.value='';
+      try{sessionStorage.setItem('logged','firebase')}catch(e){}
+      document.querySelectorAll('.profile-copy small').forEach(el=>el.textContent=user.email||'Administrador');
+    }else{
+      body.classList.remove('lp-auth-ok-v45');
+      if(login)login.classList.remove('hidden');
+      try{sessionStorage.removeItem('logged')}catch(e){}
+    }
+  }
+
+  async function ensureAuth(){
+    try{
+      if(!window.firebase)throw new Error('Firebase não carregou. Verifique a internet.');
+      if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+
+      lpFirebaseApp=firebase.app();
+      lpDb=firebase.firestore();
+      lpAuth=firebase.auth();
+
+      /* Mantém o login salvo neste navegador/computador. */
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+      lpAuth.onAuthStateChanged(function(user){
+        lpFirebaseUser=user||null;
+        lpFirebaseState.ready=true;
+        lpFirebaseState.connected=!!user;
+        lpFirebaseState.error='';
+        setGate(user);
+        if(user){
+          try{
+            if(typeof renderAll==='function')renderAll();
+          }catch(e){console.warn(e)}
+        }
+      });
+    }catch(e){
+      console.error('Login obrigatório Firebase:',e);
+      lpFirebaseState.error=e?.message||'Falha ao iniciar Firebase.';
+      setGate(null);
+      const msg=document.getElementById('loginMessage');
+      if(msg)msg.textContent='Não foi possível conectar ao Firebase. Confira a internet e tente novamente.';
+    }
+  }
+
+  /* Sobrescreve o login antigo apenas para garantir persistência LOCAL. */
+  window.doLogin=async function(){
+    const email=(document.getElementById('loginUser')?.value||'').trim();
+    const pass=document.getElementById('loginPass')?.value||'';
+    const msg=document.getElementById('loginMessage');
+    const btn=document.getElementById('loginButton');
+
+    if(!email||!pass){
+      if(msg)msg.textContent='Digite o e-mail e a senha.';
+      return;
+    }
+
+    try{
+      if(btn){btn.disabled=true;btn.textContent='Entrando...'}
+      if(msg)msg.textContent='Validando acesso...';
+
+      if(!window.firebase)throw new Error('Firebase não carregou.');
+      if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+
+      lpFirebaseApp=firebase.app();
+      lpDb=firebase.firestore();
+      lpAuth=firebase.auth();
+
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      const cred=await lpAuth.signInWithEmailAndPassword(email,pass);
+      lpFirebaseUser=cred.user||null;
+      setGate(lpFirebaseUser);
+    }catch(e){
+      console.error('Login Firebase:',e);
+      setGate(null);
+      if(msg){
+        const code=String(e?.code||'');
+        if(code.includes('invalid-credential')||code.includes('wrong-password')||code.includes('user-not-found')){
+          msg.textContent='E-mail ou senha inválidos.';
+        }else if(code.includes('too-many-requests')){
+          msg.textContent='Muitas tentativas. Aguarde um pouco e tente novamente.';
+        }else{
+          msg.textContent='Não foi possível entrar. Confira o e-mail, a senha e a internet.';
+        }
+      }
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='Entrar com Firebase'}
+    }
+  };
+
+  /* Sair desconecta do Firebase e bloqueia o Controle imediatamente. */
+  window.logout=async function(){
+    try{
+      if(!lpAuth){
+        if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+        lpAuth=firebase.auth();
+      }
+      await lpAuth.signOut();
+    }catch(e){console.warn(e)}
+    lpFirebaseUser=null;
+    setGate(null);
+  };
+
+  ensureAuth();
 })();
 </script>
 
