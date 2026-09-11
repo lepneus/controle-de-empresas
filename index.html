@@ -10916,7 +10916,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
 
   async function applyType(type){
     try{
-      if(!window.data||!Array.isArray(data.products))return;
+      if(typeof data==='undefined'||!data||!Array.isArray(data.products))return;
       const batch=txt(state.meta[type]?.batchId);
       if(!batch)return;
       const rows=[...state.docs.values()].filter(x=>txt(x.sourceType)===type && txt(x.batchId)===batch);
