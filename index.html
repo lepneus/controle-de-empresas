@@ -10842,5 +10842,198 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
 })();
 </script>
 
+
+<script id="lp-auto-excel-cloud-v1">
+/* LePneus • sincronização automática: Excel (Windows) -> Firestore -> Controle */
+(function(){
+  if(window.__lpAutoExcelCloudV1) return;
+  window.__lpAutoExcelCloudV1=true;
+
+  const state={started:false,online:false,error:'',docs:new Map(),meta:{},unsubs:[]};
+  const TYPE_LABEL={carro:'Carro',moto:'Moto',acessorios:'Acessórios',pecas:'Peças'};
+
+  function txt(v){return String(v??'').trim()}
+  function norm(v){return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim()}
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return null;
+  }
+  function currentPage(){
+    return document.querySelector('.page.active')?.id||'';
+  }
+  function productKey(p){
+    return [norm(p?.category),norm(p?.code),norm(p?.name)].join('|');
+  }
+  function cloudKey(x){
+    return [norm(x?.category),norm(x?.code),norm(x?.name)].join('|');
+  }
+  function findProduct(x){
+    const list=Array.isArray(data?.products)?data.products:[];
+    const sk=txt(x.syncKey);
+    if(sk){
+      let p=list.find(q=>txt(q.excelSyncKey)===sk);
+      if(p)return p;
+    }
+    if(txt(x.code)){
+      let p=list.find(q=>txt(q.code)===txt(x.code) && norm(q.category)===norm(x.category));
+      if(p)return p;
+    }
+    return list.find(q=>norm(q.sourceType)===norm(x.sourceType)&&norm(q.name)===norm(x.name))||null;
+  }
+  function changed(a,b){
+    return txt(a?.name)!==txt(b?.name) || txt(a?.code)!==txt(b?.code) ||
+      norm(a?.category)!==norm(b?.category) || Number(a?.qty||0)!==Number(b?.qty||0) ||
+      Number(a?.cost||0)!==Number(b?.cost||0) || Number(a?.price||0)!==Number(b?.price||0);
+  }
+  function renderStatus(){
+    const host=document.getElementById('planilhas');
+    if(!host)return;
+    let box=host.querySelector('#lpAutoExcelStatus');
+    if(!box){
+      box=document.createElement('div');
+      box.id='lpAutoExcelStatus';
+      box.className='notice';
+      box.style.marginBottom='14px';
+      host.prepend(box);
+    }
+    const active=Object.keys(state.meta).length;
+    const tone=state.error?'#b91c1c':state.online?'#166534':'#92400e';
+    box.innerHTML=`<b style="color:${tone}">Sincronização automática:</b> ${
+      state.error?'erro: '+state.error:
+      state.online?`conectada ao Firebase • ${active}/4 fontes recebidas`:
+      'aguardando conexão com o Firebase'
+    }<br><small>O Windows observa as quatro planilhas da rede. Ao salvar o Excel, os novos valores chegam aqui automaticamente.</small>`;
+  }
+  function rerender(){
+    try{
+      const p=currentPage();
+      if(p==='planilhas'&&typeof window.renderPlanilhas==='function'){ window.renderPlanilhas(); renderStatus(); return; }
+      if(p==='estoque'&&typeof window.renderEstoque==='function'){ window.renderEstoque(); return; }
+      if(p==='dashboard'&&typeof window.renderDashboard==='function'){ window.renderDashboard(); return; }
+    }catch(e){console.warn('Render Excel Auto:',e)}
+  }
+
+  async function applyType(type){
+    try{
+      if(!window.data||!Array.isArray(data.products))return;
+      const batch=txt(state.meta[type]?.batchId);
+      if(!batch)return;
+      const rows=[...state.docs.values()].filter(x=>txt(x.sourceType)===type && txt(x.batchId)===batch);
+      if(!rows.length && Number(state.meta[type]?.itemCount||0)>0)return;
+
+      const activeKeys=new Set();
+      let touched=0,created=0;
+      for(const x of rows){
+        activeKeys.add(txt(x.syncKey));
+        let p=findProduct(x);
+        const before=p?{...p}:null;
+        if(!p){
+          p={
+            id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
+            min:Number(data.settings?.defaultMinStock||0),
+            location:'Planilha automática: '+txt(x.sourceFile),
+          };
+          data.products.push(p); created++;
+        }
+        Object.assign(p,{
+          code:txt(x.code),name:txt(x.name),category:txt(x.category),brand:txt(x.brand),
+          qty:Number(x.qty||0),cost:Number(x.cost||0),price:Number(x.price||0),vista:Number(x.vista||0),
+          sourceType:type,sourceSheet:txt(x.sheet),sourceRow:Number(x.row||0),
+          excelSyncKey:txt(x.syncKey),excelManaged:true,excelSource:txt(x.sourceFile),
+          excelBatch:batch,excelUpdatedAt:txt(x.updatedAtText)
+        });
+        if(!before || changed(before,p)){
+          touched++;
+          if(before){
+            try{
+              if(Array.isArray(data.stockMovements) && Number(before.qty||0)!==Number(p.qty||0)){
+                data.stockMovements.unshift({
+                  id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
+                  date:(typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR')),
+                  productId:p.id,product:p.name,type:'Ajuste',qty:Number(p.qty||0),
+                  before:Number(before.qty||0),after:Number(p.qty||0),
+                  reason:'Sincronização automática da planilha',
+                  ref:txt(x.sourceFile)+' • '+txt(x.sheet),user:'Sincronizador'
+                });
+              }
+            }catch(e){}
+          }
+          /* Mantém os canais já vinculados ao Catálogo atualizados quando o Controle está aberto. */
+          if(type!=='pecas'){
+            try{if(typeof syncProductChannels==='function')syncProductChannels(p)}catch(e){console.warn(e)}
+          }
+        }
+      }
+
+      /* Só remove da visão ativa produtos que já eram gerenciados por este sincronizador e sumiram do lote atual. */
+      const removed=[];
+      data.products=data.products.filter(p=>{
+        if(!p?.excelManaged || txt(p.sourceType)!==type)return true;
+        if(activeKeys.has(txt(p.excelSyncKey)))return true;
+        removed.push(p);return false;
+      });
+      if(removed.length && Array.isArray(data.archivedProducts)){
+        const when=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+        removed.forEach(p=>data.archivedProducts.unshift({...p,archivedAt:when,archiveReason:'Removido da planilha automática'}));
+      }
+
+      data.spreadsheetConnections=data.spreadsheetConnections||{};
+      data.spreadsheetConnections[type]={
+        name:txt(state.meta[type]?.sourceFile),status:'Automática',
+        lastImportedAt:txt(state.meta[type]?.updatedAtText),
+        connectedAt:data.spreadsheetConnections[type]?.connectedAt||txt(state.meta[type]?.updatedAtText),
+        autoSync:true,itemCount:rows.length
+      };
+      try{if(typeof save==='function')save()}catch(e){}
+      if(touched||created||removed.length)rerender();
+      renderStatus();
+    }catch(e){
+      console.error('Aplicar planilha automática:',e);
+      state.error=e?.message||String(e);renderStatus();
+    }
+  }
+
+  function start(){
+    if(state.started)return;
+    const d=db();
+    if(!d){setTimeout(start,1500);return}
+    state.started=true;state.error='';
+    try{
+      state.unsubs.push(d.collection('controleEstoque').onSnapshot(s=>{
+        state.online=true;state.error='';
+        s.docChanges().forEach(ch=>{
+          if(ch.type==='removed')state.docs.delete(ch.doc.id);
+          else state.docs.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()});
+        });
+        ['carro','moto','acessorios','pecas'].forEach(applyType);
+        renderStatus();
+      },e=>{state.error=e.message||String(e);state.online=false;renderStatus()}));
+
+      state.unsubs.push(d.collection('controleSyncMeta').onSnapshot(s=>{
+        state.online=true;state.error='';
+        s.forEach(doc=>state.meta[doc.id]=doc.data()||{});
+        ['carro','moto','acessorios','pecas'].forEach(applyType);
+        renderStatus();
+      },e=>{state.error=e.message||String(e);state.online=false;renderStatus()}));
+    }catch(e){
+      state.error=e.message||String(e);state.online=false;renderStatus();
+    }
+  }
+
+  const oldRender=window.renderPlanilhas;
+  if(typeof oldRender==='function'){
+    window.renderPlanilhas=function(){
+      const r=oldRender.apply(this,arguments);
+      setTimeout(renderStatus,0);
+      return r;
+    };
+  }
+  window.lpExcelAutoSyncStatus=state;
+  window.addEventListener('load',()=>setTimeout(start,1800));
+  setInterval(()=>{if(!state.started)start(); if(currentPage()==='planilhas')renderStatus()},5000);
+})();
+</script>
+
 </body>
 </html>
