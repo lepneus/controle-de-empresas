@@ -876,13 +876,14 @@ body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const menu=[
 ['dashboard','home','Dashboard'],
-['estoque','box','Estoque'],
+['estoque','box','Pneus / Estoque'],
 ['planilhas','link','Conexão Planilhas'],
 ['vendas','cart','Vendas'],
 ['catalogo','globe','Catálogo LePneus'],
 ['mercadolivre','handshake','Mercado Livre'],
 ['caixa','wallet','Caixa'],
-['compras','bag','Compras'],
+['financeiro','wallet','Financeiro / Despesas'],
+['compras','bag','Entrada de pneus'],
 ['clientes','users','Clientes'],
 ['os','tools','Serviços'],
 ['agenda','calendar','Agenda e Lembretes'],
@@ -1922,7 +1923,7 @@ function renderPageById(id){
  const map={
   dashboard:renderDashboard,estoque:renderEstoque,planilhas:renderPlanilhas,
   vendas:renderVendas,catalogo:renderCatalogo,mercadolivre:renderMercadoLivre,
-  caixa:renderCaixa,compras:renderCompras,clientes:renderClientes,
+  caixa:renderCaixa,financeiro:renderFinanceiro,compras:renderCompras,clientes:renderClientes,
   fornecedores:renderFornecedores,os:renderOS,agenda:renderAgenda,
   fechamento:renderFechamento,backup:renderBackup,usuarios:renderUsuarios
  };
@@ -3813,8 +3814,8 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
    try{ensureData();enhanceData()}catch(e){}
    data.spreadsheetConnections=data.spreadsheetConnections||{};
    data.pendingImportDifferences=data.pendingImportDifferences||[];
-   const types=['carro','moto','acessorios','pecas'];
-   const desc={carro:'Pneus de carro',moto:'Pneus de moto',acessorios:'Câmaras, rodas e acessórios',pecas:'Peças de caminhão • campo reservado'};
+   const types=['carro','moto','acessorios'];
+   const desc={carro:'Pneus de carro',moto:'Pneus de moto',acessorios:'Câmaras, rodas e acessórios'};
    const cards=types.map(type=>{
      const c=data.spreadsheetConnections[type];
      const pending=data.pendingImportDifferences.filter(x=>x.type===type&&x.status==='Pendente').length;
@@ -3828,7 +3829,7 @@ html,body,.main,.content{background:#f5f7fb!important;color:#172033!important}.t
    const connected=['carro','moto','acessorios'].filter(t=>data.spreadsheetConnections[t]).length;
    const pending=data.pendingImportDifferences.filter(x=>x.status==='Pendente').length;
    document.getElementById('planilhas').innerHTML=
-     heading('Conexão Planilhas','Carro, Moto, Acessórios e campo reservado para Peças')+
+     heading('Conexão Planilhas','Carro, Moto e Acessórios')+
      `<div class="notice"><b>Hoje:</b> a importação atualiza o Controle quando você seleciona o Excel. Depois da importação de Carro ou Moto, o Catálogo local é reconciliado automaticamente e, se o Firebase estiver conectado, a nuvem também é atualizada.</div>
       <div class="cards">${metric('Planilhas ativas','3','Carro • Moto • Acessórios','green')}${metric('Selecionadas',connected,'neste navegador',connected===3?'green':'red')}${metric('Campo Peças','Pronto','aguardando a planilha','green')}${metric('Diferenças pendentes',pending,'aguardando revisão',pending?'red':'green')}</div>
       <div class="settings-grid" style="margin-top:16px">${cards}</div>
@@ -9472,13 +9473,13 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       box.style.marginBottom='14px';
       host.prepend(box);
     }
-    const active=Object.keys(state.meta).length;
+    const active=['carro','moto','acessorios'].filter(t=>state.meta[t]).length;
     const tone=state.error?'#b91c1c':state.online?'#166534':'#92400e';
     box.innerHTML=`<b style="color:${tone}">Sincronização automática:</b> ${
       state.error?'erro: '+state.error:
-      state.online?`conectada ao Firebase • ${active}/4 fontes recebidas`:
+      state.online?`conectada ao Firebase • ${active}/3 fontes recebidas`:
       'aguardando conexão com o Firebase'
-    }<br><small>O Windows observa as quatro planilhas da rede. Ao salvar o Excel, os novos valores chegam aqui automaticamente.</small>`;
+    }<br><small>O Windows observa as três planilhas da LePneus. Ao salvar o Excel, os novos valores chegam aqui automaticamente.</small>`;
   }
   function rerender(){
     try{
@@ -9605,14 +9606,14 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
           if(ch.type==='removed')state.docs.delete(ch.doc.id);
           else state.docs.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()});
         });
-        ['carro','moto','acessorios','pecas'].forEach(applyType);
+        ['carro','moto','acessorios'].forEach(applyType);
         renderStatus();
       },e=>{state.error=e.message||String(e);state.online=false;renderStatus()}));
 
       state.unsubs.push(d.collection('controleSyncMeta').onSnapshot(s=>{
         state.online=true;state.error='';
         s.forEach(doc=>state.meta[doc.id]=doc.data()||{});
-        ['carro','moto','acessorios','pecas'].forEach(applyType);
+        ['carro','moto','acessorios'].forEach(applyType);
         renderStatus();
       },e=>{state.error=e.message||String(e);state.online=false;renderStatus()}));
     }catch(e){
@@ -9761,18 +9762,18 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       </div>`).join('');
 
     document.getElementById('mercadolivre').innerHTML=
-      heading('Mercado Livre','Foco principal em Peças; pneus entram quando apresentam margem interessante.',`
+      heading('Mercado Livre','Análise de pneus com estoque e margem interessante.',`
         <div class="actions">
           <button class="btn ghost" onclick="lpMLToggleSettings?.()">Custos e taxas</button>
           <button class="btn primary" onclick="lpFastMLTop20?.()">20 melhores</button>
         </div>`)+
       `<div class="cards">
-        ${metric('Peças analisadas',pecas.length,'prioridade principal','green')}
-        ${metric('Pneus com margem',pneus.length,'Carro e Moto selecionados','green')}
+        ${metric('Pneus analisados',pneus.length,'Carro e Moto','green')}
+        ${metric('Com lucro estimado',good.length,'oportunidades positivas','green')}
         ${metric('Oportunidades positivas',good.length,'lucro estimado acima de zero','green')}
         ${metric('Melhor lucro',M(arr[0]?.profit||0),'estimado por unidade','green')}
       </div>
-      <div class="notice" style="margin-top:14px"><b>Nova regra:</b> Peças recebem prioridade no ranking. Pneus de Carro/Moto só aparecem quando a margem estimada é interessante. Produtos com estoque zero não entram.</div>
+      <div class="notice" style="margin-top:14px"><b>Regra:</b> pneus de Carro/Moto aparecem quando têm estoque e margem estimada interessante. Produtos zerados não entram.</div>
       <div class="lp-fast-list">${cards||'<div class="card empty">Nenhuma oportunidade disponível com estoque e preço válidos.</div>'}</div>
       <small class="cell-sub" style="display:block;margin-top:14px">Os valores são estimativas. Para comparar com o Mercado Livre de verdade, use “Buscar anúncios” e “Registrar preços”.</small>`;
 
@@ -10403,18 +10404,27 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
 
       const customerId=createOrFindCustomer(name,phone);
 
-      /* skipStock=true: a planilha já trouxe o estoque reduzido. */
-      const res=createIntegratedSale({
-        customerId,
-        items:[{id:p.id,qty:q,price:unit,cost:num(d.cost||p.cost)}],
-        discount:0,payment,
-        financialStatus:'Pendente',
-        dueDate:firstDue,
-        originType:'Planilha automática',
-        originNumber:'PLANILHA-'+d.id,
-        skipStock:true
-      });
-      if(res.error)return alert(res.error);
+      /* skipStock=true: a planilha já trouxe o estoque reduzido.
+         Cliente/telefone são opcionais nesta confirmação, mesmo que a venda manual
+         esteja configurada para exigir cliente. */
+      const previousRequireCustomer=!!data.settings?.requireSaleCustomer;
+      if(!customerId && data.settings)data.settings.requireSaleCustomer=false;
+      let res;
+      try{
+        res=createIntegratedSale({
+          customerId,
+          items:[{id:p.id,qty:q,price:unit,cost:num(d.cost||p.cost)}],
+          discount:0,payment,
+          financialStatus:'Pendente',
+          dueDate:firstDue,
+          originType:'Planilha automática',
+          originNumber:'PLANILHA-'+d.id,
+          skipStock:true
+        });
+      }finally{
+        if(data.settings)data.settings.requireSaleCustomer=previousRequireCustomer;
+      }
+      if(!res || res.error)return alert(res?.error||'Não foi possível registrar a venda.');
 
       /* Trocamos o financeiro único pelas parcelas corretas. */
       removeInitialFinance(res);
@@ -10429,23 +10439,66 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       s.payment=payment;
       s.installmentAlertDays=alertDays;
 
-      createInstallments(s,{
-        count,
-        firstDue,
-        alertDays,
-        purchaseDate,
-        payment,
-        paidNow:payStatus==='Pago'
-      });
+      try{
+        createInstallments(s,{
+          count,
+          firstDue,
+          alertDays,
+          purchaseDate,
+          payment,
+          paidNow:payStatus==='Pago'
+        });
+      }catch(finErr){
+        console.error('Falha ao criar parcelas; criando lançamento de segurança.',finErr);
+        const fallbackStatus=payStatus==='Pago'?'Pago':'Pendente';
+        const ff=makeFinance({
+          type:'Receita',category:'Vendas',desc:`Venda #${s.id}`,
+          value:num(s.total),status:fallbackStatus,date:purchaseDate,
+          dueDate:fallbackStatus==='Pago'?purchaseDate:firstDue,
+          payment,customerId:s.customerId,originType:'Venda',
+          originId:s.id,originNumber:`VEN-${s.id}`
+        });
+        s.financeIds=[ff.id];
+        s.financeId=ff.id;
+        s.installments=[{number:1,total:1,value:num(s.total),dueDate:firstDue,financeId:ff.id,status:fallbackStatus}];
+        s.installmentCount=1;
+        s.financialStatus=fallbackStatus;
+      }
 
       d.saleId=s.id;
       d.status='Venda confirmada';
       d.resolvedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
 
       try{if(typeof log==='function')log(`Venda #${s.id} confirmada da planilha • ${p.name} × ${q} • ${count}x`) }catch(e){}
-      try{if(typeof save==='function')save()}catch(e){}
+
+      let persisted=true;
+      try{
+        if(typeof save==='function')save();
+      }catch(saveErr){
+        persisted=false;
+        console.error('Falha ao salvar a venda no navegador:',saveErr);
+      }
+
       closeModal();
-      try{if(typeof renderAll==='function')renderAll()}catch(e){}
+
+      /* Atualiza diretamente a tela de Vendas. Não depende apenas dos renderizadores
+         antigos acumulados no arquivo. */
+      try{
+        const vendasPage=document.getElementById('vendas');
+        if(vendasPage?.classList.contains('active') && typeof window.renderVendas==='function'){
+          window.renderVendas();
+        }else if(typeof window.renderAll==='function'){
+          window.renderAll();
+        }
+      }catch(renderErr){
+        console.error('Falha ao atualizar tela de Vendas:',renderErr);
+      }
+
+      if(!persisted){
+        alert(`A venda #${s.id} foi criada nesta tela, mas o navegador não conseguiu salvá-la. Me mande um print para eu verificar o armazenamento.`);
+      }else{
+        setTimeout(()=>alert(`Venda #${s.id} registrada com sucesso e enviada para o histórico de Vendas.`),50);
+      }
       return;
     }
 
@@ -10587,7 +10640,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
         </div>
       </div>`).join('');
 
-    const salesRows=[...data.sales].map(s=>{
+    const salesRows=[...data.sales].sort((a,b)=>Number(b.id||0)-Number(a.id||0)).map(s=>{
       const fs=financeForSale(s.id).filter(f=>f.status!=='Cancelado');
       const paid=fs.filter(f=>f.status==='Pago').reduce((a,f)=>a+num(f.value),0);
       const installmentText=s.installmentCount>1?`${s.installmentCount}x • recebido ${moneyV(paid)}`:(s.payment||'-');
@@ -10634,6 +10687,473 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
         </table>
       </div>`;
   };
+})();
+</script>
+
+
+<script id="lp-sales-confirm-fix-v47">
+window.__LP_SALES_FIX_VERSION__='v47';
+</script>
+
+
+<style id="lp-start-month-v48-css">
+.lp-v48-split-note{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);font-size:12px;color:var(--muted)}
+.lp-v48-pending{border:1px solid var(--line);border-radius:13px;padding:13px;margin:10px 0;background:var(--panel)}
+.lp-v48-pending .row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.lp-v48-pending .big{font-size:20px;font-weight:900}
+.lp-v48-pending .meta{font-size:12px;color:var(--muted);margin-top:4px}
+.lp-v48-actions{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+
+<script id="lp-start-month-v48">
+(function(){
+  if(window.__lpStartMonthV48)return;
+  window.__lpStartMonthV48=true;
+
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const T=v=>String(v??'').trim();
+  const E2=v=>typeof esc==='function'?esc(v):T(v);
+  const M2=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const today2=()=>typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10);
+
+  function kind(p){
+    const st=T(p?.sourceType).toLowerCase();
+    if(st==='pecas')return 'Peças';
+    if(st==='carro')return 'Carro';
+    if(st==='moto')return 'Moto';
+    if(st==='acessorios')return 'Acessórios';
+    const s=(T(p?.category)+' '+T(p?.name)+' '+T(p?.location))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(s.includes('peca')||s.includes('caminh'))return 'Peças';
+    if(s.includes('moto'))return 'Moto';
+    if(s.includes('acess')||s.includes('camara')||s.includes('roda'))return 'Acessórios';
+    return 'Carro';
+  }
+  function isPiece(p){return kind(p)==='Peças'}
+  function isTire(p){return kind(p)==='Carro'||kind(p)==='Moto'}
+  function aro(p){
+    const s=T(p?.name)+' '+T(p?.size)+' '+T(p?.aro);
+    const m=s.match(/(?:R|\-|\s)(1[0-9]|2[0-4])\b/i);
+    if(m)return m[1];
+    const d=T(p?.aro).match(/\d{2}/); return d?d[0]:'';
+  }
+  function ensureV48(){
+    if(typeof ensureData==='function')ensureData();
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+    data.purchases=Array.isArray(data.purchases)?data.purchases:[];
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.cash=Array.isArray(data.cash)?data.cash:[];
+    data.cashSessions=Array.isArray(data.cashSessions)?data.cashSessions:[];
+    data.settings=data.settings||{};
+    if(data.settings.cashOpeningBalance===undefined)data.settings.cashOpeningBalance=N(data.cashRegister?.initial||0);
+  }
+
+  function tireProducts(){ensureV48();return (data.products||[]).filter(p=>!isPiece(p))}
+  function pieces(){ensureV48();return (data.products||[]).filter(isPiece)}
+  function pureTires(){ensureV48();return (data.products||[]).filter(isTire)}
+  function pendingEntries(){
+    ensureV48();
+    return data.pendingImportDifferences.filter(d=>N(d.diff)>0&&d.status==='Pendente'&&(d.type==='carro'||d.type==='moto'));
+  }
+
+  window.lpCurrentCashBalanceV48=function(){
+    ensureV48();
+    const cr=data.cashRegister||{};
+    if(cr.open){
+      const sid=T(cr.sessionId);
+      const mov=sid?data.cash.filter(c=>T(c.cashSessionId)===sid):data.cash;
+      const ent=mov.filter(c=>c.type==='Entrada').reduce((a,c)=>a+N(c.value),0);
+      const sai=mov.filter(c=>c.type==='Saída').reduce((a,c)=>a+N(c.value),0);
+      return N(cr.initial)+ent-sai;
+    }
+    if(cr.closedAt && Number.isFinite(Number(cr.closingValue)))return N(cr.closingValue);
+    return N(data.settings.cashOpeningBalance);
+  };
+
+  /* =========================
+     ESTOQUE: PEÇAS SEPARADAS
+     ========================= */
+  window.renderEstoque=function(){
+    ensureV48();
+    const all=tireProducts();
+    const f=window.__lpStockTireV48||{q:'',scope:'Pneus',aro:'Todos',qty:'todos'};
+    if(f.scope==='Peças'||f.scope==='Todos')f.scope='Pneus';
+
+    const aros=[...new Set(all.filter(isTire).map(aro).filter(Boolean))].sort((a,b)=>N(a)-N(b));
+    const filtered=all.filter(p=>{
+      if(f.q&&!`${p.code||''} ${p.name||''} ${p.brand||''}`.toLowerCase().includes(f.q))return false;
+      const k=kind(p);
+      if(f.scope==='Pneus'&&!isTire(p))return false;
+      if(['Carro','Moto','Acessórios'].includes(f.scope)&&k!==f.scope)return false;
+      if(f.aro!=='Todos'&&aro(p)!==f.aro)return false;
+      const q=N(p.qty);
+      if(f.qty==='zero'&&q!==0)return false;
+      if(f.qty==='baixo'&&!(q>0&&q<=2))return false;
+      if(f.qty==='disponivel'&&q<1)return false;
+      return true;
+    });
+    const lim=window.__lpStockTireVisibleV48||70, visible=filtered.slice(0,lim);
+    const tires=pureTires();
+    const tireUnits=tires.reduce((a,p)=>a+N(p.qty),0);
+    const zero=filtered.filter(p=>N(p.qty)===0).length;
+
+    const rows=visible.map(p=>`<tr>
+      <td><b>${E2(p.code||'')}</b></td><td>${E2(p.name||'')}</td><td>${E2(kind(p))}</td>
+      <td>${E2(p.brand||'')}</td><td>${E2(aro(p)||'-')}</td><td><b>${N(p.qty)}</b></td>
+      <td>${M2(p.cost)}</td><td>${M2(p.price)}</td>
+      <td>${N(p.qty)===0?'<span class="badge danger">Zerado</span>':N(p.qty)<=2?'<span class="badge warn">Baixo</span>':'<span class="badge ok">Normal</span>'}</td>
+      <td class="actions"><button class="btn ghost small" onclick="stockMovementModal(${p.id})">Movimentar</button><button class="btn ghost small" onclick="productModal(${p.id})">Editar</button></td>
+    </tr>`).join('');
+
+    document.getElementById('estoque').innerHTML=
+      heading('Pneus / Estoque','Estoque de pneus e acessórios sincronizado com as planilhas.',
+        `<div class="actions"><button class="btn primary" onclick="productModal()">+ Produto</button></div>`)+
+      `<div class="cards">
+        ${metric('Pneus em estoque',tireUnits,'Carro + Moto','green')}
+        ${metric('Modelos de pneus',tires.length,'cadastros','green')}
+        ${metric('Filtrados',filtered.length,'na tela','green')}
+        ${metric('Zerados',zero,'no filtro',zero?'red':'green')}
+      </div>
+      <div class="lp-v48-split-note"><b>Estoque:</b> esta tela considera somente Pneus e Acessórios.</div>
+      <div class="card">
+        <div class="lp-stock-filter-grid">
+          <input id="lpV48Q" placeholder="Código, pneu ou marca" value="${E2(f.q)}" oninput="lpStockV48Filter()">
+          <select id="lpV48Scope" onchange="lpStockV48Filter()">
+            ${['Pneus','Carro','Moto','Acessórios'].map(x=>`<option ${f.scope===x?'selected':''}>${x}</option>`).join('')}
+          </select>
+          <select id="lpV48Aro" onchange="lpStockV48Filter()"><option>Todos</option>${aros.map(x=>`<option ${f.aro===x?'selected':''}>${x}</option>`).join('')}</select>
+          <select id="lpV48Qty" onchange="lpStockV48Filter()">
+            <option value="todos" ${f.qty==='todos'?'selected':''}>Todas quantidades</option>
+            <option value="disponivel" ${f.qty==='disponivel'?'selected':''}>Disponíveis</option>
+            <option value="baixo" ${f.qty==='baixo'?'selected':''}>Baixo (1–2)</option>
+            <option value="zero" ${f.qty==='zero'?'selected':''}>Zerados</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Código</th><th>Produto</th><th>Tipo</th><th>Marca</th><th>Aro</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="10" class="empty">Nenhum item neste filtro.</td></tr>'}</tbody></table></div>
+        ${filtered.length>visible.length?`<div style="padding:12px"><button class="btn ghost" onclick="window.__lpStockTireVisibleV48=${lim+70};renderEstoque()">Mostrar mais (${visible.length} de ${filtered.length})</button></div>`:''}
+      </div>`;
+  };
+
+  window.lpStockV48Filter=function(){
+    window.__lpStockTireV48={
+      q:T(document.getElementById('lpV48Q')?.value).toLowerCase(),
+      scope:T(document.getElementById('lpV48Scope')?.value)||'Pneus',
+      aro:T(document.getElementById('lpV48Aro')?.value)||'Todos',
+      qty:T(document.getElementById('lpV48Qty')?.value)||'todos'
+    };
+    window.__lpStockTireVisibleV48=70;
+    renderEstoque();
+  };
+
+  window.renderPecas=function(){
+    ensureV48();
+    const q=T(document.getElementById('lpPartsSearchV48')?.value).toLowerCase();
+    const arr=pieces().filter(p=>!q||`${p.code||''} ${p.name||''} ${p.brand||''}`.toLowerCase().includes(q));
+    const units=arr.reduce((a,p)=>a+N(p.qty),0);
+    const value=arr.reduce((a,p)=>a+N(p.qty)*N(p.cost),0);
+    const rows=arr.slice(0,100).map(p=>`<tr><td><b>${E2(p.code||'')}</b></td><td>${E2(p.name||'')}</td><td>${E2(p.sourceSheet||p.brand||'-')}</td><td><b>${N(p.qty)}</b></td><td>${M2(p.cost)}</td><td>${M2(p.price)}</td><td><button class="btn ghost small" onclick="productModal(${p.id})">Editar</button></td></tr>`).join('');
+    document.getElementById('pecas').innerHTML=
+      heading('Peças','Área separada do estoque de pneus. Não interfere na quantidade de pneus.',
+        `<button class="btn ghost" onclick="openPage('estoque')">Voltar aos pneus</button>`)+
+      `<div class="cards">${metric('Peças cadastradas',arr.length,'itens','green')}${metric('Unidades de peças',units,'separadas dos pneus','green')}${metric('Valor a custo',M2(value),'somente peças','green')}</div>
+      <div class="card" style="margin-top:16px">
+        <div class="toolbar"><input id="lpPartsSearchV48" placeholder="Pesquisar peça ou código" value="${E2(q)}" oninput="renderPecas()"></div>
+        <div class="table-wrap"><table><thead><tr><th>Código</th><th>Peça</th><th>Origem</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhuma peça encontrada.</td></tr>'}</tbody></table></div>
+        ${arr.length>100?`<div class="lp-v48-split-note">Mostrando os primeiros 100 resultados. Use a pesquisa para encontrar uma peça específica.</div>`:''}
+      </div>`;
+  };
+
+  /* =========================
+     CAIXA: SALDO INICIAL EDITÁVEL
+     ========================= */
+  window.lpEditCashModalV48=function(){
+    ensureV48();
+    const current=data.cashRegister?.open?N(data.cashRegister.initial):N(data.settings.cashOpeningBalance);
+    showModal(`<h2>Editar caixa</h2>
+      <div class="notice"><b>Use no início:</b> informe o valor que realmente está disponível no caixa quando começar a usar o sistema.</div>
+      <div class="form">
+        <label>Saldo inicial disponível<input id="lpCashBaseV48" type="number" min="0" step="0.01" value="${current.toFixed(2)}"></label>
+        <label class="full">Observação<input id="lpCashNoteV48" placeholder="Ex.: saldo inicial de outubro"></label>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpSaveCashBaseV48()">Salvar saldo</button></div>`);
+  };
+  window.lpSaveCashBaseV48=function(){
+    ensureV48();
+    const val=N(document.getElementById('lpCashBaseV48')?.value);
+    const note=T(document.getElementById('lpCashNoteV48')?.value);
+    if(val<0)return alert('Informe um valor válido.');
+    data.settings.cashOpeningBalance=val;
+    data.cashRegister=data.cashRegister||{};
+    data.cashRegister.initial=val;
+    if(data.cashRegister.open&&data.cashRegister.sessionId){
+      const s=data.cashSessions.find(x=>T(x.id)===T(data.cashRegister.sessionId));
+      if(s)s.initial=val;
+    }
+    try{if(typeof log==='function')log(`Editou saldo inicial do caixa para ${M2(val)}${note?' • '+note:''}`)}catch(e){}
+    try{save()}catch(e){}
+    closeModal();renderCaixa();
+  };
+  window.openCashModal=function(){
+    ensureV48();
+    if(data.cashRegister?.open)return alert('O caixa já está aberto.');
+    const base=N(data.settings.cashOpeningBalance);
+    showModal(`<h2>Abrir caixa</h2><div class="form"><label>Responsável<input id="cuser" value="Administrador"></label><label>Valor inicial<input id="cinitial" type="number" step="0.01" value="${base.toFixed(2)}"></label></div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="openCash()">Abrir caixa</button></div>`);
+  };
+  window.renderCaixa=function(){
+    ensureV48();
+    const cr=data.cashRegister||{};
+    const sid=T(cr.sessionId);
+    const mov=cr.open&&sid?data.cash.filter(c=>T(c.cashSessionId)===sid):[];
+    const ent=mov.filter(c=>c.type==='Entrada').reduce((a,c)=>a+N(c.value),0);
+    const sai=mov.filter(c=>c.type==='Saída').reduce((a,c)=>a+N(c.value),0);
+    const balance=lpCurrentCashBalanceV48();
+    const actions=`<div class="actions"><button class="btn ghost" onclick="lpEditCashModalV48()">Editar caixa</button>${cr.open?`<button class="btn primary" onclick="closeCashModal()">Fechar caixa</button>`:`<button class="btn primary" onclick="openCashModal()">Abrir caixa</button>`}</div>`;
+    document.getElementById('caixa').innerHTML=
+      heading('Caixa','Saldo inicial + entradas e saídas interligadas ao Financeiro.',actions)+
+      `<div class="cards">
+        ${metric('Saldo disponível',M2(balance),'valor atual calculado',balance>=0?'green':'red')}
+        ${metric('Saldo inicial',M2(cr.open?N(cr.initial):N(data.settings.cashOpeningBalance)),'editável','green')}
+        ${metric('Entradas da sessão',M2(ent),'recebimentos','green')}
+        ${metric('Saídas da sessão',M2(sai),'despesas pagas','red')}
+      </div>
+      <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Origem</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody>
+      ${data.cash.slice(0,150).map(c=>`<tr><td>${E2(c.date)}</td><td>${typeof statusBadge==='function'?statusBadge(c.type):E2(c.type)}</td><td>${E2(c.desc)}</td><td>${E2(c.originNumber||c.originType||'Manual')}</td><td>${E2(c.payment||'-')}</td><td>${M2(c.value)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Sem movimentações.</td></tr>'}
+      </tbody></table></div>`;
+  };
+
+  /* =========================
+     ENTRADA DE PNEUS / DESPESA
+     ========================= */
+  window.lpOpenNextTireEntryV48=function(){
+    const p=pendingEntries()[0];
+    if(p)return lpTireEntryModalV48(p.id);
+    alert('Nenhuma entrada de pneus aguardando confirmação. Primeiro atualize a quantidade na planilha original e salve; quando o estoque aumentar, o sistema cria a entrada aqui automaticamente.');
+  };
+
+  window.lpTireEntryModalV48=function(id){
+    ensureV48();
+    const d=data.pendingImportDifferences.find(x=>String(x.id)===String(id));
+    if(!d)return;
+    const qty=N(d.diff), unit=N(d.cost), total=qty*unit;
+    showModal(`<h2>Confirmar entrada de pneus</h2>
+      <div class="notice"><b>${E2(d.name)}</b><br>Planilha detectou <b>+${qty}</b> unidade(s): ${N(d.oldQty)} → ${N(d.newQty)}.<br><small>O estoque já foi atualizado pela planilha. Aqui registramos apenas a compra/despesa.</small></div>
+      <div class="form">
+        <label>Quantidade<input value="${qty}" disabled></label>
+        <label>Custo unitário<input id="lpEntryCostV48" type="number" min="0" step="0.01" value="${unit.toFixed(2)}" oninput="lpEntryCalcV48(${qty})"></label>
+        <label>Total pago / a pagar<input id="lpEntryTotalV48" type="number" min="0" step="0.01" value="${total.toFixed(2)}"></label>
+        <label>Data da compra<input id="lpEntryDateV48" type="date" value="${today2()}"></label>
+        <label>Forma de pagamento<select id="lpEntryPayV48">${['PIX','Dinheiro','Débito','Crédito','Boleto','Transferência','Cheque','Outro'].map(x=>`<option>${x}</option>`).join('')}</select></label>
+        <label>Situação<select id="lpEntryStatusV48" onchange="lpEntryStatusV48()"><option value="Pago">Pago</option><option value="Pendente">A pagar</option></select></label>
+        <label id="lpEntryDueWrapV48" style="display:none">Vencimento<input id="lpEntryDueV48" type="date"></label>
+        <label class="full">Observação<input id="lpEntryNoteV48" placeholder="Opcional"></label>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Depois</button><button class="btn ghost" onclick="lpResolveStockEntryV48(${d.id},'ajuste')">Foi só ajuste</button><button class="btn primary" onclick="lpResolveStockEntryV48(${d.id},'compra')">Registrar entrada</button></div>`);
+  };
+  window.lpEntryCalcV48=function(qty){
+    const c=N(document.getElementById('lpEntryCostV48')?.value);
+    const el=document.getElementById('lpEntryTotalV48');if(el)el.value=(N(qty)*c).toFixed(2);
+  };
+  window.lpEntryStatusV48=function(){
+    const st=T(document.getElementById('lpEntryStatusV48')?.value);
+    const w=document.getElementById('lpEntryDueWrapV48');if(w)w.style.display=st==='Pendente'?'block':'none';
+  };
+
+  window.lpResolveStockEntryV48=function(id,action){
+    ensureV48();
+    const d=data.pendingImportDifferences.find(x=>String(x.id)===String(id));
+    if(!d)return;
+    if(action==='ajuste'){
+      d.status='Ajuste confirmado';
+      d.resolvedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+      try{if(typeof log==='function')log(`Entrada de estoque classificada como ajuste: ${d.name} +${N(d.diff)}`)}catch(e){}
+      try{save()}catch(e){}
+      closeModal();renderCompras();renderFinanceiro();return;
+    }
+
+    const qty=N(d.diff);
+    const unit=N(document.getElementById('lpEntryCostV48')?.value);
+    const total=N(document.getElementById('lpEntryTotalV48')?.value);
+    const date=T(document.getElementById('lpEntryDateV48')?.value)||today2();
+    const payment=T(document.getElementById('lpEntryPayV48')?.value)||'PIX';
+    const status=T(document.getElementById('lpEntryStatusV48')?.value)||'Pago';
+    const due=T(document.getElementById('lpEntryDueV48')?.value);
+    const note=T(document.getElementById('lpEntryNoteV48')?.value);
+    if(total<0||unit<0)return alert('Confira os valores.');
+    if(status==='Pendente'&&!due)return alert('Informe o vencimento.');
+
+    const pid=typeof idNow==='function'?idNow():Date.now()+Math.random();
+    const number='ENT-'+String(pid).slice(-7);
+    const purchase={
+      id:pid,number,date,productId:d.productId,productName:d.name,qty,
+      unitCost:unit,total,status,financeId:'',supplierId:'',
+      stockApplied:true,originType:'Planilha automática',importDifferenceId:d.id,
+      note,createdAt:typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR')
+    };
+    data.purchases.unshift(purchase);
+
+    const f=makeFinance({
+      type:'Despesa',category:'Entrada de pneus',
+      desc:`Entrada de ${qty} pneu(s) • ${d.name}`,
+      value:total,status,date,dueDate:status==='Pago'?date:due,
+      payment,originType:'Compra',originId:purchase.id,originNumber:number
+    });
+    purchase.financeId=f.id;
+    if(status==='Pendente'&&due&&typeof ensureFinanceReminder==='function')ensureFinanceReminder(f);
+
+    d.status='Entrada confirmada';
+    d.purchaseId=purchase.id;
+    d.resolvedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+
+    try{if(typeof log==='function')log(`Registrou entrada de ${qty} pneu(s): ${d.name} • ${M2(total)}`)}catch(e){}
+    try{save()}catch(e){}
+    closeModal();
+    try{renderCompras();renderFinanceiro();renderCaixa()}catch(e){}
+    alert(`Entrada registrada: ${qty} pneu(s) • ${M2(total)}.`);
+  };
+
+  window.lpExpenseModalV48=function(){
+    showModal(`<h2>Nova despesa</h2><div class="form">
+      <label class="full">Descrição<input id="lpExpDescV48" placeholder="Ex.: energia, frete, material..."></label>
+      <label>Categoria<input id="lpExpCatV48" value="Despesa geral"></label>
+      <label>Valor<input id="lpExpValueV48" type="number" min="0" step="0.01"></label>
+      <label>Data<input id="lpExpDateV48" type="date" value="${today2()}"></label>
+      <label>Pagamento<select id="lpExpPayV48">${['PIX','Dinheiro','Débito','Crédito','Boleto','Transferência','Outro'].map(x=>`<option>${x}</option>`).join('')}</select></label>
+      <label>Situação<select id="lpExpStatusV48" onchange="document.getElementById('lpExpDueWrapV48').style.display=this.value==='Pendente'?'block':'none'"><option value="Pago">Pago</option><option value="Pendente">A pagar</option></select></label>
+      <label id="lpExpDueWrapV48" style="display:none">Vencimento<input id="lpExpDueV48" type="date"></label>
+    </div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpSaveExpenseV48()">Salvar despesa</button></div>`);
+  };
+  window.lpSaveExpenseV48=function(){
+    const desc=T(document.getElementById('lpExpDescV48')?.value);
+    const cat=T(document.getElementById('lpExpCatV48')?.value)||'Despesa geral';
+    const value=N(document.getElementById('lpExpValueV48')?.value);
+    const date=T(document.getElementById('lpExpDateV48')?.value)||today2();
+    const payment=T(document.getElementById('lpExpPayV48')?.value)||'PIX';
+    const status=T(document.getElementById('lpExpStatusV48')?.value)||'Pago';
+    const due=T(document.getElementById('lpExpDueV48')?.value);
+    if(!desc||value<=0)return alert('Informe descrição e valor.');
+    if(status==='Pendente'&&!due)return alert('Informe o vencimento.');
+    const f=makeFinance({type:'Despesa',category:cat,desc,value,status,date,dueDate:status==='Pago'?date:due,payment,originType:'Manual',originNumber:'DESP-'+Date.now()});
+    if(status==='Pendente'&&due&&typeof ensureFinanceReminder==='function')ensureFinanceReminder(f);
+    try{if(typeof log==='function')log(`Registrou despesa: ${desc} • ${M2(value)}`)}catch(e){}
+    try{save()}catch(e){}
+    closeModal();renderFinanceiro();renderCaixa();
+  };
+
+  window.renderFinanceiro=function(){
+    ensureV48();
+    try{if(typeof updateFinancialStatuses==='function')updateFinancialStatuses()}catch(e){}
+    const valid=data.finance.filter(f=>f.status!=='Cancelado');
+    const rec=valid.filter(f=>f.type==='Receita').reduce((a,f)=>a+N(f.value),0);
+    const des=valid.filter(f=>f.type==='Despesa').reduce((a,f)=>a+N(f.value),0);
+    const pending=valid.filter(f=>['Pendente','Vencido'].includes(f.status)).reduce((a,f)=>a+N(f.value),0);
+    const entries=pendingEntries();
+    const rows=valid.slice(0,180).map(f=>`<tr><td>${typeof statusBadge==='function'?statusBadge(f.type):E2(f.type)}</td><td><b>${E2(f.desc)}</b><small class="cell-sub">${E2(f.category||'Geral')}</small></td><td>${M2(f.value)}</td><td>${E2(f.date||'-')}</td><td>${E2(f.dueDate||'-')}</td><td>${E2(f.payment||'-')}</td><td>${typeof statusBadge==='function'?statusBadge(f.status):E2(f.status)}</td><td>${!['Pago','Cancelado'].includes(f.status)?`<button class="btn primary small" onclick="markFinancePaid(${f.id})">Dar baixa</button>`:''}</td></tr>`).join('');
+    document.getElementById('financeiro').innerHTML=
+      heading('Financeiro / Despesas','Receitas, despesas e entradas de pneus ligadas ao caixa.',
+        `<div class="actions"><button class="btn ghost" onclick="lpExpenseModalV48()">+ Despesa</button><button class="btn primary" onclick="lpOpenNextTireEntryV48()">Entrada de pneus${entries.length?' ('+entries.length+')':''}</button></div>`)+
+      `<div class="cards">${metric('Receitas',M2(rec),'registradas','green')}${metric('Despesas',M2(des),'registradas','red')}${metric('Pendências',M2(pending),'a pagar / receber',pending?'red':'green')}${metric('Entradas pneus',entries.length,'aguardando confirmação',entries.length?'red':'green')}</div>
+      ${entries.length?`<div class="lp-v48-split-note"><b>${entries.length} entrada(s) de pneus detectada(s) nas planilhas.</b> Confirme o valor pago para lançar em Despesas/Caixa.</div>`:''}
+      <div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Data</th><th>Vencimento</th><th>Pagamento</th><th>Status</th><th>Ação</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">Nenhum lançamento.</td></tr>'}</tbody></table></div>`;
+  };
+
+  window.renderCompras=function(){
+    ensureV48();
+    const pending=pendingEntries();
+    const cards=pending.map(d=>`<div class="lp-v48-pending"><div class="row"><div><b>${E2(d.name)}</b><div class="meta">${E2(d.code||'')} • ${E2(d.type==='moto'?'Moto':'Carro')} • planilha ${E2(d.sheet||'')}</div></div><div class="big">+${N(d.diff)}</div></div><div class="meta">Estoque ${N(d.oldQty)} → ${N(d.newQty)} • custo da planilha ${M2(d.cost)} por unidade • estimado ${M2(N(d.diff)*N(d.cost))}</div><div class="lp-v48-actions" style="margin-top:10px"><button class="btn ghost small" onclick="lpResolveStockEntryV48(${d.id},'ajuste')">Foi ajuste</button><button class="btn primary small" onclick="lpTireEntryModalV48(${d.id})">Confirmar entrada</button></div></div>`).join('');
+    const purchases=data.purchases.filter(p=>p.originType==='Planilha automática'||T(p.number).startsWith('ENT-'));
+    const total=purchases.filter(p=>p.status!=='Cancelado').reduce((a,p)=>a+N(p.total),0);
+    const rows=purchases.slice(0,150).map(p=>`<tr><td><b>${E2(p.number)}</b></td><td>${E2(p.date)}</td><td>${E2(p.productName)}</td><td>${N(p.qty)}</td><td>${M2(p.unitCost||N(p.total)/Math.max(1,N(p.qty)))}</td><td>${M2(p.total)}</td><td>${typeof statusBadge==='function'?statusBadge(p.status):E2(p.status)}</td></tr>`).join('');
+    document.getElementById('compras').innerHTML=
+      heading('Entrada de pneus','Quando a planilha aumenta o estoque, a entrada aparece aqui para você confirmar o valor pago.',
+        `<button class="btn primary" onclick="lpOpenNextTireEntryV48()">Confirmar próxima entrada</button>`)+
+      `<div class="cards">${metric('Aguardando',pending.length,'entradas da planilha',pending.length?'red':'green')}${metric('Entradas registradas',purchases.length,'histórico','green')}${metric('Total comprado',M2(total),'registrado como despesa','red')}</div>
+      <div class="lp-v48-split-note"><b>Fluxo:</b> aumente os pneus na planilha original → sincronizador atualiza o estoque → esta tela mostra quantos entraram → você confirma o valor e pagamento → Financeiro/Caixa são atualizados. O site não altera o Excel diretamente.</div>
+      <div class="card" style="margin-top:16px"><div class="panel-head"><h3 class="section-title" style="margin:0">Aguardando confirmação</h3></div>${cards||'<div class="empty">Nenhuma entrada aguardando confirmação.</div>'}</div>
+      <div class="card table-wrap" style="margin-top:16px"><div class="panel-head"><h3 class="section-title" style="margin:0">Histórico de entradas</h3></div><table><thead><tr><th>Número</th><th>Data</th><th>Pneu</th><th>Qtd.</th><th>Custo un.</th><th>Total</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhuma entrada registrada.</td></tr>'}</tbody></table></div>`;
+  };
+
+  /* Dashboard: não mistura mais peças nos números de pneus e usa saldo real do caixa. */
+  window.renderDashboard=function(){
+    ensureV48();
+    const sales=(typeof activeSales==='function'?activeSales():data.sales.filter(s=>s.status!=='Cancelada'));
+    const parse=d=>typeof parseBRDateTime==='function'?parseBRDateTime(d):new Date(d);
+    const now=new Date();
+    const month=sales.filter(s=>{const d=parse(s.date);return d&&!isNaN(d)&&d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()});
+    const today=sales.filter(s=>{const d=parse(s.date);return d&&!isNaN(d)&&d.toDateString()===now.toDateString()});
+    const sum=a=>a.reduce((x,s)=>x+N(s.total),0);
+    const tires=pureTires(), tireUnits=tires.reduce((a,p)=>a+N(p.qty),0);
+    const pend=pendingEntries();
+    const expenses=data.finance.filter(f=>f.type==='Despesa'&&f.status!=='Cancelado').reduce((a,f)=>a+N(f.value),0);
+    document.getElementById('dashboard').innerHTML=
+      heading('Dashboard','Resumo da operação da LePneus.')+
+      `<div class="cards">
+        ${metric('Faturamento hoje',M2(sum(today)),today.length+' venda(s)','green')}
+        ${metric('Faturamento do mês',M2(sum(month)),month.length+' venda(s)','green')}
+        ${metric('Saldo disponível',M2(lpCurrentCashBalanceV48()),'Caixa atual',lpCurrentCashBalanceV48()>=0?'green':'red')}
+        ${metric('Pneus em estoque',tireUnits,'Carro + Moto','green')}
+        ${metric('Entradas a confirmar',pend.length,'aumentos detectados na planilha',pend.length?'red':'green')}
+        ${metric('Despesas',M2(expenses),'registradas','red')}
+      </div>
+      <div class="grid2">
+        <div class="card"><h3 class="section-title">Atalhos</h3><div class="lp-v48-actions"><button class="btn primary" onclick="openPage('vendas')">Vendas</button><button class="btn ghost" onclick="openPage('compras')">Entrada de pneus</button><button class="btn ghost" onclick="openPage('financeiro')">Despesas</button><button class="btn ghost" onclick="openPage('caixa')">Caixa</button></div></div>
+        <div class="card"><h3 class="section-title">Estoque</h3><div class="summary-list"><div><span>Modelos de pneus</span><b>${tires.length}</b></div><div><span>Unidades de pneus</span><b>${tireUnits}</b></div><div><span>Sincronização</span><b>Automática</b></div></div></div>
+      </div>`;
+  };
+
+  /* Atualiza o mapa leve, inclusive se esta correção for carregada depois do mapa original. */
+  window.renderPageById=function(id){
+    ensureV48();
+    const map={
+      dashboard:renderDashboard,estoque:renderEstoque,planilhas:renderPlanilhas,
+      vendas:renderVendas,catalogo:renderCatalogo,mercadolivre:renderMercadoLivre,
+      financeiro:renderFinanceiro,caixa:renderCaixa,compras:renderCompras,clientes:renderClientes,
+      fornecedores:renderFornecedores,os:renderOS,agenda:renderAgenda,
+      fechamento:renderFechamento,backup:renderBackup,usuarios:renderUsuarios
+    };
+    const fn=map[id]; if(!fn)return;
+    try{fn()}catch(e){console.error('Falha ao renderizar '+id,e);const el=document.getElementById(id);if(el)el.innerHTML=`<div class="card"><b>Erro ao abrir esta área.</b><br><small>${E2(e?.message||e)}</small></div>`}
+  };
+
+  ensureV48();
+  try{initNav()}catch(e){}
+})();
+</script>
+
+
+<script id="lp-remove-parts-v49">
+(function(){
+  if(window.__lpRemovePartsV49)return;
+  window.__lpRemovePartsV49=true;
+
+  function isPart(p){
+    const st=String(p?.sourceType||'').toLowerCase();
+    if(st==='pecas')return true;
+    const s=(String(p?.category||'')+' '+String(p?.name||''))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return /\bpeca\b|\bpecas\b/.test(s);
+  }
+
+  function purge(){
+    if(typeof data==='undefined'||!data)return;
+    const ids=new Set((data.products||[]).filter(isPart).map(p=>String(p.id)));
+
+    data.products=(data.products||[]).filter(p=>!isPart(p));
+    if(Array.isArray(data.pendingImportDifferences)){
+      data.pendingImportDifferences=data.pendingImportDifferences.filter(d=>String(d.type||'').toLowerCase()!=='pecas');
+    }
+    if(Array.isArray(data.mercadoLivreItems)){
+      data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>!ids.has(String(x.productId)));
+    }
+    if(Array.isArray(data.catalogItems)){
+      data.catalogItems=data.catalogItems.filter(x=>!ids.has(String(x.productId)));
+    }
+    if(data.spreadsheetConnections)delete data.spreadsheetConnections.pecas;
+
+    try{if(typeof save==='function')save()}catch(e){}
+  }
+
+  purge();
+  window.addEventListener('load',()=>setTimeout(purge,500));
 })();
 </script>
 
