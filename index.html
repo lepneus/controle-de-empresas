@@ -10927,6 +10927,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       if(p==='planilhas'&&typeof window.renderPlanilhas==='function'){ window.renderPlanilhas(); renderStatus(); return; }
       if(p==='estoque'&&typeof window.renderEstoque==='function'){ window.renderEstoque(); return; }
       if(p==='dashboard'&&typeof window.renderDashboard==='function'){ window.renderDashboard(); return; }
+      if(p==='vendas'&&typeof window.renderVendas==='function'){ window.renderVendas(); return; }
     }catch(e){console.warn('Render Excel Auto:',e)}
   }
 
@@ -10952,6 +10953,29 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
           };
           data.products.push(p); created++;
         }
+        /* v46: qualquer mudança de quantidade vinda da planilha vira diferença rastreável.
+           IMPORTANTE: a planilha já é a fonte do estoque; confirmar a venda NÃO baixa o estoque outra vez. */
+        if(before && Number(before.qty||0)!==Number(x.qty||0)){
+          try{
+            data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+            const oldQty=Number(before.qty||0), newQty=Number(x.qty||0);
+            const eventKey=['AUTO',type,txt(x.syncKey),oldQty,newQty,batch].join('|');
+            const exists=data.pendingImportDifferences.some(d=>txt(d.eventKey)===eventKey);
+            if(!exists){
+              data.pendingImportDifferences.unshift({
+                id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
+                batchId:batch,type,productId:p.id,
+                code:txt(x.code)||txt(before.code),name:txt(x.name)||txt(before.name),
+                oldQty,newQty,diff:newQty-oldQty,
+                cost:Number(x.cost??before.cost??0),price:Number(x.price??before.price??0),
+                file:txt(x.sourceFile),sheet:txt(x.sheet),
+                createdAt:(typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR')),
+                status:'Pendente',autoSync:true,eventKey
+              });
+            }
+          }catch(e){console.warn('Diferença automática:',e)}
+        }
+
         Object.assign(p,{
           code:txt(x.code),name:txt(x.name),category:txt(x.category),brand:txt(x.brand),
           qty:Number(x.qty||0),cost:Number(x.cost||0),price:Number(x.price||0),vista:Number(x.vista||0),
@@ -11556,6 +11580,501 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
   };
 
   ensureAuth();
+})();
+</script>
+
+
+<style id="lp-sales-linked-v46-css">
+.lp-sale-pending-v46{border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0;background:var(--panel)}
+.lp-sale-pending-v46 .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.lp-sale-pending-v46 .qty{font-size:20px;font-weight:900}
+.lp-sale-installments-v46{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.lp-sale-installments-v46>div{padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}
+.lp-sale-installments-v46 span{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+.lp-sale-installments-v46 b{font-size:13px}
+@media(max-width:800px){.lp-sale-installments-v46{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-sales-linked-v46">
+(function(){
+  if(window.__lpSalesLinkedV46)return;
+  window.__lpSalesLinkedV46=true;
+
+  const num=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const txt=v=>String(v??'').trim();
+  const escV=v=>typeof esc==='function'?esc(v):txt(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const moneyV=v=>typeof money==='function'?money(v):num(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const today=()=>new Date().toISOString().slice(0,10);
+
+  function brDate(iso){
+    if(!iso)return typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+    const [y,m,d]=iso.split('-').map(Number);
+    const now=new Date();
+    const dt=new Date(y,m-1,d,now.getHours(),now.getMinutes(),0);
+    return dt.toLocaleString('pt-BR');
+  }
+  function addDaysISO(iso,days){
+    const [y,m,d]=iso.split('-').map(Number);
+    const dt=new Date(y,m-1,d,12,0,0);
+    dt.setDate(dt.getDate()+Number(days||0));
+    return [dt.getFullYear(),String(dt.getMonth()+1).padStart(2,'0'),String(dt.getDate()).padStart(2,'0')].join('-');
+  }
+  function addMonthsSafeISO(iso,months){
+    const [y,m,d]=iso.split('-').map(Number);
+    const first=new Date(y,m-1+Number(months||0),1,12,0,0);
+    const lastDay=new Date(first.getFullYear(),first.getMonth()+1,0).getDate();
+    first.setDate(Math.min(d,lastDay));
+    return [first.getFullYear(),String(first.getMonth()+1).padStart(2,'0'),String(first.getDate()).padStart(2,'0')].join('-');
+  }
+  function isoToBR(iso){
+    if(!iso)return '-';
+    const a=iso.split('-');
+    return a.length===3?`${a[2]}/${a[1]}/${a[0]}`:iso;
+  }
+  function ensureArrays(){
+    data.sales=Array.isArray(data.sales)?data.sales:[];
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.cash=Array.isArray(data.cash)?data.cash:[];
+    data.reminders=Array.isArray(data.reminders)?data.reminders:[];
+    data.customers=Array.isArray(data.customers)?data.customers:[];
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+    data.saleCancellations=Array.isArray(data.saleCancellations)?data.saleCancellations:[];
+  }
+
+  function createOrFindCustomer(name,phone){
+    name=txt(name); phone=txt(phone);
+    if(!name && !phone)return '';
+    const digits=phone.replace(/\D/g,'');
+    let c=data.customers.find(x=>
+      (digits && txt(x.phone).replace(/\D/g,'')===digits) ||
+      (name && txt(x.name).toLowerCase()===name.toLowerCase())
+    );
+    if(!c){
+      c={id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
+         name:name||('Cliente '+phone),phone,email:'',doc:'',address:'',city:'',
+         notes:'Cadastrado automaticamente na confirmação de venda'};
+      data.customers.unshift(c);
+    }else{
+      if(name && !txt(c.name))c.name=name;
+      if(phone && !txt(c.phone))c.phone=phone;
+    }
+    return c.id;
+  }
+
+  function financeForSale(saleId){
+    return (data.finance||[]).filter(f=>f.originType==='Venda'&&String(f.originId)===String(saleId));
+  }
+
+  window.lpRefreshSaleFinancialV46=function(saleId){
+    const s=data.sales.find(x=>String(x.id)===String(saleId));
+    if(!s)return;
+    const fs=financeForSale(saleId).filter(f=>f.status!=='Cancelado');
+    if(!fs.length)return;
+    if(fs.every(f=>f.status==='Pago'))s.financialStatus='Pago';
+    else if(fs.some(f=>f.status==='Pago'))s.financialStatus='Parcial';
+    else if(fs.some(f=>f.status==='Vencido'))s.financialStatus='Vencido';
+    else s.financialStatus='Pendente';
+  };
+
+  function removeInitialFinance(res){
+    const f=res?.finance;
+    if(!f)return;
+    if(f.reminderId){
+      data.reminders=data.reminders.filter(r=>String(r.id)!==String(f.reminderId));
+    }
+    if(f.cashId){
+      data.cash=data.cash.filter(c=>String(c.id)!==String(f.cashId));
+    }
+    data.finance=data.finance.filter(x=>String(x.id)!==String(f.id));
+  }
+
+  function createInstallments(sale,opts){
+    const count=Math.max(1,Math.min(60,Math.floor(num(opts.count)||1)));
+    const total=Math.round(num(sale.total)*100)/100;
+    const base=Math.floor((total/count)*100)/100;
+    let allocated=0;
+    const financeIds=[], installments=[];
+
+    for(let i=1;i<=count;i++){
+      const value=i===count ? Math.round((total-allocated)*100)/100 : base;
+      allocated=Math.round((allocated+value)*100)/100;
+      const due=addMonthsSafeISO(opts.firstDue,i-1);
+      const status=opts.paidNow && count===1 ? 'Pago' : 'Pendente';
+
+      const f=makeFinance({
+        type:'Receita',
+        category:'Vendas',
+        desc:count>1?`Venda #${sale.id} • parcela ${i}/${count}`:`Venda #${sale.id}`,
+        value,
+        status,
+        date:opts.purchaseDate,
+        dueDate:status==='Pago'?opts.purchaseDate:due,
+        payment:opts.payment,
+        customerId:sale.customerId,
+        originType:'Venda',
+        originId:sale.id,
+        originNumber:count>1?`VEN-${sale.id}-${i}/${count}`:`VEN-${sale.id}`
+      });
+
+      if(f.reminderId && status!=='Pago'){
+        const r=data.reminders.find(x=>String(x.id)===String(f.reminderId));
+        if(r){
+          const alertDate=addDaysISO(due,-Math.max(0,num(opts.alertDays)));
+          r.datetime=alertDate+'T09:00';
+          r.title=`Parcela ${i}/${count} • ${sale.customer||'Cliente'} • ${moneyV(value)}`;
+          r.customer=sale.customer||'';
+          r.notes=`Venda #${sale.id} • vencimento ${isoToBR(due)} • ${sale.customerPhone||'sem telefone'}`;
+          r.type='Cobrança';
+          r.status='Pendente';
+          r.notified=false;
+        }
+      }
+
+      financeIds.push(f.id);
+      installments.push({number:i,total:count,value,dueDate:due,financeId:f.id,status});
+    }
+    sale.financeIds=financeIds;
+    sale.financeId=financeIds[0]||'';
+    sale.installments=installments;
+    sale.installmentCount=count;
+    lpRefreshSaleFinancialV46(sale.id);
+  }
+
+  function pendingDiff(diffId){
+    ensureArrays();
+    return data.pendingImportDifferences.find(x=>String(x.id)===String(diffId));
+  }
+
+  window.lpDifferenceSaleModal=function(diffId){
+    ensureArrays();
+    const d=pendingDiff(diffId); if(!d)return;
+    const q=Math.abs(num(d.diff));
+    const purchase=today();
+    const firstDue=addDaysISO(purchase,30);
+    showModal(`
+      <h2>Confirmar venda detectada</h2>
+      <div class="notice">
+        <b>${escV(d.name)}</b><br>
+        Estoque: <b>${num(d.oldQty)}</b> → <b>${num(d.newQty)}</b>
+        • saída detectada: <b>${q} unidade(s)</b>.<br>
+        <small>O estoque já veio reduzido da planilha. Confirmar aqui NÃO diminui novamente.</small>
+      </div>
+      <div class="form">
+        <label>Preço vendido por unidade
+          <input id="diprice" type="number" step="0.01" min="0" value="${num(d.price).toFixed(2)}">
+        </label>
+        <label>Data da compra
+          <input id="dipurchasedate" type="date" value="${purchase}">
+        </label>
+        <label>Forma de pagamento
+          <select id="dipayment">
+            <option>PIX</option><option>Dinheiro</option><option>Débito</option>
+            <option>Crédito</option><option>Boleto</option><option>Transferência</option>
+            <option>Cheque</option><option>Crediário / Parcelado</option><option>Outro</option>
+          </select>
+        </label>
+        <label>Situação
+          <select id="dipaymentstatus">
+            <option value="Pago">Pago na hora</option>
+            <option value="Pendente">A receber / parcelado</option>
+          </select>
+        </label>
+        <label>Quantidade de parcelas
+          <input id="diinstallments" type="number" min="1" max="60" value="1"
+            oninput="lpSaleInstallmentHintV46()">
+        </label>
+        <label>1º vencimento
+          <input id="difirstdue" type="date" value="${firstDue}">
+        </label>
+        <label>Avisar quantos dias antes
+          <input id="dialertdays" type="number" min="0" max="60" value="3">
+        </label>
+        <label>Nome do cliente
+          <input id="dicustomer" placeholder="Opcional">
+        </label>
+        <label>Telefone do cliente
+          <input id="diphone" placeholder="Opcional">
+        </label>
+        <label class="full">Observação
+          <input id="dinote" placeholder="Opcional">
+        </label>
+      </div>
+      <div id="diInstallmentHintV46" class="notice" style="margin-top:12px">
+        1 parcela. Se estiver paga, entra no Caixa; se estiver pendente, entra no Financeiro e Agenda.
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Deixar pendente</button>
+        <button class="btn ghost" onclick="lpResolveDifference(${d.id},'ajuste')">Foi ajuste</button>
+        <button class="btn primary" onclick="lpResolveDifference(${d.id},'venda')">Confirmar venda</button>
+      </div>`);
+  };
+
+  window.lpSaleInstallmentHintV46=function(){
+    const n=Math.max(1,Math.min(60,num(document.getElementById('diinstallments')?.value)||1));
+    const el=document.getElementById('diInstallmentHintV46');
+    const st=document.getElementById('dipaymentstatus');
+    if(n>1 && st)st.value='Pendente';
+    if(el)el.innerHTML=n>1
+      ? `<b>${n} parcelas:</b> o sistema criará ${n} contas a receber, com vencimentos mensais, e avisará antes de cada uma.`
+      : `1 parcela. Se estiver paga, entra no Caixa; se estiver pendente, entra no Financeiro e Agenda.`;
+  };
+
+  window.lpResolveDifference=async function(diffId,action){
+    ensureArrays();
+    const d=pendingDiff(diffId); if(!d)return;
+    const p=data.products.find(x=>String(x.id)===String(d.productId)); if(!p)return;
+
+    if(action==='ignorar'){closeModal();return;}
+
+    if(action==='venda'){
+      const q=Math.abs(num(d.diff));
+      const unit=num(document.getElementById('diprice')?.value ?? d.price);
+      const payment=txt(document.getElementById('dipayment')?.value)||'PIX';
+      const payStatus=txt(document.getElementById('dipaymentstatus')?.value)||'Pago';
+      const purchaseDate=txt(document.getElementById('dipurchasedate')?.value)||today();
+      const count=Math.max(1,Math.min(60,Math.floor(num(document.getElementById('diinstallments')?.value)||1)));
+      const firstDue=txt(document.getElementById('difirstdue')?.value)||addDaysISO(purchaseDate,30);
+      const alertDays=Math.max(0,Math.min(60,num(document.getElementById('dialertdays')?.value)||0));
+      const name=txt(document.getElementById('dicustomer')?.value);
+      const phone=txt(document.getElementById('diphone')?.value);
+      const note=txt(document.getElementById('dinote')?.value);
+
+      if(unit<0)return alert('Informe um preço válido.');
+      if(count>1 && !firstDue)return alert('Informe o primeiro vencimento.');
+
+      const customerId=createOrFindCustomer(name,phone);
+
+      /* skipStock=true: a planilha já trouxe o estoque reduzido. */
+      const res=createIntegratedSale({
+        customerId,
+        items:[{id:p.id,qty:q,price:unit,cost:num(d.cost||p.cost)}],
+        discount:0,payment,
+        financialStatus:'Pendente',
+        dueDate:firstDue,
+        originType:'Planilha automática',
+        originNumber:'PLANILHA-'+d.id,
+        skipStock:true
+      });
+      if(res.error)return alert(res.error);
+
+      /* Trocamos o financeiro único pelas parcelas corretas. */
+      removeInitialFinance(res);
+
+      const s=res.sale;
+      s.date=brDate(purchaseDate);
+      s.purchaseDate=purchaseDate;
+      s.customerPhone=phone;
+      s.importDifferenceId=d.id;
+      s.importNote=note;
+      s.originType='Planilha automática';
+      s.payment=payment;
+      s.installmentAlertDays=alertDays;
+
+      createInstallments(s,{
+        count,
+        firstDue,
+        alertDays,
+        purchaseDate,
+        payment,
+        paidNow:payStatus==='Pago'
+      });
+
+      d.saleId=s.id;
+      d.status='Venda confirmada';
+      d.resolvedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+
+      try{if(typeof log==='function')log(`Venda #${s.id} confirmada da planilha • ${p.name} × ${q} • ${count}x`) }catch(e){}
+      try{if(typeof save==='function')save()}catch(e){}
+      closeModal();
+      try{if(typeof renderAll==='function')renderAll()}catch(e){}
+      return;
+    }
+
+    /* Ajuste: apenas classifica a mudança; não altera novamente a quantidade que veio do Excel. */
+    d.status='Ajuste confirmado';
+    d.resolvedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+    d.adjustReason=txt(document.getElementById('dientryreason')?.value)||'Ajuste de estoque confirmado';
+    try{if(typeof log==='function')log(`Diferença classificada como ajuste: ${p.name} ${d.oldQty} → ${d.newQty}`)}catch(e){}
+    try{if(typeof save==='function')save()}catch(e){}
+    closeModal();
+    try{if(typeof renderAll==='function')renderAll()}catch(e){}
+  };
+
+  window.lpRefundSaleModalV46=function(id){
+    ensureArrays();
+    const s=data.sales.find(x=>String(x.id)===String(id));
+    if(!s || s.status==='Cancelada')return;
+    const fromSheet=!!s.importDifferenceId || /planilha|excel/i.test(txt(s.originType));
+    showModal(`
+      <h2>Estornar venda #${s.id}</h2>
+      <div class="notice">
+        O estorno cancela a venda e os valores vinculados no Financeiro/Caixa.
+        ${fromSheet?'<br><b>Estoque vindo do Excel:</b> se a mercadoria voltou fisicamente, aumente a quantidade na planilha original. O sincronizador fará o restante.':''}
+      </div>
+      <div class="form">
+        <label class="full">Motivo do estorno
+          <textarea id="lpRefundReasonV46" rows="4" placeholder="Obrigatório"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" onclick="lpConfirmRefundSaleV46(${s.id})">Confirmar estorno</button>
+      </div>`);
+  };
+
+  window.lpConfirmRefundSaleV46=function(id){
+    ensureArrays();
+    const s=data.sales.find(x=>String(x.id)===String(id));
+    if(!s || s.status==='Cancelada')return;
+    const reason=txt(document.getElementById('lpRefundReasonV46')?.value);
+    if(!reason)return alert('Informe o motivo do estorno.');
+    if(!confirm('Confirmar o estorno desta venda?'))return;
+
+    const fs=financeForSale(s.id);
+    fs.forEach(f=>{
+      if(f.status==='Pago'){
+        try{
+          addCashMovement('Saída',`Estorno venda #${s.id}`,num(f.value),f.payment||s.payment,'EstornoVenda',s.id,'VEN-'+s.id);
+        }catch(e){console.warn(e)}
+      }
+      f.status='Cancelado';
+      try{completeLinkedReminder(f)}catch(e){}
+    });
+
+    /* Para vendas originadas da planilha, não mexemos no estoque local:
+       o Excel continua sendo a fonte oficial e deve receber a devolução física. */
+    const fromSheet=!!s.importDifferenceId || /planilha|excel/i.test(txt(s.originType));
+    if(!fromSheet){
+      (s.items||[]).filter(i=>i.kind!=='service'&&i.id).forEach(i=>{
+        try{addStockMovement(i.id,'Devolução',num(i.qty),'Estorno venda #'+s.id,reason)}catch(e){}
+      });
+    }
+
+    const com=(data.commissions||[]).find(x=>String(x.saleId)===String(s.id));
+    if(com)com.status='Cancelada';
+
+    s.status='Cancelada';
+    s.financialStatus='Cancelado';
+    s.cancelReason=reason;
+    s.refundedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+    s.refund=true;
+
+    data.saleCancellations.unshift({
+      id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
+      saleId:s.id,date:s.refundedAt,reason,customer:s.customer,total:s.total,
+      payment:s.payment,items:JSON.parse(JSON.stringify(s.items||[])),type:'Estorno'
+    });
+
+    try{if(typeof log==='function')log(`Estornou venda #${s.id} • ${reason}`)}catch(e){}
+    try{if(typeof save==='function')save()}catch(e){}
+    closeModal();
+    try{if(typeof renderAll==='function')renderAll()}catch(e){}
+  };
+
+  /* Ao dar baixa em uma parcela, atualiza corretamente o status da venda inteira. */
+  window.markFinancePaid=function(id){
+    ensureArrays();
+    const f=data.finance.find(x=>String(x.id)===String(id));
+    if(!f || f.status==='Pago' || f.status==='Cancelado')return;
+    f.status='Pago';
+    if(!f.cashId){
+      try{
+        const c=addCashMovement(f.type==='Receita'?'Entrada':'Saída',f.desc,f.value,f.payment||'Manual',f.originType,f.originId,f.originNumber);
+        f.cashId=c?.id||'';
+      }catch(e){console.warn(e)}
+    }
+    try{completeLinkedReminder(f)}catch(e){}
+    if(f.originType==='Compra'){
+      const pu=(data.purchases||[]).find(p=>String(p.id)===String(f.originId));
+      if(pu)pu.status='Pago';
+    }
+    if(f.originType==='Venda')lpRefreshSaleFinancialV46(f.originId);
+    try{if(typeof log==='function')log('Deu baixa em '+f.desc+' → caixa e vínculos atualizados')}catch(e){}
+    try{if(typeof save==='function')save()}catch(e){}
+    try{if(typeof renderAll==='function')renderAll()}catch(e){}
+  };
+
+  function saleFinanceStatus(s){
+    const fs=financeForSale(s.id).filter(f=>f.status!=='Cancelado');
+    if(!fs.length)return s.financialStatus||'Pago';
+    if(fs.every(f=>f.status==='Pago'))return 'Pago';
+    if(fs.some(f=>f.status==='Vencido'))return fs.some(f=>f.status==='Pago')?'Parcial / Vencido':'Vencido';
+    if(fs.some(f=>f.status==='Pago'))return 'Parcial';
+    return 'Pendente';
+  }
+
+  window.renderVendas=function(){
+    ensureArrays();
+    try{if(typeof updateFinancialStatuses==='function')updateFinancialStatuses()}catch(e){}
+
+    const pending=data.pendingImportDifferences.filter(d=>num(d.diff)<0 && d.status==='Pendente');
+    const pendingCards=pending.map(d=>`
+      <div class="lp-sale-pending-v46">
+        <div class="top">
+          <div>
+            <b>${escV(d.name)}</b>
+            <small class="cell-sub">${escV(d.code||'')} • detectado ${escV(d.createdAt||'')}</small>
+          </div>
+          <div class="qty">-${Math.abs(num(d.diff))}</div>
+        </div>
+        <div class="lp-sale-installments-v46">
+          <div><span>Estoque anterior</span><b>${num(d.oldQty)}</b></div>
+          <div><span>Estoque atual</span><b>${num(d.newQty)}</b></div>
+          <div><span>Preço cadastrado</span><b>${moneyV(d.price)}</b></div>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn ghost small" onclick="lpResolveDifference(${d.id},'ajuste')">Foi ajuste</button>
+          <button class="btn primary small" onclick="lpDifferenceSaleModal(${d.id})">Confirmar como venda</button>
+        </div>
+      </div>`).join('');
+
+    const salesRows=[...data.sales].map(s=>{
+      const fs=financeForSale(s.id).filter(f=>f.status!=='Cancelado');
+      const paid=fs.filter(f=>f.status==='Pago').reduce((a,f)=>a+num(f.value),0);
+      const installmentText=s.installmentCount>1?`${s.installmentCount}x • recebido ${moneyV(paid)}`:(s.payment||'-');
+      const phone=s.customerPhone || data.customers.find(c=>String(c.id)===String(s.customerId))?.phone || '';
+      const canceled=s.status==='Cancelada';
+      return `<tr>
+        <td><b>#${s.id}</b><small class="cell-sub">${escV(s.origin||s.originType||'Venda')}</small></td>
+        <td>${escV(s.date||'')}</td>
+        <td><b>${escV(s.customer||'Consumidor')}</b><small class="cell-sub">${escV(phone||'Sem telefone')}</small></td>
+        <td>${(s.items||[]).map(i=>`${escV(i.name)} × ${num(i.qty)}`).join('<br>')||'-'}</td>
+        <td>${moneyV(s.total)}<small class="cell-sub">${escV(installmentText)}</small></td>
+        <td>${typeof statusBadge==='function'?statusBadge(saleFinanceStatus(s)):escV(saleFinanceStatus(s))}</td>
+        <td>${typeof statusBadge==='function'?statusBadge(s.status||'Concluída'):escV(s.status||'Concluída')}${s.cancelReason?`<small class="cell-sub">${escV(s.cancelReason)}</small>`:''}</td>
+        <td>${!canceled?`<button class="btn ghost small" onclick="lpRefundSaleModalV46(${s.id})">Estornar</button>`:'<span class="soft-chip">Estornada</span>'}</td>
+      </tr>`;
+    }).join('');
+
+    const active=(typeof activeSales==='function'?activeSales():data.sales.filter(s=>s.status!=='Cancelada'));
+    const receivable=data.finance.filter(f=>f.type==='Receita'&&['Pendente','Vencido'].includes(f.status)).reduce((a,f)=>a+num(f.value),0);
+    const upcoming=data.reminders.filter(r=>r.status!=='Concluído'&&r.type==='Cobrança').length;
+
+    document.getElementById('vendas').innerHTML=
+      heading('Vendas','Planilha, cliente, financeiro, caixa, parcelas e lembretes interligados',
+        `<button class="btn primary" onclick="saleModal()">+ Venda manual</button>`)+
+      `<div class="cards">
+        ${metric('Vendas pendentes',pending.length,'saídas detectadas na planilha',pending.length?'red':'green')}
+        ${metric('Vendas ativas',active.length,'sem estornos','green')}
+        ${metric('Faturamento',moneyV(active.reduce((a,s)=>a+num(s.total),0)),'vendas válidas','green')}
+        ${metric('A receber',moneyV(receivable),'parcelas/contas pendentes',receivable?'red':'green')}
+        ${metric('Lembretes cobrança',upcoming,'agenda interligada',upcoming?'red':'green')}
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="panel-head">
+          <div><h3 class="section-title" style="margin:0">Vendas pendentes da planilha</h3>
+          <small class="cell-sub">Confirme venda ou marque como ajuste. O estoque não é baixado duas vezes.</small></div>
+        </div>
+        ${pendingCards||'<div class="empty">Nenhuma saída de estoque aguardando confirmação.</div>'}
+      </div>
+      <div class="card table-wrap" style="margin-top:16px">
+        <div class="panel-head"><h3 class="section-title" style="margin:0">Histórico de vendas</h3></div>
+        <table>
+          <thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total / Parcelas</th><th>Financeiro</th><th>Status</th><th>Ação</th></tr></thead>
+          <tbody>${salesRows||'<tr><td colspan="8" class="empty">Nenhuma venda registrada.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  };
 })();
 </script>
 
