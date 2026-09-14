@@ -820,9 +820,8 @@ body.lp-auth-required-v45.lp-auth-ok-v45 #login,
 body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
   display:none!important;
 }
-body.lp-auth-required-v45.lp-auth-ok-v45 .app{
-  display:block!important;
-}
+/* Com login liberado, a .app volta a usar o layout GRID original do sistema.
+   Não forçamos display:block, pois isso fazia o menu ocupar a tela inteira. */
 </style>
 
 </head>
