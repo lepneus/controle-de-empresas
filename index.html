@@ -11157,5 +11157,380 @@ window.__LP_SALES_FIX_VERSION__='v47';
 })();
 </script>
 
+
+<style id="lp-cloud-persist-v50-css">
+#lpCloudPersistBadgeV50{
+  position:fixed;right:14px;bottom:14px;z-index:99990;
+  padding:8px 11px;border-radius:999px;font:700 11px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;
+  box-shadow:0 8px 28px rgba(0,0,0,.18);background:#eef2f7;color:#475569;border:1px solid rgba(148,163,184,.35)
+}
+#lpCloudPersistBadgeV50.ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+#lpCloudPersistBadgeV50.wait{background:#fffbeb;color:#a16207;border-color:#fde68a}
+#lpCloudPersistBadgeV50.err{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+#lpCloudLoadingV50{
+  position:fixed;inset:0;z-index:999980;background:rgba(10,16,28,.94);
+  display:none;align-items:center;justify-content:center;padding:20px
+}
+#lpCloudLoadingV50.show{display:flex}
+#lpCloudLoadingV50 .box{
+  width:min(420px,100%);background:#fff;border-radius:18px;padding:24px;text-align:center;
+  box-shadow:0 30px 90px rgba(0,0,0,.35)
+}
+#lpCloudLoadingV50 h3{margin:0 0 8px;font-size:21px;color:#111827}
+#lpCloudLoadingV50 p{margin:0;color:#64748b;font-size:13px;line-height:1.45}
+</style>
+
+<div id="lpCloudLoadingV50">
+  <div class="box">
+    <h3>Carregando dados do Controle</h3>
+    <p>Vendas, caixa, financeiro, clientes e históricos estão sendo recuperados do Firebase.</p>
+  </div>
+</div>
+<div id="lpCloudPersistBadgeV50" class="wait">Dados: preparando Firebase…</div>
+
+<script id="lp-cloud-persist-v50">
+(function(){
+  if(window.__lpCloudPersistV50)return;
+  window.__lpCloudPersistV50=true;
+
+  /*
+    Persistência V50
+    - Estoque/produtos continuam vindo de controleEstoque (planilhas).
+    - Dados administrativos ficam no Firebase, separados por usuário autenticado.
+    - localStorage continua como cache/backup local.
+  */
+
+  const ARRAY_KEYS=[
+    'sales','finance','cash','customers','purchases','reminders',
+    'cashSessions','monthlyClosings','saleCancellations','commissions',
+    'quotes','serviceOrders','whatsappMessages','whatsappTemplates',
+    'history','stockMovements','pendingImportDifferences','pendingExcelSync',
+    'catalogItems','mercadoLivreItems','importAudits','archivedProducts'
+  ];
+  const OBJECT_KEYS=['settings','cashRegister','spreadsheetConnections','datasets'];
+  const ROOT_COLLECTION='controlePersist';
+
+  let loaded=false;
+  let loading=false;
+  let syncing=false;
+  let syncAgain=false;
+  let saveTimer=null;
+  let currentUid='';
+  let lastCloudSavedAt=0;
+  let lastHashes={};
+  let lastObjectHashes={};
+  let originalSave=window.save;
+  let listenerBound=false;
+
+  const badge=()=>document.getElementById('lpCloudPersistBadgeV50');
+  const overlay=()=>document.getElementById('lpCloudLoadingV50');
+
+  function status(text,cls='wait'){
+    const el=badge();
+    if(!el)return;
+    el.textContent=text;
+    el.className=cls;
+  }
+  function showLoading(show){
+    const el=overlay();
+    if(el)el.classList.toggle('show',!!show);
+  }
+  function stableJson(v){
+    try{return JSON.stringify(v,(k,val)=>val===undefined?null:val)}
+    catch(e){return JSON.stringify(null)}
+  }
+  function hashString(s){
+    s=String(s||'');
+    let h=2166136261;
+    for(let i=0;i<s.length;i++){
+      h^=s.charCodeAt(i);
+      h=Math.imul(h,16777619);
+    }
+    return (h>>>0).toString(36);
+  }
+  function payloadHash(v){return hashString(stableJson(v))}
+  function clean(v){
+    try{return JSON.parse(JSON.stringify(v))}
+    catch(e){return null}
+  }
+  function safeId(v){
+    return String(v??'').replace(/[^A-Za-z0-9_-]/g,'_').slice(0,120);
+  }
+  function recordId(key,item,index){
+    if(item && item.id!==undefined && item.id!==null && String(item.id)!=='') return 'id_'+safeId(item.id);
+    if(item && item.eventKey) return 'event_'+hashString(item.eventKey);
+    if(item && item.number) return 'num_'+safeId(item.number);
+    return 'h_'+hashString(key+'|'+stableJson(item))+'_'+index;
+  }
+  function mergeArrays(localArr,cloudArr,key,preferLocal){
+    localArr=Array.isArray(localArr)?localArr:[];
+    cloudArr=Array.isArray(cloudArr)?cloudArr:[];
+    const localMap=new Map(localArr.map((x,i)=>[recordId(key,x,i),x]));
+    const cloudMap=new Map(cloudArr.map((x,i)=>[recordId(key,x,i),x]));
+    const ids=new Set([...localMap.keys(),...cloudMap.keys()]);
+    const out=[];
+    ids.forEach(id=>{
+      if(preferLocal && localMap.has(id)) out.push(localMap.get(id));
+      else if(cloudMap.has(id)) out.push(cloudMap.get(id));
+      else out.push(localMap.get(id));
+    });
+    return out;
+  }
+  function getDb(){
+    try{
+      if(window.lpDb)return window.lpDb;
+      if(typeof lpDb!=='undefined' && lpDb)return lpDb;
+    }catch(e){}
+    if(window.firebase){
+      try{
+        if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+        return firebase.firestore();
+      }catch(e){}
+    }
+    return null;
+  }
+  function getUser(){
+    try{
+      if(window.lpAuth?.currentUser)return window.lpAuth.currentUser;
+      if(typeof lpAuth!=='undefined' && lpAuth?.currentUser)return lpAuth.currentUser;
+    }catch(e){}
+    try{return firebase.auth().currentUser}catch(e){return null}
+  }
+  function rootRef(db,uid){return db.collection(ROOT_COLLECTION).doc(uid)}
+  function localStamp(){
+    return Number(localStorage.getItem('lpControleLocalSavedAtV50')||0);
+  }
+  function markLocalStamp(){
+    const n=Date.now();
+    localStorage.setItem('lpControleLocalSavedAtV50',String(n));
+    return n;
+  }
+
+  async function commitOps(db,ops){
+    if(!ops.length)return;
+    for(let start=0;start<ops.length;start+=400){
+      const batch=db.batch();
+      ops.slice(start,start+400).forEach(op=>batch.set(op.ref,op.value,{merge:true}));
+      await batch.commit();
+    }
+  }
+
+  async function loadCloud(){
+    if(loading)return;
+    const user=getUser(), db=getDb();
+    if(!user||!db)return;
+
+    loading=true;
+    currentUid=user.uid;
+    showLoading(true);
+    status('Dados: carregando Firebase…','wait');
+
+    try{
+      const root=rootRef(db,user.uid);
+      const rootSnap=await root.get();
+      const meta=rootSnap.exists?(rootSnap.data()||{}):{};
+      lastCloudSavedAt=Number(meta.clientSavedAt||0);
+      const localSavedAt=localStamp();
+      const preferLocal=!rootSnap.exists || localSavedAt>lastCloudSavedAt;
+
+      const localBefore={};
+      ARRAY_KEYS.forEach(k=>localBefore[k]=Array.isArray(data[k])?data[k]:[]);
+      OBJECT_KEYS.forEach(k=>localBefore[k]=(data[k]&&typeof data[k]==='object')?data[k]:{});
+
+      let cloudHasAny=false;
+
+      for(const key of ARRAY_KEYS){
+        const snap=await root.collection('arr_'+key).get();
+        const cloud=[];
+        lastHashes[key]={};
+        snap.forEach(doc=>{
+          const d=doc.data()||{};
+          if(d.deleted===true)return;
+          const p=d.payload;
+          if(p===undefined)return;
+          cloud.push(p);
+          lastHashes[key][doc.id]=payloadHash(p);
+        });
+        if(cloud.length)cloudHasAny=true;
+        data[key]=mergeArrays(localBefore[key],cloud,key,preferLocal);
+      }
+
+      for(const key of OBJECT_KEYS){
+        const snap=await root.collection('state').doc(key).get();
+        if(snap.exists){
+          cloudHasAny=true;
+          const cloudObj=(snap.data()||{}).payload||{};
+          data[key]=preferLocal?Object.assign({},cloudObj,localBefore[key]):Object.assign({},localBefore[key],cloudObj);
+          lastObjectHashes[key]=payloadHash((snap.data()||{}).payload||{});
+        }else{
+          data[key]=localBefore[key]||{};
+          lastObjectHashes[key]='';
+        }
+      }
+
+      /* Produtos NÃO vêm deste armazenamento. Permanecem controlados pelas planilhas/Firebase de estoque. */
+      try{if(typeof ensureData==='function')ensureData()}catch(e){}
+      try{localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){}
+
+      loaded=true;
+      loading=false;
+      showLoading(false);
+
+      if(!rootSnap.exists || preferLocal || !cloudHasAny){
+        status('Dados: migrando para Firebase…','wait');
+        scheduleCloudSave(true);
+      }else{
+        status('Dados: salvos no Firebase','ok');
+      }
+
+      try{
+        if(typeof renderAll==='function')renderAll();
+        const active=document.querySelector('.page.active')?.id;
+        if(active && typeof window.renderPageById==='function')window.renderPageById(active);
+      }catch(e){console.warn('Render após carregar Firebase:',e)}
+
+      bindRemoteListener();
+    }catch(e){
+      loading=false;
+      showLoading(false);
+      console.error('Persistência Firebase:',e);
+      const code=String(e?.code||'');
+      if(code.includes('permission-denied')){
+        status('Dados: Firebase sem permissão','err');
+        if(!sessionStorage.getItem('lpCloudPermAlertV50')){
+          sessionStorage.setItem('lpCloudPermAlertV50','1');
+          alert('O Controle está funcionando, mas o Firebase ainda não tem permissão para salvar Vendas/Caixa/Financeiro. Atualize as regras do Firestore para a coleção controlePersist antes de começar a usar oficialmente.');
+        }
+      }else{
+        status('Dados: erro de conexão','err');
+      }
+    }
+  }
+
+  async function syncCloud(force=false){
+    if(!loaded)return;
+    if(syncing){syncAgain=true;return;}
+    const user=getUser(),db=getDb();
+    if(!user||!db||user.uid!==currentUid)return;
+
+    syncing=true;
+    status('Dados: salvando…','wait');
+    try{
+      const root=rootRef(db,user.uid);
+      const ops=[];
+
+      for(const key of ARRAY_KEYS){
+        const arr=Array.isArray(data[key])?data[key]:[];
+        lastHashes[key]=lastHashes[key]||{};
+        arr.forEach((item,index)=>{
+          const id=recordId(key,item,index);
+          const payload=clean(item);
+          const h=payloadHash(payload);
+          if(force || lastHashes[key][id]!==h){
+            ops.push({
+              ref:root.collection('arr_'+key).doc(id),
+              value:{payload,hash:h,deleted:false,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}
+            });
+            lastHashes[key][id]=h;
+          }
+        });
+      }
+
+      for(const key of OBJECT_KEYS){
+        const payload=clean((data[key]&&typeof data[key]==='object')?data[key]:{});
+        const h=payloadHash(payload);
+        if(force || lastObjectHashes[key]!==h){
+          ops.push({
+            ref:root.collection('state').doc(key),
+            value:{payload,hash:h,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}
+          });
+          lastObjectHashes[key]=h;
+        }
+      }
+
+      await commitOps(db,ops);
+
+      const savedAt=Date.now();
+      await root.set({
+        schemaVersion:50,
+        clientSavedAt:savedAt,
+        lastUserEmail:user.email||'',
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+      lastCloudSavedAt=savedAt;
+      localStorage.setItem('lpControleLocalSavedAtV50',String(savedAt));
+      status('Dados: salvos no Firebase','ok');
+    }catch(e){
+      console.error('Salvar no Firebase:',e);
+      if(String(e?.code||'').includes('permission-denied'))status('Dados: Firebase sem permissão','err');
+      else status('Dados: falha ao salvar','err');
+    }finally{
+      syncing=false;
+      if(syncAgain){
+        syncAgain=false;
+        scheduleCloudSave(false);
+      }
+    }
+  }
+
+  function scheduleCloudSave(force=false){
+    if(!loaded)return;
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>syncCloud(force),force?100:650);
+  }
+
+  /* Mantém o comportamento antigo local e acrescenta a gravação permanente no Firebase. */
+  window.save=function(){
+    try{
+      localStorage.setItem('gestaoData',JSON.stringify(data));
+      markLocalStamp();
+    }catch(e){
+      console.error('Cache local:',e);
+    }
+    scheduleCloudSave(false);
+  };
+
+  function bindRemoteListener(){
+    if(listenerBound)return;
+    const user=getUser(),db=getDb();
+    if(!user||!db)return;
+    listenerBound=true;
+    rootRef(db,user.uid).onSnapshot(snap=>{
+      if(!loaded||syncing||!snap.exists)return;
+      const cloudTime=Number((snap.data()||{}).clientSavedAt||0);
+      if(cloudTime>lastCloudSavedAt+1500){
+        status('Dados: atualização disponível • recarregue','wait');
+      }
+    },e=>console.warn('Listener persistência:',e));
+  }
+
+  function bindAuth(){
+    try{
+      if(!window.firebase)return setTimeout(bindAuth,300);
+      if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+      const auth=firebase.auth();
+      auth.onAuthStateChanged(user=>{
+        if(user){
+          loaded=false;
+          loading=false;
+          currentUid=user.uid;
+          setTimeout(loadCloud,80);
+        }else{
+          loaded=false;
+          currentUid='';
+          showLoading(false);
+          status('Dados: aguardando login','wait');
+        }
+      });
+    }catch(e){
+      console.warn('Aguardando Firebase Auth:',e);
+      setTimeout(bindAuth,500);
+    }
+  }
+
+  bindAuth();
+})();
+</script>
+
 </body>
 </html>
