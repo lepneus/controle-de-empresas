@@ -11532,5 +11532,293 @@ window.__LP_SALES_FIX_VERSION__='v47';
 })();
 </script>
 
+
+<script id="lp-cloud-stock-movements-v51">
+(function(){
+  if(window.__lpCloudStockMovementsV51)return;
+  window.__lpCloudStockMovementsV51=true;
+
+  const state={started:false,moves:new Map(),unsubs:[],error:''};
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+
+  function getDb(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return null;
+  }
+
+  function ensurePending(){
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)
+      ? data.pendingImportDifferences : [];
+  }
+
+  function findProduct(m){
+    const list=Array.isArray(data?.products)?data.products:[];
+    const sk=T(m.syncKey);
+    let p=sk?list.find(x=>T(x.excelSyncKey)===sk):null;
+    if(p)return p;
+    if(T(m.code)){
+      p=list.find(x=>T(x.code)===T(m.code)&&T(x.sourceType)===T(m.sourceType));
+      if(p)return p;
+    }
+    return list.find(x=>T(x.sourceType)===T(m.sourceType)&&T(x.name)===T(m.name))||null;
+  }
+
+  function ingestAll(){
+    try{
+      if(typeof data==='undefined'||!data)return;
+      ensurePending();
+
+      let added=0, linked=0;
+      for(const [docId,m] of state.moves){
+        const type=T(m.sourceType);
+        if(!['carro','moto','acessorios'].includes(type))continue;
+
+        const diff=N(m.diff);
+        if(diff===0)continue;
+
+        const eventKey=T(m.eventKey)||['AUTO',type,T(m.syncKey),N(m.oldQty),N(m.newQty),T(m.batchId)].join('|');
+
+        let existing=data.pendingImportDifferences.find(d=>
+          T(d.eventKey)===eventKey || T(d.cloudMovementId)===docId
+        );
+
+        const p=findProduct(m);
+
+        if(existing){
+          if(p && !existing.productId){
+            existing.productId=p.id;
+            linked++;
+          }
+          existing.cloudMovementId=docId;
+          existing.eventKey=eventKey;
+          continue;
+        }
+
+        /* Aguarda o produto chegar do controleEstoque antes de criar a pendência,
+           para os botões de Venda/Ajuste já funcionarem corretamente. */
+        if(!p)continue;
+
+        data.pendingImportDifferences.unshift({
+          id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
+          batchId:T(m.batchId),
+          type,
+          productId:p.id,
+          code:T(m.code)||T(p.code),
+          name:T(m.name)||T(p.name),
+          oldQty:N(m.oldQty),
+          newQty:N(m.newQty),
+          diff,
+          cost:N(m.cost ?? p.cost),
+          price:N(m.price ?? p.price),
+          file:T(m.sourceFile),
+          sheet:T(m.sheet),
+          createdAt:T(m.createdAtText) || (typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR')),
+          status:'Pendente',
+          autoSync:true,
+          eventKey,
+          cloudMovementId:docId,
+          recoveredAfterOffline:true
+        });
+        added++;
+      }
+
+      if(added||linked){
+        try{if(typeof save==='function')save()}catch(e){console.warn('Salvar movimento:',e)}
+        try{
+          const pg=document.querySelector('.page.active')?.id;
+          if(pg==='vendas'&&typeof window.renderVendas==='function')window.renderVendas();
+          else if(pg==='compras'&&typeof window.renderCompras==='function')window.renderCompras();
+          else if(pg==='dashboard'&&typeof window.renderDashboard==='function')window.renderDashboard();
+        }catch(e){}
+      }
+    }catch(e){
+      console.error('Movimentos de estoque Firebase:',e);
+      state.error=e?.message||String(e);
+    }
+  }
+
+  function start(){
+    if(state.started)return;
+    const d=getDb();
+    if(!d){setTimeout(start,1000);return}
+    state.started=true;
+
+    try{
+      state.unsubs.push(
+        d.collection('controleMovimentos').onSnapshot(s=>{
+          s.docChanges().forEach(ch=>{
+            if(ch.type==='removed')state.moves.delete(ch.doc.id);
+            else state.moves.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()});
+          });
+          ingestAll();
+        },e=>{
+          state.error=e?.message||String(e);
+          console.error('Listener controleMovimentos:',e);
+        })
+      );
+
+      /* Quando os produtos terminarem de chegar, tenta vincular movimentos
+         que chegaram antes do estoque. */
+      state.unsubs.push(
+        d.collection('controleEstoque').onSnapshot(()=>setTimeout(ingestAll,250),()=>{})
+      );
+    }catch(e){
+      state.error=e?.message||String(e);
+      console.error('Iniciar movimentos Firebase:',e);
+    }
+  }
+
+  window.lpIngestCloudStockMovementsV51=ingestAll;
+  window.lpCloudStockMovementsV51=state;
+  window.addEventListener('load',()=>setTimeout(start,2200));
+  setInterval(()=>{if(!state.started)start();else ingestAll()},5000);
+})();
+</script>
+
+
+<script id="lp-stock-authoritative-v52">
+(function(){
+  if(window.__lpStockAuthoritativeV52)return;
+  window.__lpStockAuthoritativeV52=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+  function isRemovedPartsRow(p){
+    return norm(p?.sourceType)==='acessorios' && norm(p?.sourceSheet)==='pecas';
+  }
+
+  function authoritativeKey(p){
+    const st=norm(p?.sourceType);
+    const sync=T(p?.excelSyncKey);
+    if(sync)return st+'|'+sync;
+    const code=T(p?.code);
+    if(code)return st+'|code|'+code;
+    return st+'|name|'+norm(p?.name);
+  }
+
+  function cleanAutoProducts(){
+    if(typeof data==='undefined'||!data||!Array.isArray(data.products))return false;
+
+    const before=data.products.length;
+    const auto=data.products.filter(p=>p?.excelManaged && ['carro','moto','acessorios'].includes(norm(p?.sourceType)));
+    const keepAuto=new Map();
+
+    for(const p of auto){
+      if(isRemovedPartsRow(p))continue; // a aba "Peças" do arquivo de acessórios não faz mais parte do Controle
+      const key=authoritativeKey(p);
+      const old=keepAuto.get(key);
+      if(!old){
+        keepAuto.set(key,p);
+        continue;
+      }
+      // Prefere o registro mais recente/mais completo.
+      const oldScore=(T(old.excelUpdatedAt)?2:0)+(T(old.excelBatch)?1:0);
+      const newScore=(T(p.excelUpdatedAt)?2:0)+(T(p.excelBatch)?1:0);
+      if(newScore>=oldScore)keepAuto.set(key,p);
+    }
+
+    const nonAuto=data.products.filter(p=>!(p?.excelManaged && ['carro','moto','acessorios'].includes(norm(p?.sourceType))));
+    data.products=[...nonAuto,...keepAuto.values()];
+
+    if(Array.isArray(data.catalogItems)){
+      const validIds=new Set(data.products.map(p=>String(p.id)));
+      data.catalogItems=data.catalogItems.filter(x=>validIds.has(String(x.productId)));
+    }
+    if(Array.isArray(data.mercadoLivreItems)){
+      const validIds=new Set(data.products.map(p=>String(p.id)));
+      data.mercadoLivreItems=data.mercadoLivreItems.filter(x=>validIds.has(String(x.productId)));
+    }
+
+    const changed=data.products.length!==before || auto.some(isRemovedPartsRow);
+    if(changed){
+      try{if(typeof save==='function')save()}catch(e){}
+    }
+    return changed;
+  }
+
+  function authoritativeTires(){
+    if(typeof data==='undefined'||!data||!Array.isArray(data.products))return [];
+    const synced=data.products.filter(p=>
+      p?.excelManaged && ['carro','moto'].includes(norm(p?.sourceType))
+    );
+    const base=synced.length?synced:data.products.filter(p=>['carro','moto'].includes(norm(p?.sourceType)));
+
+    const map=new Map();
+    for(const p of base){
+      const key=authoritativeKey(p);
+      map.set(key,p);
+    }
+    return [...map.values()];
+  }
+
+  window.lpAuthoritativeTiresV52=authoritativeTires;
+  window.lpCleanAutoProductsV52=cleanAutoProducts;
+
+  // Corrige a função usada pela tela atual para a soma vir SOMENTE das planilhas Carro/Moto.
+  const oldRender=window.renderEstoque;
+  window.renderEstoque=function(){
+    cleanAutoProducts();
+
+    // A tela V48 usa pureTires() internamente e não é sobrescrevível de fora.
+    // Portanto, depois de renderizar, corrigimos o KPI com a soma autoritativa.
+    if(typeof oldRender==='function')oldRender();
+
+    try{
+      const tires=authoritativeTires();
+      const total=tires.reduce((a,p)=>a+N(p.qty),0);
+      const car=tires.filter(p=>norm(p.sourceType)==='carro').reduce((a,p)=>a+N(p.qty),0);
+      const moto=tires.filter(p=>norm(p.sourceType)==='moto').reduce((a,p)=>a+N(p.qty),0);
+
+      const host=document.getElementById('estoque');
+      if(!host)return;
+
+      const metricCards=[...host.querySelectorAll('.cards > div')];
+      const pneuCard=metricCards.find(el=>/Pneus em estoque/i.test(el.textContent||''));
+      if(pneuCard){
+        const b=pneuCard.querySelector('b');
+        const small=pneuCard.querySelector('small');
+        if(b)b.textContent=total.toLocaleString('pt-BR');
+        if(small)small.textContent=`Carro ${car.toLocaleString('pt-BR')} + Moto ${moto.toLocaleString('pt-BR')}`;
+      }
+
+      let audit=document.getElementById('lpStockAuditV52');
+      if(!audit){
+        audit=document.createElement('div');
+        audit.id='lpStockAuditV52';
+        audit.className='lp-v48-split-note';
+        const card=host.querySelector('.cards');
+        if(card)card.insertAdjacentElement('afterend',audit);
+      }
+      audit.innerHTML=`<b>Conferência das planilhas:</b> Carro <b>${car.toLocaleString('pt-BR')}</b> unidades + Moto <b>${moto.toLocaleString('pt-BR')}</b> unidades = <b>${total.toLocaleString('pt-BR')} pneus</b>. Duplicados antigos e a aba “Peças” dos acessórios não entram nesta soma.`;
+    }catch(e){console.warn('Conferência estoque v52:',e)}
+  };
+
+  // Dashboard também usa o valor oficial das planilhas.
+  const oldDash=window.renderDashboard;
+  window.renderDashboard=function(){
+    cleanAutoProducts();
+    if(typeof oldDash==='function')oldDash();
+    try{
+      const tires=authoritativeTires();
+      const total=tires.reduce((a,p)=>a+N(p.qty),0);
+      const host=document.getElementById('dashboard');
+      if(!host)return;
+      [...host.querySelectorAll('.cards > div')].forEach(el=>{
+        if(/Pneus em estoque/i.test(el.textContent||'')){
+          const b=el.querySelector('b'); if(b)b.textContent=total.toLocaleString('pt-BR');
+        }
+      });
+    }catch(e){}
+  };
+
+  setTimeout(()=>{cleanAutoProducts();},1500);
+})();
+</script>
+
 </body>
 </html>
