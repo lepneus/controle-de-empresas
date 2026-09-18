@@ -9515,7 +9515,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
         }
         /* v46: qualquer mudança de quantidade vinda da planilha vira diferença rastreável.
            IMPORTANTE: a planilha já é a fonte do estoque; confirmar a venda NÃO baixa o estoque outra vez. */
-        if(before && Number(before.qty||0)!==Number(x.qty||0)){
+        if(!window.__lpCloudStockMovementsV51 && before && Number(before.qty||0)!==Number(x.qty||0)){
           try{
             data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
             const oldQty=Number(before.qty||0), newQty=Number(x.qty||0);
@@ -11620,7 +11620,8 @@ window.__LP_SALES_FIX_VERSION__='v47';
           autoSync:true,
           eventKey,
           cloudMovementId:docId,
-          recoveredAfterOffline:true
+          recoveredAfterOffline:true,
+          movementSchema:T(m.movementSchema)||'legacy'
         });
         added++;
       }
@@ -11817,6 +11818,20 @@ window.__LP_SALES_FIX_VERSION__='v47';
   };
 
   setTimeout(()=>{cleanAutoProducts();},1500);
+})();
+</script>
+
+
+<script id="lp-duplicate-stock-fix-v53">
+(function(){
+  if(window.__lpDuplicateStockFixV53)return;
+  window.__lpDuplicateStockFixV53=true;
+
+  /* A partir desta versão, entradas/saídas automáticas vêm somente da coleção
+     controleMovimentos, criada pelo sincronizador depois de SOMAR linhas
+     repetidas do mesmo código. Isso evita falsos 4→0 / 0→4 causados por
+     códigos duplicados na planilha. */
+  window.__LP_STOCK_MOVEMENT_SCHEMA__='aggregate-v53';
 })();
 </script>
 
