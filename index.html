@@ -11323,10 +11323,14 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
   async function commitOps(db,ops){
     if(!ops.length)return;
-    for(let start=0;start<ops.length;start+=400){
+    const chunkSize=100;
+    for(let start=0;start<ops.length;start+=chunkSize){
+      const part=ops.slice(start,start+chunkSize);
       const batch=db.batch();
-      ops.slice(start,start+400).forEach(op=>batch.set(op.ref,op.value,{merge:true}));
-      await withTimeout(batch.commit(),30000,'Gravação no Firebase');
+      part.forEach(op=>batch.set(op.ref,op.value,{merge:true}));
+      const done=Math.min(start+part.length,ops.length);
+      status(`Dados: salvando ${done}/${ops.length}…`,'wait');
+      await withTimeout(batch.commit(),60000,'Gravação no Firebase');
     }
   }
 
@@ -11402,8 +11406,11 @@ window.__LP_SALES_FIX_VERSION__='v47';
       showLoading(false);
 
       if(!rootSnap.exists || preferLocal || !cloudHasAny){
-        status('Dados: migrando para Firebase…','wait');
-        scheduleCloudSave(true);
+        status('Dados: sincronizando diferenças…','wait');
+        /* Mesmo na primeira migração não usamos force=true.
+           lastHashes já diz o que existe no Firebase; assim só os registros
+           que faltam ou realmente mudaram são enviados. */
+        scheduleCloudSave(false);
       }else{
         status('Dados: salvos no Firebase','ok');
       }
@@ -11486,7 +11493,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
         clientSavedAt:savedAt,
         lastUserEmail:user.email||'',
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true}),30000,'Confirmação do Firebase');
+      },{merge:true}),60000,'Confirmação do Firebase');
       lastCloudSavedAt=savedAt;
       lastPersistFingerprint=persistentFingerprint();
       localStorage.setItem('lpControleLocalSavedAtV50',String(savedAt));
@@ -11495,9 +11502,15 @@ window.__LP_SALES_FIX_VERSION__='v47';
       console.error('Salvar no Firebase:',e);
       lastHashes={};
       lastObjectHashes={};
-      if(String(e?.code||'').includes('permission-denied'))status('Dados: Firebase sem permissão','err');
-      else if(String(e?.message||'').includes('excedeu'))status('Dados: Firebase demorou demais','err');
-      else status('Dados: falha ao salvar','err');
+      if(String(e?.code||'').includes('permission-denied')){
+        status('Dados: Firebase sem permissão','err');
+      }else if(String(e?.message||'').includes('excedeu')){
+        status('Dados: conexão lenta • tentando novamente','wait');
+        setTimeout(()=>scheduleCloudSave(false),10000);
+      }else{
+        status('Dados: falha ao salvar • tentando novamente','wait');
+        setTimeout(()=>scheduleCloudSave(false),10000);
+      }
     }finally{
       syncing=false;
       if(syncAgain){
@@ -12318,8 +12331,8 @@ window.__LP_SALES_FIX_VERSION__='v47';
 </script>
 
 
-<script id="lp-persistence-speed-v56">
-window.__LP_PERSISTENCE_VERSION__='v56';
+<script id="lp-persistence-speed-v57">
+window.__LP_PERSISTENCE_VERSION__='v57';
 </script>
 
 </body>
