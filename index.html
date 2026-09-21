@@ -11339,24 +11339,33 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
       let cloudHasAny=false;
 
-      for(const key of ARRAY_KEYS){
+      const arrayResults=await Promise.all(ARRAY_KEYS.map(async key=>{
         const snap=await root.collection('arr_'+key).get();
         const cloud=[];
-        lastHashes[key]={};
+        const hashes={};
         snap.forEach(doc=>{
           const d=doc.data()||{};
           if(d.deleted===true)return;
           const p=d.payload;
           if(p===undefined)return;
           cloud.push(p);
-          lastHashes[key][doc.id]=payloadHash(p);
+          hashes[doc.id]=payloadHash(p);
         });
+        return {key,cloud,hashes};
+      }));
+
+      arrayResults.forEach(({key,cloud,hashes})=>{
+        lastHashes[key]=hashes;
         if(cloud.length)cloudHasAny=true;
         data[key]=mergeArrays(localBefore[key],cloud,key,preferLocal);
-      }
+      });
 
-      for(const key of OBJECT_KEYS){
+      const objectResults=await Promise.all(OBJECT_KEYS.map(async key=>{
         const snap=await root.collection('state').doc(key).get();
+        return {key,snap};
+      }));
+
+      objectResults.forEach(({key,snap})=>{
         if(snap.exists){
           cloudHasAny=true;
           const cloudObj=(snap.data()||{}).payload||{};
@@ -11366,7 +11375,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
           data[key]=localBefore[key]||{};
           lastObjectHashes[key]='';
         }
-      }
+      });
 
       /* Produtos NÃO vêm deste armazenamento. Permanecem controlados pelas planilhas/Firebase de estoque. */
       try{if(typeof ensureData==='function')ensureData()}catch(e){}
@@ -11384,9 +11393,9 @@ window.__LP_SALES_FIX_VERSION__='v47';
       }
 
       try{
-        if(typeof renderAll==='function')renderAll();
-        const active=document.querySelector('.page.active')?.id;
+        const active=document.querySelector('.page.active')?.id || 'dashboard';
         if(active && typeof window.renderPageById==='function')window.renderPageById(active);
+        else if(active==='dashboard' && typeof window.renderDashboard==='function')window.renderDashboard();
       }catch(e){console.warn('Render após carregar Firebase:',e)}
 
       bindRemoteListener();
@@ -11832,6 +11841,204 @@ window.__LP_SALES_FIX_VERSION__='v47';
      repetidas do mesmo código. Isso evita falsos 4→0 / 0→4 causados por
      códigos duplicados na planilha. */
   window.__LP_STOCK_MOVEMENT_SCHEMA__='aggregate-v53';
+})();
+</script>
+
+
+<style id="lp-sales-speed-v54-css">
+.lp-v54-actions-top{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lp-v54-more{display:flex;justify-content:center;padding:14px}
+.lp-sale-pending-v46.lp-v54-saving{opacity:.55;pointer-events:none}
+</style>
+
+<script id="lp-sales-speed-v54">
+(function(){
+  if(window.__lpSalesSpeedV54)return;
+  window.__lpSalesSpeedV54=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+  let pendingLimit=30;
+  let salesLimit=60;
+
+  function ensure(){
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+    data.sales=Array.isArray(data.sales)?data.sales:[];
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.reminders=Array.isArray(data.reminders)?data.reminders:[];
+    data.customers=Array.isArray(data.customers)?data.customers:[];
+  }
+
+  function cloudDb(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return null;
+  }
+
+  async function markMovementResolved(d,resolution){
+    try{
+      const db=cloudDb();
+      if(!db || !d?.cloudMovementId)return;
+      const value={
+        processed:true,
+        resolution:T(resolution),
+        processedAtText:new Date().toLocaleString('pt-BR')
+      };
+      if(window.firebase?.firestore?.FieldValue){
+        value.processedAt=firebase.firestore.FieldValue.serverTimestamp();
+      }
+      await db.collection('controleMovimentos').doc(T(d.cloudMovementId)).set(value,{merge:true});
+    }catch(e){
+      console.warn('Marcar movimento como resolvido:',e);
+    }
+  }
+
+  /* Corrige o botão "Foi ajuste".
+     Antes a função exigia que o produto ainda existisse em data.products.
+     Pendências antigas/duplicadas podiam apontar para um ID que já foi substituído,
+     então o clique simplesmente retornava sem fazer nada. */
+  const oldResolve=window.lpResolveDifference;
+  window.lpResolveDifference=async function(diffId,action){
+    ensure();
+    const d=data.pendingImportDifferences.find(x=>String(x.id)===String(diffId));
+
+    if(action==='ajuste'){
+      if(!d)return;
+
+      d.status='Ajuste confirmado';
+      d.resolvedAt=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+      d.adjustReason='Ajuste de estoque confirmado';
+
+      // Atualiza a tela primeiro, sem esperar Firebase/localStorage.
+      try{window.renderVendas()}catch(e){}
+
+      // Salva depois para o clique parecer instantâneo.
+      setTimeout(()=>{
+        try{
+          if(typeof log==='function'){
+            log(`Diferença classificada como ajuste: ${d.name||d.code||'Produto'} ${N(d.oldQty)} → ${N(d.newQty)}`);
+          }
+        }catch(e){}
+        try{if(typeof save==='function')save()}catch(e){console.warn(e)}
+        markMovementResolved(d,'ajuste');
+      },0);
+      return;
+    }
+
+    if(typeof oldResolve==='function'){
+      const beforeStatus=d?.status;
+      const result=await oldResolve(diffId,action);
+      if(action==='venda' && d && d.status==='Venda confirmada' && beforeStatus!==d.status){
+        markMovementResolved(d,'venda');
+      }
+      return result;
+    }
+  };
+
+  function financeForSale(id){
+    return data.finance.filter(f=>f.originType==='Venda'&&String(f.originId)===String(id));
+  }
+  function saleFinStatus(s){
+    const fs=financeForSale(s.id).filter(f=>f.status!=='Cancelado');
+    if(!fs.length)return s.financialStatus||'Pago';
+    if(fs.every(f=>f.status==='Pago'))return 'Pago';
+    if(fs.some(f=>f.status==='Vencido'))return fs.some(f=>f.status==='Pago')?'Parcial / Vencido':'Vencido';
+    if(fs.some(f=>f.status==='Pago'))return 'Parcial';
+    return 'Pendente';
+  }
+
+  window.lpMorePendingV54=function(){pendingLimit+=30;window.renderVendas()};
+  window.lpMoreSalesV54=function(){salesLimit+=60;window.renderVendas()};
+
+  /* Render mais leve:
+     - não cria centenas de cards de uma vez
+     - não cria todo o histórico de vendas de uma vez
+     - mantém todas as funções existentes */
+  window.renderVendas=function(){
+    ensure();
+    try{if(typeof updateFinancialStatuses==='function')updateFinancialStatuses()}catch(e){}
+
+    const allPending=data.pendingImportDifferences.filter(d=>N(d.diff)<0 && d.status==='Pendente');
+    const pending=allPending.slice(0,pendingLimit);
+
+    const pendingCards=pending.map(d=>`
+      <div class="lp-sale-pending-v46" data-diff-id="${E(d.id)}">
+        <div class="top">
+          <div>
+            <b>${E(d.name||'Produto')}</b>
+            <small class="cell-sub">${E(d.code||'')} • detectado ${E(d.createdAt||'')}</small>
+          </div>
+          <div class="qty">-${Math.abs(N(d.diff))}</div>
+        </div>
+        <div class="lp-sale-installments-v46">
+          <div><span>Estoque anterior</span><b>${N(d.oldQty)}</b></div>
+          <div><span>Estoque atual</span><b>${N(d.newQty)}</b></div>
+          <div><span>Preço cadastrado</span><b>${M(d.price)}</b></div>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn ghost small" onclick="lpResolveDifference(${JSON.stringify(d.id)},'ajuste')">Foi ajuste</button>
+          <button class="btn primary small" onclick="lpDifferenceSaleModal(${JSON.stringify(d.id)})">Confirmar como venda</button>
+        </div>
+      </div>`).join('');
+
+    const allSales=[...data.sales].sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+    const shownSales=allSales.slice(0,salesLimit);
+
+    const salesRows=shownSales.map(s=>{
+      const fs=financeForSale(s.id).filter(f=>f.status!=='Cancelado');
+      const paid=fs.filter(f=>f.status==='Pago').reduce((a,f)=>a+N(f.value),0);
+      const installmentText=N(s.installmentCount)>1?`${s.installmentCount}x • recebido ${M(paid)}`:(s.payment||'-');
+      const customer=data.customers.find(c=>String(c.id)===String(s.customerId));
+      const phone=s.customerPhone || customer?.phone || '';
+      const canceled=s.status==='Cancelada';
+      return `<tr>
+        <td><b>#${E(s.id)}</b><small class="cell-sub">${E(s.origin||s.originType||'Venda')}</small></td>
+        <td>${E(s.date||'')}</td>
+        <td><b>${E(s.customer||'Consumidor')}</b><small class="cell-sub">${E(phone||'Sem telefone')}</small></td>
+        <td>${(s.items||[]).slice(0,5).map(i=>`${E(i.name)} × ${N(i.qty)}`).join('<br>')||'-'}${(s.items||[]).length>5?'<br><small>+ mais itens</small>':''}</td>
+        <td>${M(s.total)}<small class="cell-sub">${E(installmentText)}</small></td>
+        <td>${typeof statusBadge==='function'?statusBadge(saleFinStatus(s)):E(saleFinStatus(s))}</td>
+        <td>${typeof statusBadge==='function'?statusBadge(s.status||'Concluída'):E(s.status||'Concluída')}</td>
+        <td>${!canceled?`<button class="btn ghost small" onclick="lpRefundSaleModalV46(${JSON.stringify(s.id)})">Estornar</button>`:'<span class="soft-chip">Estornada</span>'}</td>
+      </tr>`;
+    }).join('');
+
+    const active=typeof activeSales==='function'?activeSales():data.sales.filter(s=>s.status!=='Cancelada');
+    const receivable=data.finance.filter(f=>f.type==='Receita'&&['Pendente','Vencido'].includes(f.status)).reduce((a,f)=>a+N(f.value),0);
+    const upcoming=data.reminders.filter(r=>r.status!=='Concluído'&&r.type==='Cobrança').length;
+
+    const host=document.getElementById('vendas');
+    if(!host)return;
+    host.innerHTML=
+      heading('Vendas','Planilha, cliente, financeiro, caixa, parcelas e lembretes interligados',
+        `<div class="lp-v54-actions-top"><button class="btn primary" onclick="saleModal()">+ Venda manual</button></div>`)+
+      `<div class="cards">
+        ${metric('Vendas pendentes',allPending.length,'saídas detectadas na planilha',allPending.length?'red':'green')}
+        ${metric('Vendas ativas',active.length,'sem estornos','green')}
+        ${metric('Faturamento',M(active.reduce((a,s)=>a+N(s.total),0)),'vendas válidas','green')}
+        ${metric('A receber',M(receivable),'parcelas/contas pendentes',receivable?'red':'green')}
+        ${metric('Lembretes cobrança',upcoming,'agenda interligada',upcoming?'red':'green')}
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="panel-head">
+          <div><h3 class="section-title" style="margin:0">Vendas pendentes da planilha</h3>
+          <small class="cell-sub">Mostrando ${pending.length} de ${allPending.length}. Confirme venda ou marque como ajuste.</small></div>
+        </div>
+        ${pendingCards||'<div class="empty">Nenhuma saída de estoque aguardando confirmação.</div>'}
+        ${allPending.length>pending.length?`<div class="lp-v54-more"><button class="btn ghost" onclick="lpMorePendingV54()">Mostrar mais pendências</button></div>`:''}
+      </div>
+      <div class="card table-wrap" style="margin-top:16px">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Histórico de vendas</h3><small class="cell-sub">Mostrando ${shownSales.length} de ${allSales.length}</small></div></div>
+        <table>
+          <thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total / Parcelas</th><th>Financeiro</th><th>Status</th><th>Ação</th></tr></thead>
+          <tbody>${salesRows||'<tr><td colspan="8" class="empty">Nenhuma venda registrada.</td></tr>'}</tbody>
+        </table>
+        ${allSales.length>shownSales.length?`<div class="lp-v54-more"><button class="btn ghost" onclick="lpMoreSalesV54()">Mostrar mais vendas</button></div>`:''}
+      </div>`;
+  };
 })();
 </script>
 
