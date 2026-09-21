@@ -12234,8 +12234,8 @@ window.__LP_SALES_FIX_VERSION__='v47';
         <td>${M(p.price)}</td>
         <td>${q===0?'<span class="badge danger">Zerado</span>':q<=2?'<span class="badge warn">Baixo</span>':'<span class="badge ok">Normal</span>'}</td>
         <td class="actions">
-          <button class="btn ghost small" onclick="stockMovementModal(${JSON.stringify(p.id)})">Movimentar</button>
-          <button class="btn ghost small" onclick="productModal(${JSON.stringify(p.id)})">Editar</button>
+          <button class="btn ghost small" onclick='stockMovementModal(${JSON.stringify(String(p.id))})'>Movimentar</button>
+          <button class="btn ghost small" onclick='productModal(${JSON.stringify(String(p.id))})'>Editar</button>
         </td>
       </tr>`;
     }).join('');
@@ -12638,6 +12638,162 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
 <script id="lp-persistence-v60-marker">
 window.__LP_PERSISTENCE_VERSION__='v60';
+</script>
+
+
+<script id="lp-stock-search-focus-v61">
+(function(){
+  if(window.__lpStockSearchFixV61)return;
+  window.__lpStockSearchFixV61=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':'&quot;',"'":'&#39;'}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+  function jsArg(v){ return JSON.stringify(String(v)); }
+  function refocusStock(pos){
+    requestAnimationFrame(()=>{
+      const el=document.getElementById('lpStockQ55');
+      if(!el)return;
+      try{ el.focus({preventScroll:true}); }catch(e){ el.focus(); }
+      try{
+        const p=Math.min(Number.isFinite(pos)?pos:el.value.length,el.value.length);
+        el.setSelectionRange(p,p);
+      }catch(e){}
+    });
+  }
+
+  // Corrige a busca do estoque: digitar não recria o campo a cada tecla.
+  const state=window.__lpStockStateV55||{q:'',scope:'Pneus',aro:'Todos',qty:'todos',limit:80};
+  window.__lpStockStateV55=state;
+  window.__lpStockSearchTimerV61=null;
+  window.lpStockFilterV55=function(){
+    const active=document.activeElement;
+    const isSearch=active?.id==='lpStockQ55';
+    const raw=document.getElementById('lpStockQ55')?.value??'';
+    const cursor=document.getElementById('lpStockQ55')?.selectionStart??raw.length;
+    state.scope=T(document.getElementById('lpStockScope55')?.value)||'Pneus';
+    state.aro=T(document.getElementById('lpStockAro55')?.value)||'Todos';
+    state.qty=T(document.getElementById('lpStockQty55')?.value)||'todos';
+    state.limit=80;
+
+    if(window.__lpStockSearchTimerV61)clearTimeout(window.__lpStockSearchTimerV61);
+
+    if(isSearch){
+      window.__lpStockSearchTimerV61=setTimeout(()=>{
+        state.q=norm(raw);
+        if(typeof window.renderEstoque==='function')window.renderEstoque();
+        refocusStock(cursor);
+      },180);
+    }else{
+      state.q=norm(raw);
+      if(typeof window.renderEstoque==='function')window.renderEstoque();
+    }
+  };
+
+  // Corrige IDs em texto nos produtos sincronizados e preserva os metadados da planilha ao editar.
+  window.productModal=function(id){
+    const hasId=id!==undefined&&id!==null&&String(id)!=='';
+    const p=hasId?(data.products||[]).find(x=>String(x.id)===String(id)):{};
+    if(hasId&&!p)return alert('Produto não encontrado. Atualize a página e tente novamente.');
+    const arg=hasId?jsArg(id):'null';
+    showModal(`<h2>${hasId?'Editar':'Novo'} produto</h2><div class="form">
+      <label>Código<input id="pcode" value="${E(p?.code||'')}"></label>
+      <label>Nome<input id="pname" value="${E(p?.name||'')}"></label>
+      <label>Categoria<input id="pcat" value="${E(p?.category||'')}"></label>
+      <label>Marca<input id="pbrand" value="${E(p?.brand||'')}"></label>
+      <label>${hasId?'Estoque atual (use Movimentar)':'Estoque inicial'}<input id="pqty" type="number" value="${N(p?.qty)}" ${hasId?'readonly':''}></label>
+      <label>Estoque mínimo<input id="pmin" type="number" value="${N(p?.min??data.settings?.defaultMinStock??0)}"></label>
+      <label>Custo<input id="pcost" type="number" step="0.01" value="${N(p?.cost)}"></label>
+      <label>Preço de venda<input id="pprice" type="number" step="0.01" value="${N(p?.price)}"></label>
+      <label class="full">Localização / observação<input id="plocation" value="${E(p?.location||'')}"></label>
+    </div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick='saveProductV2(${arg})'>Salvar</button></div>`);
+  };
+
+  window.saveProductV2=function(id){
+    const hasId=id!==undefined&&id!==null&&String(id)!=='';
+    const old=hasId?(data.products||[]).find(x=>String(x.id)===String(id)):null;
+    if(hasId&&!old)return alert('Produto não encontrado. Atualize a página e tente novamente.');
+    const code=(document.getElementById('pcode')?.value||'').trim()||('P'+Date.now().toString().slice(-5));
+    const dup=(data.products||[]).find(x=>String(x.id)!==String(hasId?id:'')&&String(x.code||'').trim().toLowerCase()===code.toLowerCase());
+    if(dup)return alert(`Já existe outro produto com o código ${code}: ${dup.name}. Use um código diferente.`);
+    const obj={
+      ...(old||{}),
+      id:hasId?old.id:Date.now(),
+      code,
+      name:(document.getElementById('pname')?.value||'').trim(),
+      category:(document.getElementById('pcat')?.value||'').trim()||'Geral',
+      brand:(document.getElementById('pbrand')?.value||'').trim(),
+      qty:hasId?N(old.qty):N(document.getElementById('pqty')?.value),
+      min:N(document.getElementById('pmin')?.value),
+      cost:N(document.getElementById('pcost')?.value),
+      price:N(document.getElementById('pprice')?.value),
+      location:(document.getElementById('plocation')?.value||'').trim()
+    };
+    if(!obj.name)return alert('Informe o nome do produto.');
+    if(obj.cost<0||obj.price<0)return alert('Custo e preço não podem ser negativos.');
+    if(obj.cost>0&&obj.price>0&&obj.price<=obj.cost&&!confirm('O preço de venda está menor ou igual ao custo. Deseja salvar mesmo assim?'))return;
+    if(hasId){
+      const i=(data.products||[]).findIndex(x=>String(x.id)===String(id));
+      if(i<0)return alert('Produto não encontrado.');
+      data.products[i]=obj;
+      try{ if(typeof syncProductChannels==='function')syncProductChannels(obj); }catch(e){}
+      try{ if(typeof queueExcelSync==='function')queueExcelSync(obj,'Edição de produto'); }catch(e){}
+    }else{
+      data.products.push(obj);
+      if(obj.qty>0&&Array.isArray(data.stockMovements))data.stockMovements.unshift({id:Date.now()+Math.random(),date:typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR'),productId:obj.id,product:obj.name,type:'Entrada',qty:obj.qty,before:0,after:obj.qty,reason:'Estoque inicial',ref:'Cadastro',user:'Administrador'});
+      try{ if(typeof queueExcelSync==='function')queueExcelSync(obj,'Cadastro de produto'); }catch(e){}
+    }
+    try{ if(typeof log==='function')log((hasId?'Editou':'Cadastrou')+' produto '+obj.name); }catch(e){}
+    if(typeof save==='function')save();
+    if(typeof closeModal==='function')closeModal();
+    if(typeof renderAll==='function')renderAll(); else if(typeof renderEstoque==='function')renderEstoque();
+  };
+
+  window.stockMovementModal=function(productId){
+    const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+    if(!p)return alert('Produto não encontrado. Atualize a página e tente novamente.');
+    const arg=jsArg(productId);
+    showModal(`<h2>Movimentar estoque</h2><div class="notice"><b>${E(p.name)}</b> • estoque atual: <b>${N(p.qty)}</b></div><div class="form">
+      <label>Tipo<select id="smtype"><option>Entrada</option><option>Saída</option><option>Ajuste</option><option>Devolução</option><option>Perda</option></select></label>
+      <label>Quantidade<input id="smqty" type="number" min="0" step="1" value="1"></label>
+      <label class="full">Motivo<input id="smreason" placeholder="Ex.: compra, venda manual, contagem, avaria..."></label>
+      <label class="full">Referência<input id="smref" placeholder="Nota, OS, venda ou observação"></label>
+    </div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick='saveStockMovement(${arg})'>Confirmar movimentação</button></div>`);
+  };
+
+  window.saveStockMovement=function(productId){
+    const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+    if(!p)return alert('Produto não encontrado.');
+    const t=document.getElementById('smtype')?.value||'Ajuste';
+    const q=N(document.getElementById('smqty')?.value);
+    const r=(document.getElementById('smreason')?.value||'').trim();
+    if(q<0||(!q&&t!=='Ajuste'))return alert('Informe uma quantidade válida.');
+    if(typeof addStockMovement!=='function'||!addStockMovement(productId,t,q,r||'Movimentação manual',(document.getElementById('smref')?.value||'').trim()))return alert('A movimentação deixaria o estoque negativo. Altere a configuração ou a quantidade.');
+    try{ if(typeof log==='function')log(`${t} de estoque: ${p.name}`); }catch(e){}
+    if(typeof save==='function')save();
+    if(typeof closeModal==='function')closeModal();
+    if(typeof renderAll==='function')renderAll(); else if(typeof renderEstoque==='function')renderEstoque();
+  };
+
+  // A busca superior continua global, mas não perde o foco ao navegar para um resultado.
+  const oldGlobalSearch=window.globalSearch;
+  window.globalSearch=function(){
+    const el=document.getElementById('globalSearch');
+    const pos=el?.selectionStart??0;
+    const val=el?.value||'';
+    if(typeof oldGlobalSearch==='function')oldGlobalSearch();
+    requestAnimationFrame(()=>{
+      const now=document.getElementById('globalSearch');
+      if(!now)return;
+      now.value=val;
+      try{now.focus({preventScroll:true});}catch(e){now.focus();}
+      try{now.setSelectionRange(Math.min(pos,now.value.length),Math.min(pos,now.value.length));}catch(e){}
+    });
+  };
+})();
 </script>
 
 </body>
