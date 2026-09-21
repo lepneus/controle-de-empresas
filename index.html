@@ -9595,6 +9595,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
   }
 
   function start(){
+    if(window.__LP_SYNC_V60)return;
     if(state.started)return;
     const d=db();
     if(!d){setTimeout(start,1500);return}
@@ -11186,7 +11187,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     <p>Vendas, caixa, financeiro, clientes e históricos estão sendo recuperados do Firebase.</p>
   </div>
 </div>
-<div id="lpCloudPersistBadgeV50" class="wait">Dados principais: preparando…</div>
+<div id="lpCloudPersistBadgeV50" class="wait">Dados: preparando…</div>
 
 <script id="lp-cloud-persist-v50">
 (function(){
@@ -11203,10 +11204,9 @@ window.__LP_SALES_FIX_VERSION__='v47';
   const ARRAY_KEYS=[
     'sales','finance','cash','customers','purchases','reminders',
     'cashSessions','monthlyClosings','saleCancellations','commissions',
-    'quotes','serviceOrders','whatsappMessages','whatsappTemplates',
-    'pendingImportDifferences'
+    'quotes','serviceOrders','whatsappMessages','whatsappTemplates'
   ];
-  const OBJECT_KEYS=['settings','cashRegister','spreadsheetConnections','datasets'];
+  const OBJECT_KEYS=['settings','cashRegister'];
   const ROOT_COLLECTION='controlePersist';
 
   let loaded=false;
@@ -11329,7 +11329,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       const batch=db.batch();
       part.forEach(op=>batch.set(op.ref,op.value,{merge:true}));
       const done=Math.min(start+part.length,ops.length);
-      status(`Dados principais: salvando ${done}/${ops.length}…`,'wait');
+      status(`Dados: salvando ${done}/${ops.length}…`,'wait');
       await withTimeout(batch.commit(),60000,'Gravação no Firebase');
     }
   }
@@ -11342,7 +11342,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     loading=true;
     currentUid=user.uid;
     showLoading(true);
-    status('Dados principais: carregando…','wait');
+    status('Dados: carregando…','wait');
 
     try{
       const root=rootRef(db,user.uid);
@@ -11406,13 +11406,13 @@ window.__LP_SALES_FIX_VERSION__='v47';
       showLoading(false);
 
       if(!rootSnap.exists || preferLocal || !cloudHasAny){
-        status('Dados principais: sincronizando…','wait');
+        status('Dados: sincronizando…','wait');
         /* Mesmo na primeira migração não usamos force=true.
            lastHashes já diz o que existe no Firebase; assim só os registros
            que faltam ou realmente mudaram são enviados. */
         scheduleCloudSave(false);
       }else{
-        status('Dados principais: salvos no Firebase','ok');
+        status('Dados: salvos no Firebase','ok');
       }
 
       try{
@@ -11428,7 +11428,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       console.error('Persistência Firebase:',e);
       const code=String(e?.code||'');
       if(code.includes('permission-denied')){
-        status('Dados principais: sem permissão','err');
+        status('Dados: sem permissão','err');
         if(!sessionStorage.getItem('lpCloudPermAlertV50')){
           sessionStorage.setItem('lpCloudPermAlertV50','1');
           alert('O Controle está funcionando, mas o Firebase ainda não tem permissão para salvar Vendas/Caixa/Financeiro. Atualize as regras do Firestore para a coleção controlePersist antes de começar a usar oficialmente.');
@@ -11443,7 +11443,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(!loaded)return;
     const currentFingerprint=persistentFingerprint();
     if(!force && currentFingerprint===lastPersistFingerprint){
-      status('Dados principais: salvos no Firebase','ok');
+      status('Dados: salvos no Firebase','ok');
       return;
     }
     if(syncing){syncAgain=true;return;}
@@ -11451,7 +11451,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(!user||!db||user.uid!==currentUid)return;
 
     syncing=true;
-    status('Dados principais: salvando…','wait');
+    status('Dados: salvando…','wait');
     try{
       const root=rootRef(db,user.uid);
       const ops=[];
@@ -11497,18 +11497,18 @@ window.__LP_SALES_FIX_VERSION__='v47';
       lastCloudSavedAt=savedAt;
       lastPersistFingerprint=persistentFingerprint();
       localStorage.setItem('lpControleLocalSavedAtV50',String(savedAt));
-      status('Dados principais: salvos no Firebase','ok');
+      status('Dados: salvos no Firebase','ok');
     }catch(e){
       console.error('Salvar no Firebase:',e);
       lastHashes={};
       lastObjectHashes={};
       if(String(e?.code||'').includes('permission-denied')){
-        status('Dados principais: sem permissão','err');
+        status('Dados: sem permissão','err');
       }else if(String(e?.message||'').includes('excedeu')){
-        status('Dados principais: conexão lenta • tentando novamente','wait');
+        status('Dados: conexão lenta • tentando novamente','wait');
         setTimeout(()=>scheduleCloudSave(false),10000);
       }else{
-        status('Dados principais: falha ao salvar • tentando novamente','wait');
+        status('Dados: falha ao salvar • tentando novamente','wait');
         setTimeout(()=>scheduleCloudSave(false),10000);
       }
     }finally{
@@ -11539,7 +11539,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(fp!==lastPersistFingerprint){
       scheduleCloudSave(false);
     }else{
-      status('Dados principais: salvos no Firebase','ok');
+      status('Dados: salvos no Firebase','ok');
     }
   };
 
@@ -11552,7 +11552,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       if(!loaded||syncing||!snap.exists)return;
       const cloudTime=Number((snap.data()||{}).clientSavedAt||0);
       if(cloudTime>lastCloudSavedAt+1500){
-        status('Dados principais: atualização disponível • recarregue','wait');
+        status('Dados: atualização disponível • recarregue','wait');
       }
     },e=>console.warn('Listener persistência:',e));
   }
@@ -11572,7 +11572,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
           loaded=false;
           currentUid='';
           showLoading(false);
-          status('Dados principais: aguardando login','wait');
+          status('Dados: aguardando login','wait');
         }
       });
     }catch(e){
@@ -11695,6 +11695,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   }
 
   function start(){
+    if(window.__LP_SYNC_V60)return;
     if(state.started)return;
     const d=getDb();
     if(!d){setTimeout(start,1000);return}
@@ -11934,7 +11935,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       if(window.firebase?.firestore?.FieldValue){
         value.processedAt=firebase.firestore.FieldValue.serverTimestamp();
       }
-      await db.collection('controleMovimentos').doc(T(d.cloudMovementId)).set(value,{merge:true});
+      await db.collection('controleMovimentosV2').doc(T(d.cloudMovementId)).set(value,{merge:true});
     }catch(e){
       console.warn('Marcar movimento como resolvido:',e);
     }
@@ -12344,6 +12345,299 @@ window.__LP_SALES_FIX_VERSION__='v47';
       pois podiam gerar milhares de gravações e travar o navegador.
   */
 })();
+</script>
+
+
+<style id="lp-sync-v60-css">
+#lpSyncV60Badge{
+  position:fixed;right:14px;bottom:52px;z-index:99989;padding:7px 10px;border-radius:999px;
+  font:700 11px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;
+  border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1
+}
+#lpSyncV60Badge.ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+#lpSyncV60Badge.wait{background:#fffbeb;color:#a16207;border-color:#fde68a}
+#lpSyncV60Badge.err{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+</style>
+<div id="lpSyncV60Badge" class="wait">Estoque: aguardando Firebase…</div>
+
+<script id="lp-sync-v60">
+(function(){
+  window.__LP_SYNC_V60=true;
+  if(window.__lpSyncV60Started)return;
+  window.__lpSyncV60Started=true;
+
+  const TYPES=['carro','moto','acessorios'];
+  const state={
+    chunks:new Map(),
+    meta:{},
+    movements:new Map(),
+    started:false,
+    stockOnline:false,
+    movementOnline:false,
+    error:''
+  };
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+  function badge(text,cls='wait'){
+    const el=document.getElementById('lpSyncV60Badge');
+    if(!el)return;
+    el.textContent=text;
+    el.className=cls;
+  }
+
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    try{
+      if(window.firebase){
+        if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+        return firebase.firestore();
+      }
+    }catch(e){}
+    return null;
+  }
+
+  function stableProductId(type,key){
+    return 'auto_'+type+'_'+T(key).replace(/[^A-Za-z0-9_-]/g,'_');
+  }
+
+  function currentAutoMap(){
+    const m=new Map();
+    (data.products||[]).forEach(p=>{
+      if(!p?.excelManaged)return;
+      const k=norm(p.sourceType)+'|'+T(p.excelSyncKey||p.sourceKey||p.code);
+      if(k!=='|')m.set(k,p);
+    });
+    return m;
+  }
+
+  function sourceItems(type){
+    const meta=state.meta[type];
+    if(!meta)return [];
+    const syncId=T(meta.syncId);
+    const chunkCount=Math.max(0,N(meta.chunkCount));
+    const docs=[...state.chunks.values()]
+      .filter(d=>norm(d.sourceType)===type && T(d.syncId)===syncId && N(d.chunkIndex)<chunkCount)
+      .sort((a,b)=>N(a.chunkIndex)-N(b.chunkIndex));
+    const out=[];
+    docs.forEach(d=>{
+      if(Array.isArray(d.items))out.push(...d.items);
+    });
+    return out;
+  }
+
+  function applyStock(){
+    if(typeof data==='undefined'||!data)return;
+    data.products=Array.isArray(data.products)?data.products:[];
+    const oldAuto=currentAutoMap();
+    const manual=data.products.filter(p=>!p?.excelManaged);
+    const next=[];
+
+    for(const type of TYPES){
+      const rows=sourceItems(type);
+      for(const x of rows){
+        const key=T(x.syncKey);
+        const old=oldAuto.get(type+'|'+key);
+        next.push({
+          ...(old||{}),
+          id:old?.id ?? stableProductId(type,key),
+          code:T(x.code),
+          name:T(x.name),
+          category:T(x.category),
+          brand:T(x.brand),
+          qty:N(x.qty),
+          cost:N(x.cost),
+          vista:N(x.vista),
+          price:N(x.price),
+          location:T(x.sheet),
+          sourceType:type,
+          sourceSheet:T(x.sheet),
+          sourceRow:N(x.row),
+          sourceRows:N(x.sourceRows),
+          sourceCode:T(x.code),
+          sourceKey:key,
+          excelSyncKey:key,
+          excelManaged:true,
+          excelBatchId:T(state.meta[type]?.syncId),
+          excelUpdatedAt:T(state.meta[type]?.updatedAtText)
+        });
+      }
+
+      data.spreadsheetConnections=data.spreadsheetConnections||{};
+      const m=state.meta[type];
+      if(m){
+        data.spreadsheetConnections[type]={
+          name:T(m.sourceFile),
+          status:'Automática V2',
+          lastImportedAt:T(m.updatedAtText),
+          connectedAt:data.spreadsheetConnections[type]?.connectedAt||T(m.updatedAtText),
+          autoSync:true,
+          itemCount:N(m.itemCount),
+          totalQty:N(m.totalQty)
+        };
+      }
+    }
+
+    data.products=[...manual,...next];
+    rebuildPending();
+    rerenderActive();
+
+    const got=TYPES.filter(t=>state.meta[t]).length;
+    if(got===3){
+      const units=TYPES.reduce((a,t)=>a+N(state.meta[t]?.totalQty),0);
+      badge(`Estoque: conectado • 3/3 fontes • ${units.toLocaleString('pt-BR')} un.`,'ok');
+    }else{
+      badge(`Estoque: recebendo fontes • ${got}/3`,'wait');
+    }
+  }
+
+  function productForMovement(m){
+    const type=norm(m.sourceType);
+    const key=T(m.syncKey);
+    return (data.products||[]).find(p=>
+      norm(p.sourceType)===type && T(p.excelSyncKey)===key
+    ) || null;
+  }
+
+  function rebuildPending(){
+    if(typeof data==='undefined'||!data)return;
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)
+      ? data.pendingImportDifferences : [];
+
+    // Remove apenas pendências automáticas antigas; pendências V2 vêm do Firebase e são reconstruídas.
+    const keep=data.pendingImportDifferences.filter(d=>!d.autoSync && !d.syncV2);
+    const pending=[];
+
+    for(const [docId,m] of state.movements){
+      if(m.processed===true)continue;
+      const diff=N(m.diff);
+      if(diff===0)continue;
+      const type=norm(m.sourceType);
+      if(!TYPES.includes(type))continue;
+      const p=productForMovement(m);
+      const key=T(m.syncKey);
+      pending.push({
+        id:'mv2_'+docId,
+        batchId:T(m.syncId),
+        type,
+        productId:p?.id ?? stableProductId(type,key),
+        code:T(m.code),
+        name:T(m.name),
+        oldQty:N(m.oldQty),
+        newQty:N(m.newQty),
+        diff,
+        cost:N(m.cost),
+        price:N(m.price),
+        file:T(m.sourceFile),
+        sheet:T(m.sheet),
+        createdAt:T(m.createdAtText),
+        status:'Pendente',
+        autoSync:true,
+        syncV2:true,
+        movementSchema:'summary-v2',
+        eventKey:T(m.eventKey)||docId,
+        cloudMovementId:docId
+      });
+    }
+
+    pending.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+    data.pendingImportDifferences=[...pending,...keep];
+  }
+
+  function rerenderActive(){
+    try{
+      const active=document.querySelector('.page.active')?.id;
+      if(active && typeof window.renderPageById==='function')window.renderPageById(active);
+      else if(active==='estoque'&&typeof window.renderEstoque==='function')window.renderEstoque();
+    }catch(e){console.warn('Render V60:',e)}
+  }
+
+  function start(){
+    if(state.started)return;
+    const d=db();
+    if(!d){setTimeout(start,800);return}
+    const user=window.firebase?.auth?.().currentUser;
+    if(!user){setTimeout(start,800);return}
+
+    state.started=true;
+    badge('Estoque: conectando…','wait');
+
+    // Poucos documentos: normalmente 6–8 leituras no carregamento inteiro.
+    d.collection('controleEstoqueV2').onSnapshot(s=>{
+      state.stockOnline=true;
+      s.docChanges().forEach(ch=>{
+        if(ch.type==='removed')state.chunks.delete(ch.doc.id);
+        else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()});
+      });
+      applyStock();
+    },e=>{
+      state.error=e?.message||String(e);
+      badge('Estoque: erro de leitura','err');
+      console.error('controleEstoqueV2:',e);
+    });
+
+    d.collection('controleEstoqueV2Meta').onSnapshot(s=>{
+      s.forEach(doc=>state.meta[doc.id]=doc.data()||{});
+      applyStock();
+    },e=>{
+      state.error=e?.message||String(e);
+      badge('Estoque: erro de meta','err');
+      console.error('controleEstoqueV2Meta:',e);
+    });
+
+    // Só lê movimentos V2 ainda pendentes.
+    d.collection('controleMovimentosV2').where('processed','==',false).onSnapshot(s=>{
+      state.movementOnline=true;
+      state.movements.clear();
+      s.forEach(doc=>state.movements.set(doc.id,{id:doc.id,...doc.data()}));
+      rebuildPending();
+      rerenderActive();
+    },e=>{
+      state.error=e?.message||String(e);
+      console.error('controleMovimentosV2:',e);
+    });
+  }
+
+  // Evita que sincronizações silenciosas antigas façam auditoria completa do catálogo.
+  // O botão manual "Sincronizar catálogo exato" continua funcionando.
+  if(typeof window.lpCatalogMirrorExact==='function'){
+    const realMirror=window.lpCatalogMirrorExact;
+    window.lpCatalogMirrorExact=async function(silent=false){
+      if(silent===true)return {ok:true,skipped:true,reason:'quota-protection-v60'};
+      return realMirror.apply(this,arguments);
+    };
+  }
+
+  // Planilhas: acrescenta status V2 sem depender dos inputs manuais antigos.
+  const oldRenderPlanilhas=window.renderPlanilhas;
+  if(typeof oldRenderPlanilhas==='function'){
+    window.renderPlanilhas=function(){
+      const r=oldRenderPlanilhas.apply(this,arguments);
+      setTimeout(()=>{
+        const host=document.getElementById('planilhas');
+        if(!host)return;
+        const got=TYPES.filter(t=>state.meta[t]).length;
+        const card=document.createElement('div');
+        card.className='notice';
+        card.style.marginBottom='14px';
+        card.innerHTML=`<b>Sincronização econômica V2:</b> ${got}/3 fontes recebidas. O navegador lê apenas poucos documentos resumidos do Firebase, em vez de centenas de produtos individualmente.`;
+        host.prepend(card);
+      },0);
+      return r;
+    };
+  }
+
+  window.lpSyncV60State=state;
+  window.addEventListener('load',()=>setTimeout(start,700));
+  setTimeout(start,1200);
+})();
+</script>
+
+<script id="lp-persistence-v60-marker">
+window.__LP_PERSISTENCE_VERSION__='v60';
 </script>
 
 </body>
