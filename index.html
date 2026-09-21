@@ -11204,8 +11204,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     'sales','finance','cash','customers','purchases','reminders',
     'cashSessions','monthlyClosings','saleCancellations','commissions',
     'quotes','serviceOrders','whatsappMessages','whatsappTemplates',
-    'history','stockMovements','pendingImportDifferences','pendingExcelSync',
-    'catalogItems','mercadoLivreItems','importAudits','archivedProducts'
+    'history','stockMovements','pendingImportDifferences'
   ];
   const OBJECT_KEYS=['settings','cashRegister','spreadsheetConnections','datasets'];
   const ROOT_COLLECTION='controlePersist';
@@ -11219,6 +11218,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   let lastCloudSavedAt=0;
   let lastHashes={};
   let lastObjectHashes={};
+  let lastPersistFingerprint='';
   let originalSave=window.save;
   let listenerBound=false;
 
@@ -11249,6 +11249,21 @@ window.__LP_SALES_FIX_VERSION__='v47';
     return (h>>>0).toString(36);
   }
   function payloadHash(v){return hashString(stableJson(v))}
+  function persistentFingerprint(){
+    const snapshot={};
+    ARRAY_KEYS.forEach(k=>snapshot[k]=Array.isArray(data?.[k])?data[k]:[]);
+    OBJECT_KEYS.forEach(k=>snapshot[k]=(data?.[k]&&typeof data[k]==='object')?data[k]:{});
+    return payloadHash(snapshot);
+  }
+  function withTimeout(promise,ms,label){
+    let timer;
+    return Promise.race([
+      promise,
+      new Promise((_,reject)=>{
+        timer=setTimeout(()=>reject(new Error((label||'Operação')+' excedeu '+Math.round(ms/1000)+'s')),ms);
+      })
+    ]).finally(()=>clearTimeout(timer));
+  }
   function clean(v){
     try{return JSON.parse(JSON.stringify(v))}
     catch(e){return null}
@@ -11311,7 +11326,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     for(let start=0;start<ops.length;start+=400){
       const batch=db.batch();
       ops.slice(start,start+400).forEach(op=>batch.set(op.ref,op.value,{merge:true}));
-      await batch.commit();
+      await withTimeout(batch.commit(),30000,'Gravação no Firebase');
     }
   }
 
@@ -11383,6 +11398,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
       loaded=true;
       loading=false;
+      lastPersistFingerprint=persistentFingerprint();
       showLoading(false);
 
       if(!rootSnap.exists || preferLocal || !cloudHasAny){
@@ -11418,6 +11434,11 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
   async function syncCloud(force=false){
     if(!loaded)return;
+    const currentFingerprint=persistentFingerprint();
+    if(!force && currentFingerprint===lastPersistFingerprint){
+      status('Dados: salvos no Firebase','ok');
+      return;
+    }
     if(syncing){syncAgain=true;return;}
     const user=getUser(),db=getDb();
     if(!user||!db||user.uid!==currentUid)return;
@@ -11460,18 +11481,22 @@ window.__LP_SALES_FIX_VERSION__='v47';
       await commitOps(db,ops);
 
       const savedAt=Date.now();
-      await root.set({
-        schemaVersion:50,
+      await withTimeout(root.set({
+        schemaVersion:56,
         clientSavedAt:savedAt,
         lastUserEmail:user.email||'',
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true});
+      },{merge:true}),30000,'Confirmação do Firebase');
       lastCloudSavedAt=savedAt;
+      lastPersistFingerprint=persistentFingerprint();
       localStorage.setItem('lpControleLocalSavedAtV50',String(savedAt));
       status('Dados: salvos no Firebase','ok');
     }catch(e){
       console.error('Salvar no Firebase:',e);
+      lastHashes={};
+      lastObjectHashes={};
       if(String(e?.code||'').includes('permission-denied'))status('Dados: Firebase sem permissão','err');
+      else if(String(e?.message||'').includes('excedeu'))status('Dados: Firebase demorou demais','err');
       else status('Dados: falha ao salvar','err');
     }finally{
       syncing=false;
@@ -11496,7 +11521,13 @@ window.__LP_SALES_FIX_VERSION__='v47';
     }catch(e){
       console.error('Cache local:',e);
     }
-    scheduleCloudSave(false);
+    if(!loaded)return;
+    const fp=persistentFingerprint();
+    if(fp!==lastPersistFingerprint){
+      scheduleCloudSave(false);
+    }else{
+      status('Dados: salvos no Firebase','ok');
+    }
   };
 
   function bindRemoteListener(){
@@ -12284,6 +12315,11 @@ window.__LP_SALES_FIX_VERSION__='v47';
     }catch(e){console.warn(e)}
   };
 })();
+</script>
+
+
+<script id="lp-persistence-speed-v56">
+window.__LP_PERSISTENCE_VERSION__='v56';
 </script>
 
 </body>
