@@ -11186,7 +11186,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     <p>Vendas, caixa, financeiro, clientes e históricos estão sendo recuperados do Firebase.</p>
   </div>
 </div>
-<div id="lpCloudPersistBadgeV50" class="wait">Dados: preparando Firebase…</div>
+<div id="lpCloudPersistBadgeV50" class="wait">Dados principais: preparando…</div>
 
 <script id="lp-cloud-persist-v50">
 (function(){
@@ -11204,7 +11204,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     'sales','finance','cash','customers','purchases','reminders',
     'cashSessions','monthlyClosings','saleCancellations','commissions',
     'quotes','serviceOrders','whatsappMessages','whatsappTemplates',
-    'history','stockMovements','pendingImportDifferences'
+    'pendingImportDifferences'
   ];
   const OBJECT_KEYS=['settings','cashRegister','spreadsheetConnections','datasets'];
   const ROOT_COLLECTION='controlePersist';
@@ -11329,7 +11329,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       const batch=db.batch();
       part.forEach(op=>batch.set(op.ref,op.value,{merge:true}));
       const done=Math.min(start+part.length,ops.length);
-      status(`Dados: salvando ${done}/${ops.length}…`,'wait');
+      status(`Dados principais: salvando ${done}/${ops.length}…`,'wait');
       await withTimeout(batch.commit(),60000,'Gravação no Firebase');
     }
   }
@@ -11342,7 +11342,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     loading=true;
     currentUid=user.uid;
     showLoading(true);
-    status('Dados: carregando Firebase…','wait');
+    status('Dados principais: carregando…','wait');
 
     try{
       const root=rootRef(db,user.uid);
@@ -11406,13 +11406,13 @@ window.__LP_SALES_FIX_VERSION__='v47';
       showLoading(false);
 
       if(!rootSnap.exists || preferLocal || !cloudHasAny){
-        status('Dados: sincronizando diferenças…','wait');
+        status('Dados principais: sincronizando…','wait');
         /* Mesmo na primeira migração não usamos force=true.
            lastHashes já diz o que existe no Firebase; assim só os registros
            que faltam ou realmente mudaram são enviados. */
         scheduleCloudSave(false);
       }else{
-        status('Dados: salvos no Firebase','ok');
+        status('Dados principais: salvos no Firebase','ok');
       }
 
       try{
@@ -11428,7 +11428,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       console.error('Persistência Firebase:',e);
       const code=String(e?.code||'');
       if(code.includes('permission-denied')){
-        status('Dados: Firebase sem permissão','err');
+        status('Dados principais: sem permissão','err');
         if(!sessionStorage.getItem('lpCloudPermAlertV50')){
           sessionStorage.setItem('lpCloudPermAlertV50','1');
           alert('O Controle está funcionando, mas o Firebase ainda não tem permissão para salvar Vendas/Caixa/Financeiro. Atualize as regras do Firestore para a coleção controlePersist antes de começar a usar oficialmente.');
@@ -11443,7 +11443,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(!loaded)return;
     const currentFingerprint=persistentFingerprint();
     if(!force && currentFingerprint===lastPersistFingerprint){
-      status('Dados: salvos no Firebase','ok');
+      status('Dados principais: salvos no Firebase','ok');
       return;
     }
     if(syncing){syncAgain=true;return;}
@@ -11451,7 +11451,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(!user||!db||user.uid!==currentUid)return;
 
     syncing=true;
-    status('Dados: salvando…','wait');
+    status('Dados principais: salvando…','wait');
     try{
       const root=rootRef(db,user.uid);
       const ops=[];
@@ -11497,18 +11497,18 @@ window.__LP_SALES_FIX_VERSION__='v47';
       lastCloudSavedAt=savedAt;
       lastPersistFingerprint=persistentFingerprint();
       localStorage.setItem('lpControleLocalSavedAtV50',String(savedAt));
-      status('Dados: salvos no Firebase','ok');
+      status('Dados principais: salvos no Firebase','ok');
     }catch(e){
       console.error('Salvar no Firebase:',e);
       lastHashes={};
       lastObjectHashes={};
       if(String(e?.code||'').includes('permission-denied')){
-        status('Dados: Firebase sem permissão','err');
+        status('Dados principais: sem permissão','err');
       }else if(String(e?.message||'').includes('excedeu')){
-        status('Dados: conexão lenta • tentando novamente','wait');
+        status('Dados principais: conexão lenta • tentando novamente','wait');
         setTimeout(()=>scheduleCloudSave(false),10000);
       }else{
-        status('Dados: falha ao salvar • tentando novamente','wait');
+        status('Dados principais: falha ao salvar • tentando novamente','wait');
         setTimeout(()=>scheduleCloudSave(false),10000);
       }
     }finally{
@@ -11539,7 +11539,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(fp!==lastPersistFingerprint){
       scheduleCloudSave(false);
     }else{
-      status('Dados: salvos no Firebase','ok');
+      status('Dados principais: salvos no Firebase','ok');
     }
   };
 
@@ -11552,7 +11552,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
       if(!loaded||syncing||!snap.exists)return;
       const cloudTime=Number((snap.data()||{}).clientSavedAt||0);
       if(cloudTime>lastCloudSavedAt+1500){
-        status('Dados: atualização disponível • recarregue','wait');
+        status('Dados principais: atualização disponível • recarregue','wait');
       }
     },e=>console.warn('Listener persistência:',e));
   }
@@ -11572,7 +11572,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
           loaded=false;
           currentUid='';
           showLoading(false);
-          status('Dados: aguardando login','wait');
+          status('Dados principais: aguardando login','wait');
         }
       });
     }catch(e){
@@ -12331,8 +12331,19 @@ window.__LP_SALES_FIX_VERSION__='v47';
 </script>
 
 
-<script id="lp-persistence-speed-v57">
-window.__LP_PERSISTENCE_VERSION__='v57';
+<script id="lp-persistence-core-only-v58">
+(function(){
+  window.__LP_PERSISTENCE_VERSION__='v58';
+  window.__LP_PERSISTENCE_CORE_ONLY__=true;
+  /*
+    V58:
+    - Firebase permanente: vendas, financeiro, caixa, clientes, compras,
+      parcelas/lembretes, estornos e demais registros operacionais principais.
+    - Estoque segue em controleEstoque/controleMovimentos, pelo sincronizador.
+    - history/stockMovements antigos deixam de ser migrados pelo controlePersist,
+      pois podiam gerar milhares de gravações e travar o navegador.
+  */
+})();
 </script>
 
 </body>
