@@ -12042,5 +12042,249 @@ window.__LP_SALES_FIX_VERSION__='v47';
 })();
 </script>
 
+
+<style id="lp-stock-filters-v55-css">
+.lp-stock-kpi-v55{cursor:pointer;transition:.15s ease}
+.lp-stock-kpi-v55:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(15,23,42,.08)}
+.lp-stock-kpi-v55.active{outline:2px solid #ef3340;outline-offset:-2px}
+.lp-stock-kpi-v55 .delta{margin-top:8px}
+.lp-stock-toolbar-v55{display:grid;grid-template-columns:2fr repeat(3,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.lp-stock-toolbar-v55 input,.lp-stock-toolbar-v55 select{width:100%}
+.lp-stock-summary-v55{margin:12px 0;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);font-size:12px;color:var(--muted)}
+.lp-stock-more-v55{display:flex;justify-content:center;padding:14px}
+@media(max-width:850px){.lp-stock-toolbar-v55{grid-template-columns:1fr 1fr}.lp-stock-toolbar-v55 input{grid-column:1/-1}}
+@media(max-width:560px){.lp-stock-toolbar-v55{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-stock-filters-v55">
+(function(){
+  if(window.__lpStockFiltersV55)return;
+  window.__lpStockFiltersV55=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const E=v=>typeof esc==='function'?esc(v):T(v);
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+  const state=window.__lpStockStateV55||{
+    q:'',scope:'Pneus',aro:'Todos',qty:'todos',limit:80
+  };
+  window.__lpStockStateV55=state;
+
+  function sourceType(p){return norm(p?.sourceType)}
+  function isRemovedParts(p){
+    return sourceType(p)==='acessorios' && norm(p?.sourceSheet)==='pecas';
+  }
+  function keyOf(p){
+    const st=sourceType(p);
+    if(T(p?.excelSyncKey))return st+'|'+T(p.excelSyncKey);
+    if(T(p?.code))return st+'|code|'+T(p.code);
+    return st+'|name|'+norm(p?.name);
+  }
+  function syncedStock(){
+    const all=Array.isArray(data?.products)?data.products:[];
+    const synced=all.filter(p=>
+      p?.excelManaged &&
+      ['carro','moto','acessorios'].includes(sourceType(p)) &&
+      !isRemovedParts(p)
+    );
+    const base=synced.length?synced:all.filter(p=>
+      ['carro','moto','acessorios'].includes(sourceType(p)) &&
+      !isRemovedParts(p)
+    );
+    const map=new Map();
+    for(const p of base)map.set(keyOf(p),p);
+    return [...map.values()];
+  }
+  function tires(){
+    return syncedStock().filter(p=>['carro','moto'].includes(sourceType(p)));
+  }
+  function accessories(){
+    return syncedStock().filter(p=>sourceType(p)==='acessorios');
+  }
+  function aroOf(p){
+    const direct=T(p?.aro).match(/\d{2}/);
+    if(direct)return direct[0];
+    const s=T(p?.name)+' '+T(p?.size);
+    const m=s.match(/(?:R|\-|\s)(1[0-9]|2[0-4])\b/i);
+    return m?m[1]:'';
+  }
+  function typeLabel(p){
+    if(sourceType(p)==='carro')return 'Carro';
+    if(sourceType(p)==='moto')return 'Moto';
+    return 'Acessórios';
+  }
+
+  function applyQuick(kind){
+    state.q='';
+    state.aro='Todos';
+    state.limit=80;
+    if(kind==='todos'){state.scope='Pneus';state.qty='todos'}
+    if(kind==='disponiveis'){state.scope='Pneus';state.qty='disponivel'}
+    if(kind==='baixo'){state.scope='Pneus';state.qty='baixo'}
+    if(kind==='zero'){state.scope='Pneus';state.qty='zero'}
+    window.renderEstoque();
+  }
+  window.lpStockQuickV55=applyQuick;
+
+  window.lpStockFilterV55=function(){
+    state.q=norm(document.getElementById('lpStockQ55')?.value);
+    state.scope=T(document.getElementById('lpStockScope55')?.value)||'Pneus';
+    state.aro=T(document.getElementById('lpStockAro55')?.value)||'Todos';
+    state.qty=T(document.getElementById('lpStockQty55')?.value)||'todos';
+    state.limit=80;
+    window.renderEstoque();
+  };
+  window.lpStockMoreV55=function(){
+    state.limit+=80;
+    window.renderEstoque();
+  };
+
+  window.renderEstoque=function(){
+    const all=syncedStock();
+    const tireList=tires();
+
+    const car=tireList.filter(p=>sourceType(p)==='carro');
+    const moto=tireList.filter(p=>sourceType(p)==='moto');
+
+    const carUnits=car.reduce((a,p)=>a+N(p.qty),0);
+    const motoUnits=moto.reduce((a,p)=>a+N(p.qty),0);
+    const totalUnits=carUnits+motoUnits;
+
+    const availableModels=tireList.filter(p=>N(p.qty)>0).length;
+    const lowModels=tireList.filter(p=>N(p.qty)>0&&N(p.qty)<=2).length;
+    const zeroModels=tireList.filter(p=>N(p.qty)<=0).length;
+
+    let base;
+    if(state.scope==='Carro')base=car;
+    else if(state.scope==='Moto')base=moto;
+    else if(state.scope==='Acessórios')base=accessories();
+    else base=tireList;
+
+    const aros=[...new Set(tireList.map(aroOf).filter(Boolean))].sort((a,b)=>N(a)-N(b));
+
+    const filtered=base.filter(p=>{
+      if(state.q && !norm(`${p.code||''} ${p.name||''} ${p.brand||''}`).includes(state.q))return false;
+      if(state.aro!=='Todos' && aroOf(p)!==state.aro)return false;
+      const q=N(p.qty);
+      if(state.qty==='disponivel'&&q<=0)return false;
+      if(state.qty==='baixo'&&!(q>0&&q<=2))return false;
+      if(state.qty==='zero'&&q!==0)return false;
+      return true;
+    });
+
+    const visible=filtered.slice(0,state.limit);
+
+    const rows=visible.map(p=>{
+      const q=N(p.qty);
+      return `<tr>
+        <td><b>${E(p.code||'')}</b></td>
+        <td>${E(p.name||'')}</td>
+        <td>${E(typeLabel(p))}</td>
+        <td>${E(p.brand||'-')}</td>
+        <td>${E(aroOf(p)||'-')}</td>
+        <td><b>${q.toLocaleString('pt-BR')}</b></td>
+        <td>${M(p.cost)}</td>
+        <td>${M(p.price)}</td>
+        <td>${q===0?'<span class="badge danger">Zerado</span>':q<=2?'<span class="badge warn">Baixo</span>':'<span class="badge ok">Normal</span>'}</td>
+        <td class="actions">
+          <button class="btn ghost small" onclick="stockMovementModal(${JSON.stringify(p.id)})">Movimentar</button>
+          <button class="btn ghost small" onclick="productModal(${JSON.stringify(p.id)})">Editar</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const activeAll=state.scope==='Pneus'&&state.qty==='todos';
+    const activeAvail=state.scope==='Pneus'&&state.qty==='disponivel';
+    const activeLow=state.scope==='Pneus'&&state.qty==='baixo';
+    const activeZero=state.scope==='Pneus'&&state.qty==='zero';
+
+    const host=document.getElementById('estoque');
+    if(!host)return;
+
+    host.innerHTML=
+      heading('Pneus / Estoque','Contagem baseada somente nas planilhas sincronizadas de Carro e Moto.',
+        `<button class="btn primary" onclick="productModal()">+ Produto</button>`)+
+
+      `<div class="cards">
+        <div class="card metric lp-stock-kpi-v55 ${activeAll?'active':''}" onclick="lpStockQuickV55('todos')">
+          <div class="label">Pneus em estoque</div>
+          <div class="value">${totalUnits.toLocaleString('pt-BR')}</div>
+          <div class="delta green">Carro ${carUnits.toLocaleString('pt-BR')} + Moto ${motoUnits.toLocaleString('pt-BR')}</div>
+        </div>
+        <div class="card metric lp-stock-kpi-v55 ${activeAvail?'active':''}" onclick="lpStockQuickV55('disponiveis')">
+          <div class="label">Modelos disponíveis</div>
+          <div class="value">${availableModels.toLocaleString('pt-BR')}</div>
+          <div class="delta green">com pelo menos 1 unidade</div>
+        </div>
+        <div class="card metric lp-stock-kpi-v55 ${activeLow?'active':''}" onclick="lpStockQuickV55('baixo')">
+          <div class="label">Baixo estoque</div>
+          <div class="value">${lowModels.toLocaleString('pt-BR')}</div>
+          <div class="delta ${lowModels?'red':'green'}">1 ou 2 unidades</div>
+        </div>
+        <div class="card metric lp-stock-kpi-v55 ${activeZero?'active':''}" onclick="lpStockQuickV55('zero')">
+          <div class="label">Zerados</div>
+          <div class="value">${zeroModels.toLocaleString('pt-BR')}</div>
+          <div class="delta ${zeroModels?'red':'green'}">clique para filtrar</div>
+        </div>
+      </div>
+
+      <div class="lp-stock-summary-v55">
+        <b>Conferência:</b> o total acima usa somente registros sincronizados de <b>Carro + Moto</b>.
+        Produtos antigos de teste, duplicados e a aba Peças dos acessórios não entram na contagem.
+      </div>
+
+      <div class="card">
+        <div class="lp-stock-toolbar-v55">
+          <input id="lpStockQ55" placeholder="Pesquisar código, pneu ou marca" value="${E(state.q)}" oninput="lpStockFilterV55()">
+          <select id="lpStockScope55" onchange="lpStockFilterV55()">
+            ${['Pneus','Carro','Moto','Acessórios'].map(x=>`<option ${state.scope===x?'selected':''}>${x}</option>`).join('')}
+          </select>
+          <select id="lpStockAro55" onchange="lpStockFilterV55()">
+            <option>Todos</option>
+            ${aros.map(x=>`<option value="${x}" ${state.aro===x?'selected':''}>Aro ${x}</option>`).join('')}
+          </select>
+          <select id="lpStockQty55" onchange="lpStockFilterV55()">
+            <option value="todos" ${state.qty==='todos'?'selected':''}>Todas quantidades</option>
+            <option value="disponivel" ${state.qty==='disponivel'?'selected':''}>Somente disponíveis</option>
+            <option value="baixo" ${state.qty==='baixo'?'selected':''}>Baixo (1–2)</option>
+            <option value="zero" ${state.qty==='zero'?'selected':''}>Somente zerados</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>Produto</th><th>Tipo</th><th>Marca</th><th>Aro</th><th>Qtd.</th><th>Custo</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody>${rows||'<tr><td colspan="10" class="empty">Nenhum produto neste filtro.</td></tr>'}</tbody>
+          </table>
+        </div>
+
+        ${filtered.length>visible.length?`<div class="lp-stock-more-v55"><button class="btn ghost" onclick="lpStockMoreV55()">Mostrar mais (${visible.length} de ${filtered.length})</button></div>`:''}
+        <div class="lp-performance-note">Exibindo ${visible.length} de ${filtered.length} resultado(s).</div>
+      </div>`;
+  };
+
+  // Corrige também o KPI do Dashboard usando a mesma fonte autoritativa.
+  const oldDashboard=window.renderDashboard;
+  window.renderDashboard=function(){
+    if(typeof oldDashboard==='function')oldDashboard();
+    try{
+      const total=tires().reduce((a,p)=>a+N(p.qty),0);
+      const host=document.getElementById('dashboard');
+      if(!host)return;
+      [...host.querySelectorAll('.card.metric')].forEach(card=>{
+        if(/Pneus em estoque/i.test(card.textContent||'')){
+          const value=card.querySelector('.value');
+          const delta=card.querySelector('.delta');
+          if(value)value.textContent=total.toLocaleString('pt-BR');
+          if(delta)delta.textContent='Carro + Moto sincronizados';
+        }
+      });
+    }catch(e){console.warn(e)}
+  };
+})();
+</script>
+
 </body>
 </html>
