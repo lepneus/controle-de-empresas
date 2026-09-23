@@ -13590,7 +13590,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
   const DAY=86400000;
   const state={started:false,chunks:new Map(),meta:{},error:''};
-  const TYPES=['historico','receber','pagar','movimento'];
+  const TYPES=['receber','pagar'];
 
   function ensure(){
     try{if(typeof window.lpEnsureFinanceV63==='function')window.lpEnsureFinanceV63()}catch(e){}
@@ -13625,13 +13625,13 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 
   function applyCloud(){
     ensure();
-    const hist=sourceItems('historico');
     const recv=sourceItems('receber');
     const pay=sourceItems('pagar');
-    const move=sourceItems('movimento');
 
-    data.lpHistoricalClosings=[...data.lpHistoricalClosings.filter(x=>!x.autoSyncFinance),...hist.map(x=>({...x,autoSyncFinance:true,sourceFile:x.sourceFile||state.meta.historico?.sourceFile||''}))];
-    data.lpDailyFinancial=[...data.lpDailyFinancial.filter(x=>!x.autoSyncFinance),...move.map(x=>({...x,autoSyncFinance:true,sourceFile:x.sourceFile||state.meta.movimento?.sourceFile||''}))];
+    // V68: Balanço Anual e Movimento de Caixa deixaram de ser automáticos.
+    // Remove somente dados antigos que vieram do sincronizador V64; importações manuais permanecem.
+    data.lpHistoricalClosings=data.lpHistoricalClosings.filter(x=>!x.autoSyncFinance);
+    data.lpDailyFinancial=data.lpDailyFinancial.filter(x=>!x.autoSyncFinance);
 
     const recItems=recv.filter(x=>T(x.kind)!=='loss').map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
     const lossItems=recv.filter(x=>T(x.kind)==='loss').map(x=>({...x,autoSyncFinance:true}));
@@ -13672,9 +13672,9 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   function financialSyncStatusHtml(){
     const got=TYPES.filter(t=>state.meta[t]).length;
     const latest=TYPES.map(t=>T(state.meta[t]?.updatedAtText)).filter(Boolean).sort().pop()||'';
-    const cls=state.error?'err':got===4?'ok':'wait';
-    const label=state.error?'Erro na sincronização':got===4?'4/4 planilhas financeiras conectadas':`${got}/4 planilhas financeiras recebidas`;
-    return `<div class="notice" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><b>Sincronização financeira automática:</b> Balanço Anual, Devedores, Dívidas e Movimento de Caixa.</div><span class="lp-sync-v64-badge ${cls}">${E(label)}</span></div>${latest?`<small class="cell-sub">Última atualização: ${E(latest)}</small>`:''}</div>`;
+    const cls=state.error?'err':got===2?'ok':'wait';
+    const label=state.error?'Erro na sincronização':got===2?'2/2 planilhas automáticas conectadas':`${got}/2 planilhas automáticas recebidas`;
+    return `<div class="notice" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><b>Sincronização automática:</b> Devedores LEPNEUS + Dívidas LEPNEUS. <b>Balanço Anual</b> é importado no Fechamento Mensal e <b>Movimento de Caixa</b> é importado manualmente no Caixa.</div><span class="lp-sync-v64-badge ${cls}">${E(label)}</span></div>${latest?`<small class="cell-sub">Última atualização automática: ${E(latest)}</small>`:''}</div>`;
   }
 
   function debtorGroups(){
@@ -13722,14 +13722,480 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   function start(){
     if(state.started)return;const d=db();if(!d){setTimeout(start,900);return}const user=window.firebase?.auth?.().currentUser;if(!user){setTimeout(start,900);return}
     state.started=true;
-    d.collection('controleFinanceiroV2').onSnapshot(s=>{s.docChanges().forEach(ch=>{if(ch.type==='removed')state.chunks.delete(ch.doc.id);else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()})});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2:',e);rerender()});
-    d.collection('controleFinanceiroV2Meta').onSnapshot(s=>{s.forEach(doc=>state.meta[doc.id]=doc.data()||{});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2Meta:',e);rerender()});
+    // V68: lê somente os dois tipos realmente automáticos, economizando leituras do Firestore.
+    d.collection('controleFinanceiroV2').where('sourceType','in',['receber','pagar']).onSnapshot(s=>{s.docChanges().forEach(ch=>{if(ch.type==='removed')state.chunks.delete(ch.doc.id);else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()})});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2:',e);rerender()});
+    d.collection('controleFinanceiroV2Meta').where('sourceType','in',['receber','pagar']).onSnapshot(s=>{s.forEach(doc=>state.meta[doc.id]=doc.data()||{});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2Meta:',e);rerender()});
   }
 
   window.lpFinanceSyncV64State=state;
   function removeStockEntryPanel(){const host=document.getElementById('estoque');if(host)host.querySelectorAll('.lp-stock-entry-v62').forEach(el=>el.remove())}
   window.addEventListener('load',()=>{setTimeout(start,1200);setTimeout(removeStockEntryPanel,300)});
   setTimeout(start,1600);setTimeout(removeStockEntryPanel,100);
+})();
+</script>
+
+
+<style id="lp-finance-v68-css">
+.lp-v68-section{margin-top:16px}
+.lp-v68-toolbar{display:grid;grid-template-columns:minmax(240px,1fr) 170px auto;gap:10px;align-items:end}
+.lp-v68-toolbar label{display:grid;gap:6px;font-size:10px;font-weight:800;color:var(--muted)}
+.lp-v68-toolbar input{width:100%;min-height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 10px}
+.lp-v68-note{font-size:10px;line-height:1.5;color:var(--muted);margin-top:9px}
+.lp-v68-status{font-size:9px;font-weight:900;padding:5px 8px;border-radius:999px;white-space:nowrap;display:inline-flex}
+.lp-v68-status.red{color:#ef4444;background:rgba(239,68,68,.12)}
+.lp-v68-status.orange{color:#f59e0b;background:rgba(245,158,11,.12)}
+.lp-v68-status.blue{color:#3b82f6;background:rgba(59,130,246,.12)}
+.lp-v68-status.green{color:#22c55e;background:rgba(34,197,94,.12)}
+.lp-v68-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.lp-v68-kpi{padding:13px;border:1px solid var(--line);border-radius:13px;background:var(--panel)}
+.lp-v68-kpi span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
+.lp-v68-kpi b{display:block;margin-top:6px;font-size:18px}
+.lp-v68-table{overflow:auto;max-height:560px}
+.lp-v68-table table{min-width:820px}
+.lp-v68-table th{position:sticky;top:0;z-index:1}
+.lp-v68-actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:800px){
+  .lp-v68-toolbar{grid-template-columns:1fr}
+  .lp-v68-kpis{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){.lp-v68-kpis{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-finance-v68-js">
+(function(){
+  if(window.__lpFinanceV68)return;
+  window.__lpFinanceV68=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const DAY=86400000;
+
+  function ensure(){
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.cash=Array.isArray(data.cash)?data.cash:[];
+    data.lpDailyFinancial=Array.isArray(data.lpDailyFinancial)?data.lpDailyFinancial:[];
+    data.lpHistoricalClosings=Array.isArray(data.lpHistoricalClosings)?data.lpHistoricalClosings:[];
+    data.lpAnnualBalanceV68=Array.isArray(data.lpAnnualBalanceV68)?data.lpAnnualBalanceV68:[];
+    data.lpCashImportsV68=Array.isArray(data.lpCashImportsV68)?data.lpCashImportsV68:[];
+  }
+  function saveNow(){try{if(typeof save==='function')save();else localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){console.warn(e)}}
+  function todayMonth(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+  function isoMs(iso){if(!/^\d{4}-\d{2}-\d{2}$/.test(T(iso)))return NaN;const [y,m,d]=iso.split('-').map(Number);const dt=new Date(y,m-1,d);return dt.getFullYear()===y&&dt.getMonth()===m-1&&dt.getDate()===d?dt.getTime():NaN}
+  function fmtDate(iso){const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(T(iso)||'-')}
+  function daysOver(iso){const a=isoMs(iso);if(!Number.isFinite(a))return null;const d=new Date(),b=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();return Math.floor((b-a)/DAY)}
+  function daysUntil(iso){const x=daysOver(iso);return x===null?null:-x}
+  function rowNumber(v){
+    if(v===null||v===undefined||T(v)==='')return 0;
+    if(typeof v==='number')return Number.isFinite(v)?v:0;
+    let s=T(v).replace(/R\$\s*/gi,'').replace(/\s/g,'');
+    if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+    else if(s.includes(','))s=s.replace(',','.');
+    s=s.replace(/[^0-9.-]/g,'');
+    const n=Number(s);return Number.isFinite(n)?n:0;
+  }
+  function validMonth(month){return /^\d{4}-\d{2}$/.test(T(month))&&Number(month.slice(5,7))>=1&&Number(month.slice(5,7))<=12}
+  function guessMonth(name){
+    const s=T(name);
+    let m=s.match(/(?:^|\D)(0?[1-9]|1[0-2])[-_.\s](20\d{2}|\d{2})(?:\D|$)/);
+    if(!m)return '';
+    const y=m[2].length===2?2000+Number(m[2]):Number(m[2]);
+    return `${y}-${String(Number(m[1])).padStart(2,'0')}`;
+  }
+  function fileInput(id){return document.getElementById(id)?.files?.[0]||null}
+  async function workbookFromFile(file){
+    if(!window.XLSX)throw new Error('Leitor Excel não carregou. Atualize a página e tente novamente.');
+    const buffer=await file.arrayBuffer();
+    return XLSX.read(buffer,{type:'array',cellDates:false});
+  }
+
+  // ===== CONTAS A PAGAR =====
+  function payableRows(){
+    ensure();
+    return data.finance
+      .filter(f=>T(f.type)==='Despesa'&&!/pago|recebido|cancelado/i.test(T(f.status)))
+      .sort((a,b)=>(T(a.dueDate)||'9999').localeCompare(T(b.dueDate)||'9999'));
+  }
+  function paySituation(f){
+    const over=daysOver(f.dueDate),until=daysUntil(f.dueDate);
+    if(over!==null&&over>0)return {text:`Atrasado ${over} dia${over===1?'':'s'}`,cls:'red'};
+    if(until===0)return {text:'Vence hoje',cls:'blue'};
+    if(until!==null&&until>0&&until<=3)return {text:`Vence em ${until} dia${until===1?'':'s'}`,cls:'orange'};
+    if(until!==null&&until>3)return {text:`A vencer • ${until} dias`,cls:'green'};
+    return {text:'Sem vencimento válido',cls:'orange'};
+  }
+  function payablesHtml(){
+    const rows=payableRows(),total=rows.reduce((s,x)=>s+N(x.value),0);
+    const overdue=rows.filter(x=>(daysOver(x.dueDate)||0)>0);
+    const soon=rows.filter(x=>{const d=daysUntil(x.dueDate);return d!==null&&d>=0&&d<=3});
+    const body=rows.slice(0,180).map(f=>{
+      const st=paySituation(f),cloud=!!f.cloudManagedFinance;
+      const origin=cloud?'Dívidas LEPNEUS':(f.sourceFile||'Sistema');
+      return `<tr>
+        <td><b>${E(f.desc||'Fornecedor')}</b><small class="cell-sub">${E(f.category||'Conta')}</small></td>
+        <td>${fmtDate(f.dueDate)}</td>
+        <td><b>${M(f.value)}</b></td>
+        <td><span class="lp-v68-status ${st.cls}">${E(st.text)}</span></td>
+        <td>${E(origin)}${f.sourceSheet?`<small class="cell-sub">${E(f.sourceSheet)}</small>`:''}</td>
+        <td>${cloud?'<span class="cell-sub">Baixa pela planilha</span>':`<button class="btn ghost small" onclick='lpMarkPayableV68(${JSON.stringify(String(f.id))})'>Marcar pago</button>`}</td>
+      </tr>`;
+    }).join('');
+    return `<section class="card lp-v68-section lp-payables-v68">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Contas a pagar</h3><small class="cell-sub">Dívidas LEPNEUS sincroniza automaticamente apenas o que ainda está em aberto. O sistema alerta 3 dias antes, no dia e depois do vencimento.</small></div><span class="soft-chip">${rows.length} conta(s)</span></div>
+      <div class="lp-v68-kpis">
+        <div class="lp-v68-kpi"><span>Total em aberto</span><b>${M(total)}</b></div>
+        <div class="lp-v68-kpi"><span>Vence em até 3 dias</span><b>${soon.length}</b></div>
+        <div class="lp-v68-kpi"><span>Atrasadas</span><b>${overdue.length}</b></div>
+        <div class="lp-v68-kpi"><span>Fonte automática</span><b>Dívidas</b></div>
+      </div>
+      <div class="table-wrap lp-v68-table"><table><thead><tr><th>Fornecedor / conta</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Origem</th><th>Ação</th></tr></thead><tbody>${body||'<tr><td colspan="6" class="empty">Nenhuma conta a pagar em aberto.</td></tr>'}</tbody></table></div>
+    </section>`;
+  }
+  window.lpMarkPayableV68=function(id){
+    const f=(data.finance||[]).find(x=>String(x.id)===String(id));if(!f)return;
+    if(f.cloudManagedFinance)return alert('Esta conta vem da planilha Dívidas LEPNEUS. Dê baixa na planilha; o sincronizador atualizará o sistema.');
+    if(typeof markFinancePaid==='function')markFinancePaid(f.id);
+  };
+
+  // ===== MOVIMENTO DE CAIXA MANUAL =====
+  function cashImportHtml(){
+    ensure();
+    const last=[...data.lpCashImportsV68].sort((a,b)=>T(b.importedAtIso).localeCompare(T(a.importedAtIso)))[0];
+    return `<section class="card lp-v68-section lp-cash-import-v68">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar Movimento de Caixa do mês</h3><small class="cell-sub">Importação manual. O sincronizador NÃO lê esta planilha automaticamente.</small></div>${last?`<span class="soft-chip">Último: ${E(last.month)}</span>`:''}</div>
+      <div class="lp-v68-toolbar">
+        <label>Planilha Movimento de Caixa<input id="lpCashFileV68" type="file" accept=".xlsx,.xls" onchange="lpGuessCashMonthV68()"></label>
+        <label>Mês da planilha<input id="lpCashMonthV68" type="month" value="${todayMonth()}"></label>
+        <button class="btn primary" onclick="lpImportCashMovementV68()">Importar no Caixa</button>
+      </div>
+      <div class="lp-v68-note"><b>Como entra no Caixa:</b> Vendas à Vista, Vendas no Cartão, Serviços e Recebimentos entram como <b>Entrada</b>; Pagamentos entram como <b>Saída</b>. Vendas a Prazo ficam no resumo mensal, mas não viram entrada de caixa até serem recebidas. Reimportar o mesmo mês substitui somente a importação daquele mês, sem duplicar.</div>
+    </section>`;
+  }
+  window.lpGuessCashMonthV68=function(){
+    const f=fileInput('lpCashFileV68'),m=guessMonth(f?.name||'');if(m&&document.getElementById('lpCashMonthV68'))document.getElementById('lpCashMonthV68').value=m;
+  };
+  window.lpImportCashMovementV68=async function(){
+    ensure();
+    const file=fileInput('lpCashFileV68');if(!file)return alert('Escolha a planilha Movimento de Caixa.');
+    const month=T(document.getElementById('lpCashMonthV68')?.value)||guessMonth(file.name);
+    if(!validMonth(month))return alert('Informe corretamente o mês da planilha.');
+    try{
+      const wb=await workbookFromFile(file),ws=wb.Sheets['MC']||wb.Sheets[wb.SheetNames.find(n=>norm(n)==='mc')];
+      if(!ws)throw new Error('Não encontrei a aba MC nesta planilha.');
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+      if(!rows.length)throw new Error('A aba MC está vazia.');
+      const [year,mon]=month.split('-').map(Number),lastDay=new Date(year,mon,0).getDate();
+      const daily=[],cash=[];
+      const add=(day,key,type,desc,value,payment)=>{
+        value=N(value);if(value<=0)return;
+        const date=`${String(day).padStart(2,'0')}/${String(mon).padStart(2,'0')}/${year}`;
+        cash.push({id:`cashmov-${month}-${String(day).padStart(2,'0')}-${key}`,type,desc,value,payment,date,sourceMonth:month,sourceFile:file.name,cashMovementImportV68:true});
+      };
+      for(let r=1;r<rows.length;r++){
+        const row=rows[r]||[],day=Number(row[0]);
+        if(!Number.isInteger(day)||day<1||day>lastDay)continue;
+        const item={id:`manual-${month}-${day}`,month,day,cashSales:rowNumber(row[1]),cardSales:rowNumber(row[2]),termSales:rowNumber(row[3]),salesTotal:rowNumber(row[4]),services:rowNumber(row[5]),payments:rowNumber(row[6]),receipts:rowNumber(row[7]),manualCashImportV68:true,sourceFile:file.name};
+        if(![item.cashSales,item.cardSales,item.termSales,item.salesTotal,item.services,item.payments,item.receipts].some(v=>v!==0))continue;
+        daily.push(item);
+        add(day,'vista','Entrada','Vendas à vista • Movimento de Caixa',item.cashSales,'À vista');
+        add(day,'cartao','Entrada','Vendas no cartão • Movimento de Caixa',item.cardSales,'Cartão');
+        add(day,'servicos','Entrada','Serviços à vista • Movimento de Caixa',item.services,'Serviços');
+        add(day,'recebimentos','Entrada','Recebimentos • Movimento de Caixa',item.receipts,'Recebimentos');
+        add(day,'pagamentos','Saída','Pagamentos • Movimento de Caixa',item.payments,'Pagamentos');
+      }
+      if(!daily.length&&!cash.length)throw new Error('Não encontrei movimentações preenchidas na aba MC.');
+      const had=(data.lpCashImportsV68||[]).some(x=>x.month===month);
+      if(had&&!confirm(`O mês ${month} já foi importado. Substituir a importação desse mês pelos dados desta planilha?`))return;
+      data.cash=data.cash.filter(x=>!(x.cashMovementImportV68&&x.sourceMonth===month));
+      data.lpDailyFinancial=data.lpDailyFinancial.filter(x=>!(x.manualCashImportV68&&x.month===month));
+      data.lpCashImportsV68=data.lpCashImportsV68.filter(x=>x.month!==month);
+      data.cash.unshift(...cash);
+      data.lpDailyFinancial.push(...daily);
+      const inTotal=cash.filter(x=>x.type==='Entrada').reduce((s,x)=>s+N(x.value),0);
+      const outTotal=cash.filter(x=>x.type==='Saída').reduce((s,x)=>s+N(x.value),0);
+      data.lpCashImportsV68.push({month,file:file.name,rows:daily.length,cashEntries:cash.length,inTotal,outTotal,importedAt:new Date().toLocaleString('pt-BR'),importedAtIso:new Date().toISOString()});
+      saveNow();
+      try{if(typeof renderCaixa==='function')renderCaixa()}catch(e){}
+      alert(`Movimento de Caixa ${month} importado.\nDias com movimento: ${daily.length}\nEntradas: ${M(inTotal)}\nSaídas: ${M(outTotal)}\n\nVendas a prazo ficaram apenas no resumo, sem duplicar o Caixa.`);
+    }catch(e){console.error(e);alert('Não foi possível importar o Movimento de Caixa: '+(e?.message||e))}
+  };
+
+  // ===== BALANÇO ANUAL MANUAL NO FECHAMENTO =====
+  const months=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  function coreMetric(details,names){
+    const keys=Object.keys(details);
+    for(const n of names){
+      const k=keys.find(x=>norm(x)===norm(n));if(k!==undefined)return N(details[k]);
+    }
+    return null;
+  }
+  function annualImportHtml(){
+    ensure();
+    const records=[...data.lpAnnualBalanceV68].sort((a,b)=>T(b.month).localeCompare(T(a.month)));
+    const body=records.map(x=>`<tr>
+      <td><b>${E(x.label)}</b><small class="cell-sub">${E(x.sourceFile||'Balanço Anual')}</small></td>
+      <td>${M(x.metrics?.grossSales)}</td><td>${M(x.metrics?.services)}</td><td>${M(x.metrics?.purchases)}</td><td>${M(x.metrics?.payments)}</td><td>${M(x.metrics?.receipts)}</td>
+      <td><button class="btn ghost small" onclick='lpShowAnnualMonthV68(${JSON.stringify(x.month)})'>Ver detalhes</button></td>
+    </tr>`).join('');
+    return `<section class="card lp-v68-section lp-annual-v68">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar Balanço Anual LEPNEUS</h3><small class="cell-sub">Importação manual dentro do Fechamento Mensal. Não passa pelo sincronizador automático.</small></div><span class="soft-chip">${records.length} mês(es) importado(s)</span></div>
+      <div class="lp-v68-toolbar" style="grid-template-columns:minmax(260px,1fr) auto">
+        <label>Balanço Anual<input id="lpAnnualFileV68" type="file" accept=".xlsx,.xls"></label>
+        <button class="btn primary" onclick="lpImportAnnualBalanceV68()">Importar fechamento histórico</button>
+      </div>
+      <div class="lp-v68-note">Os meses importados ficam no histórico do Fechamento Mensal. Ao importar novamente, o mesmo mês é atualizado em vez de duplicado. A planilha 2026 usa o <b>nome da aba</b> como ano, mesmo que uma célula interna tenha outro ano escrito.</div>
+      ${records.length?`<div class="table-wrap lp-v68-table" style="margin-top:12px"><table><thead><tr><th>Mês</th><th>Venda bruta</th><th>Serviços</th><th>Compras</th><th>Pagamentos</th><th>Recebimentos</th><th>Ação</th></tr></thead><tbody>${body}</tbody></table></div>`:''}
+    </section>`;
+  }
+  window.lpImportAnnualBalanceV68=async function(){
+    ensure();
+    const file=fileInput('lpAnnualFileV68');if(!file)return alert('Escolha a planilha Balanço Anual LEPNEUS.');
+    try{
+      const wb=await workbookFromFile(file);
+      const years=wb.SheetNames.filter(n=>/^20\d{2}$/.test(T(n)));
+      if(!years.length)throw new Error('Não encontrei abas de ano (ex.: 2024, 2025, 2026).');
+      const imported=[];
+      years.forEach(sn=>{
+        const ws=wb.Sheets[sn],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+        for(let mi=0;mi<12;mi++){
+          const details={};
+          rows.forEach(row=>{
+            const label=T(row?.[0]);if(!label)return;
+            const raw=row?.[mi+1];
+            if(raw===null||raw===undefined||raw==='')return;
+            let val=null;
+            if(typeof raw==='number'&&Number.isFinite(raw))val=raw;
+            else{
+              const txt=T(raw);
+              if(!/\d/.test(txt))return;
+              const parsed=rowNumber(raw);
+              if(Number.isFinite(parsed))val=parsed;
+            }
+            if(val!==null)details[label]=val;
+          });
+          const metrics={
+            car:coreMetric(details,['Carro']),
+            moto:coreMetric(details,['Moto']),
+            accessories:coreMetric(details,['Acessorios','Acessórios']),
+            purchases:coreMetric(details,['Compras']),
+            payments:coreMetric(details,['Pagamento']),
+            receipts:coreMetric(details,['Recebimento']),
+            cashSales:coreMetric(details,['Venda a Vista']),
+            cardSales:coreMetric(details,['Cartão','Cartao']),
+            termSales:coreMetric(details,['Prazo']),
+            grossSales:coreMetric(details,['Vl Bruto Venda']),
+            cost:coreMetric(details,['Custo Total']),
+            grossProfit:coreMetric(details,['Lucro Estimado Brut']),
+            services:coreMetric(details,['Prestação Serviços','Prestacao Servicos']),
+            totalGross:coreMetric(details,['Total Lucro Bruto'])
+          };
+          const present=['grossSales','services','purchases','payments','receipts'].some(k=>metrics[k]!==null&&metrics[k]!==0);
+          if(!present)continue;
+          const month=`${sn}-${months[mi]}`,label=`${monthNames[mi]}/${sn}`;
+          imported.push({id:`annual-v68-${month}`,month,year:Number(sn),label,metrics,details,sourceFile:file.name,manualBalanceV68:true,importedAt:new Date().toLocaleString('pt-BR')});
+        }
+      });
+      if(!imported.length)throw new Error('Não encontrei meses preenchidos para importar.');
+      const monthSet=new Set(imported.map(x=>x.month));
+      data.lpAnnualBalanceV68=data.lpAnnualBalanceV68.filter(x=>!monthSet.has(x.month));
+      data.lpAnnualBalanceV68.push(...imported);
+      data.lpHistoricalClosings=data.lpHistoricalClosings.filter(x=>!monthSet.has(x.month));
+      data.lpHistoricalClosings.push(...imported.map(x=>({id:`hist-${x.month}`,month:x.month,year:x.year,label:x.label,metrics:x.metrics,sourceFile:x.sourceFile,manualBalanceV68:true,importedAt:x.importedAt})));
+      saveNow();
+      try{if(typeof renderFechamento==='function')renderFechamento()}catch(e){}
+      alert(`Balanço Anual importado com sucesso.\n${imported.length} mês(es) preenchido(s) foram atualizados no Fechamento Mensal.`);
+    }catch(e){console.error(e);alert('Não foi possível importar o Balanço Anual: '+(e?.message||e))}
+  };
+  window.lpShowAnnualMonthV68=function(month){
+    ensure();const x=data.lpAnnualBalanceV68.find(r=>r.month===month);if(!x)return;
+    const rows=Object.entries(x.details||{}).filter(([,v])=>Number.isFinite(Number(v))).map(([k,v])=>`<tr><td>${E(k)}</td><td style="text-align:right"><b>${M(v)}</b></td></tr>`).join('');
+    const html=`<h2>Fechamento • ${E(x.label)}</h2><div class="notice"><b>Origem:</b> ${E(x.sourceFile||'Balanço Anual')}<br>Dados importados diretamente da planilha.</div><div class="table-wrap" style="margin-top:12px;max-height:60vh"><table><thead><tr><th>Descrição</th><th>Valor</th></tr></thead><tbody>${rows||'<tr><td colspan="2" class="empty">Sem detalhes.</td></tr>'}</tbody></table></div><div class="modal-actions"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`;
+    if(typeof showModal==='function')showModal(html);
+  };
+
+  // ===== WRAPPERS =====
+  const oldFinance=window.renderFinanceiro;
+  window.renderFinanceiro=function(){
+    const r=typeof oldFinance==='function'?oldFinance.apply(this,arguments):undefined;
+    const host=document.getElementById('financeiro');
+    if(host){
+      host.querySelectorAll(':scope > .lp-payables-v68').forEach(x=>x.remove());
+      host.insertAdjacentHTML('beforeend',payablesHtml());
+    }
+    return r;
+  };
+
+  const oldCash=window.renderCaixa;
+  window.renderCaixa=function(){
+    const r=typeof oldCash==='function'?oldCash.apply(this,arguments):undefined;
+    const host=document.getElementById('caixa');
+    if(host){
+      host.querySelectorAll(':scope > .lp-cash-import-v68').forEach(x=>x.remove());
+      const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',cashImportHtml());else host.insertAdjacentHTML('afterbegin',cashImportHtml());
+    }
+    return r;
+  };
+
+  const oldClosing=window.renderFechamento;
+  window.renderFechamento=function(){
+    const r=typeof oldClosing==='function'?oldClosing.apply(this,arguments):undefined;
+    const host=document.getElementById('fechamento');
+    if(host){
+      host.querySelectorAll(':scope > .lp-annual-v68').forEach(x=>x.remove());
+      const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',annualImportHtml());else host.insertAdjacentHTML('afterbegin',annualImportHtml());
+    }
+    return r;
+  };
+
+  // Proteção visual extra contra datas inválidas antigas já salvas.
+  function sanitizeBadFinanceDates(){
+    ensure();let changed=false;
+    data.finance.forEach(f=>{
+      const m=T(f.dueDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(m&&(Number(m[1])<2000||Number(m[1])>2100)){f.dueDate='';if(f.status==='Vencido')f.status='Pendente';changed=true}
+    });
+    if(changed)saveNow();
+  }
+  sanitizeBadFinanceDates();
+
+  window.addEventListener('load',()=>setTimeout(()=>{try{sanitizeBadFinanceDates();renderAll()}catch(e){console.warn(e)}},1800));
+})();
+</script>
+
+
+<script id="lp-v69-verificacao-final">
+(function(){
+  if(window.__lpV69Final)return;
+  window.__lpV69Final=true;
+
+  const T=v=>String(v??'').trim();
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+
+  function safeIso(v){
+    const m=T(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m)return '';
+    const y=Number(m[1]),mo=Number(m[2]),d=Number(m[3]);
+    if(y<2000||y>2100||mo<1||mo>12||d<1||d>31)return '';
+    const dt=new Date(y,mo-1,d);
+    if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d)return '';
+    return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+
+  function legacySourceMatch(f,type){
+    const source=norm(f?.sourceFile||'');
+    const notes=norm(f?.notes||'');
+    if(type==='receber')return source.includes('devedores lepneus')||notes.includes('devedores lepneus');
+    if(type==='pagar')return source.includes('dividas lepneus')||notes.includes('dividas lepneus');
+    return false;
+  }
+
+  function cleanupV69(){
+    try{
+      if(typeof ensureData==='function')ensureData();
+      let changed=false;
+
+      // Balanço e Movimento deixaram de vir do sincronizador.
+      if(Array.isArray(data.lpHistoricalClosings)){
+        const before=data.lpHistoricalClosings.length;
+        data.lpHistoricalClosings=data.lpHistoricalClosings.filter(x=>!x.autoSyncFinance);
+        if(before!==data.lpHistoricalClosings.length)changed=true;
+      }
+      if(Array.isArray(data.lpDailyFinancial)){
+        const before=data.lpDailyFinancial.length;
+        data.lpDailyFinancial=data.lpDailyFinancial.filter(x=>!x.autoSyncFinance);
+        if(before!==data.lpDailyFinancial.length)changed=true;
+      }
+
+      // Datas inválidas nunca entram nos alertas.
+      if(Array.isArray(data.finance)){
+        data.finance.forEach(f=>{
+          if(!f?.dueDate)return;
+          const valid=safeIso(f.dueDate);
+          if(!valid){
+            f.dueDate='';
+            if(f.status==='Vencido')f.status='Pendente';
+            changed=true;
+          }
+        });
+      }
+
+      // Quando o Firebase já confirmou as fontes automáticas, remove cópias
+      // antigas importadas manualmente das mesmas planilhas.
+      const st=window.lpFinanceSyncV64State;
+      const hasRec=!!st?.meta?.receber;
+      const hasPay=!!st?.meta?.pagar;
+
+      if(Array.isArray(data.finance)&&(hasRec||hasPay)){
+        const before=data.finance.length;
+        data.finance=data.finance.filter(f=>{
+          if(f.cloudManagedFinance)return true;
+          if(hasRec&&legacySourceMatch(f,'receber')&&f.sourceKey)return false;
+          if(hasPay&&legacySourceMatch(f,'pagar')&&f.sourceKey)return false;
+          return true;
+        });
+        if(before!==data.finance.length)changed=true;
+      }
+
+      if(data.lpFinanceReview&&hasRec&&Array.isArray(data.lpFinanceReview.receivables)){
+        const before=data.lpFinanceReview.receivables.length;
+        data.lpFinanceReview.receivables=data.lpFinanceReview.receivables.filter(x=>x.autoSyncFinance||!legacySourceMatch(x,'receber'));
+        if(before!==data.lpFinanceReview.receivables.length)changed=true;
+      }
+      if(data.lpFinanceReview&&hasPay&&Array.isArray(data.lpFinanceReview.payables)){
+        const before=data.lpFinanceReview.payables.length;
+        data.lpFinanceReview.payables=data.lpFinanceReview.payables.filter(x=>x.autoSyncFinance||!legacySourceMatch(x,'pagar'));
+        if(before!==data.lpFinanceReview.payables.length)changed=true;
+      }
+
+      if(changed){
+        if(typeof save==='function')save();
+        else localStorage.setItem('gestaoData',JSON.stringify(data));
+      }
+    }catch(e){console.warn('V69 cleanup:',e)}
+  }
+  window.lpCleanupV69=cleanupV69;
+
+  // Remove a antiga importação financeira genérica de Conexão Planilhas.
+  // Movimento fica só no Caixa e Balanço fica só no Fechamento Mensal.
+  const prevPlanilhas=window.renderPlanilhas;
+  window.renderPlanilhas=function(){
+    cleanupV69();
+    const r=typeof prevPlanilhas==='function'?prevPlanilhas.apply(this,arguments):undefined;
+    const host=document.getElementById('planilhas');
+    if(host)host.querySelectorAll(':scope > .lp-fin-v63').forEach(x=>x.remove());
+    return r;
+  };
+
+  // Remove o histórico V63 duplicado. O histórico manual novo fica apenas uma vez.
+  const prevFechamento=window.renderFechamento;
+  window.renderFechamento=function(){
+    cleanupV69();
+    const r=typeof prevFechamento==='function'?prevFechamento.apply(this,arguments):undefined;
+    const host=document.getElementById('fechamento');
+    if(host)host.querySelectorAll(':scope > .lp-fin-v63').forEach(x=>x.remove());
+    return r;
+  };
+
+  // Sanitiza antes de calcular alertas e Contas a Pagar.
+  const prevFinanceiro=window.renderFinanceiro;
+  window.renderFinanceiro=function(){
+    cleanupV69();
+    return typeof prevFinanceiro==='function'?prevFinanceiro.apply(this,arguments):undefined;
+  };
+
+  const prevDashboard=window.renderDashboard;
+  window.renderDashboard=function(){
+    cleanupV69();
+    return typeof prevDashboard==='function'?prevDashboard.apply(this,arguments):undefined;
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{
+    cleanupV69();
+    try{if(typeof renderAll==='function')renderAll()}catch(e){console.warn(e)}
+  },2100));
 })();
 </script>
 
