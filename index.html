@@ -13008,7 +13008,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     const result=typeof previousStockRender==='function'
       ? previousStockRender.apply(this,arguments)
       : undefined;
-    injectEntryPanel();
+    // V64: entradas detectadas ficam somente na página Entrada de pneus.
     return result;
   };
 
@@ -13336,31 +13336,66 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     let count=0,lossCount=0;
     wb.SheetNames.forEach(sn=>{
       const n=norm(sn),rows=sheetRows(wb,sn);if(!rows.length)return;
-      if(n==='percas'){
-        const hi=findHeader(rows,[['data compra'],['valor restante']]);if(hi<0)return;const h=rows[hi]||[];
-        const iDate=headerIndex(h,['data compra']),iName=headerIndex(h,['cliente']),iValue=headerIndex(h,['valor compra']),iRest=headerIndex(h,['valor restante']),iInfo=headerIndex(h,['informacoes']);
-        for(let r=hi+1;r<rows.length;r++){
-          const row=rows[r]||[],remaining=Math.max(0,rowNum(row,iRest));if(remaining<=0)continue;const name=T(row[iName]||row[1]);if(!name)continue;
-          const sourceKey=`${hash}|${sn}|${r+1}`;pushUnique(data.lpFinanceReview.losses,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,customerName:name,value:rowNum(row,iValue),remaining,purchaseDate:excelDate(row[iDate]),info:T(row[iInfo]),category:'Perdas históricas'});lossCount++;
-        }
-        return;
-      }
+
+      // CHEQUES: possui saldo restante e data para descontar.
       if(n==='cheques'){
-        const hi=findHeader(rows,[['data emissao'],['cliente'],['valor restante']]);if(hi>=0)count+=parseSimpleReceivable(rows,hi,file,hash,sn,'Cheque',['dt descontar']);
+        const hi=findHeader(rows,[['data emissao'],['cliente'],['valor restante']]);if(hi<0)return;
+        count+=parseSimpleReceivable(rows,hi,file,hash,sn,'Cheque',['dt descontar']);
         return;
       }
-      if(!(/^[a-z]$/i.test(T(sn))||n==='mao obra'))return;
-      const hi=findHeader(rows,[['data compra'],['cliente'],['valor restante']]);if(hi<0)return;
-      const h=rows[hi]||[],iDate=headerIndex(h,['data compra']),iName=headerIndex(h,['cliente']),iValue=headerIndex(h,['valor compra']),iRest=headerIndex(h,['valor restante']);
-      const heads=h.map(norm),pairs=[];
-      heads.forEach((x,i)=>{if(x.includes('dt pg')){let ri=i+1;if(!heads[ri]?.includes('recebido'))ri=heads.findIndex((v,j)=>j>i&&j<i+3&&v.includes('recebido'));if(ri>=0)pairs.push([i,ri])}});
+
+      // MÃO DE OBRA: possui saldo restante explícito.
+      if(n==='mao obra'){
+        const hi=findHeader(rows,[['data compra'],['cliente'],['valor restante']]);if(hi<0)return;
+        count+=parseSimpleReceivable(rows,hi,file,hash,sn,'Mão de Obra',['dt pg']);
+        return;
+      }
+
+      // PROMISSÓRIAS A-Z e PERCAS usam pares Dt Pg / Recebido e não têm
+      // uma coluna "Valor Restante" por cliente. O saldo é calculado.
+      if(!(/^[a-z]$/i.test(T(sn))||n==='percas'))return;
+      const hi=findHeader(rows,[['data compra'],['valor compra']],12);if(hi<0)return;
+      const h=rows[hi]||[],heads=h.map(norm);
+      const iDate=headerIndex(h,['data compra']);
+      let iName=headerIndex(h,['cliente']);
+      const iValue=headerIndex(h,['valor compra']);
+      // Em Percas existe uma coluna auxiliar antes de Cliente; prioriza a coluna com o cabeçalho Cliente.
+      if(iName<0&&n==='percas')iName=2;
+      const pairs=[];
+      heads.forEach((x,i)=>{
+        if(x.includes('dt pg')){
+          let ri=i+1;
+          if(!heads[ri]?.includes('recebido'))ri=heads.findIndex((v,j)=>j>i&&j<i+3&&v.includes('recebido'));
+          if(ri>=0)pairs.push([i,ri]);
+        }
+      });
       for(let r=hi+1;r<rows.length;r++){
-        const row=rows[r]||[],name=T(row[iName]);if(!name)continue;const remaining=Math.max(0,rowNum(row,iRest));if(remaining<=0)continue;
-        const purchaseDate=excelDate(row[iDate]),paidDates=[],unpaidDates=[];
-        pairs.forEach(([di,ri])=>{const d=excelDate(row[di]);if(!d)return;const amount=rowNum(row,ri);if(amount>0)paidDates.push(d);else unpaidDates.push(d)});
-        paidDates.sort();unpaidDates.sort();const lastPaymentDate=paidDates.length?paidDates[paidDates.length-1]:purchaseDate;const dueDate=unpaidDates[0]||addDays(lastPaymentDate||purchaseDate,Number(data.settings.lpCollectionDays||20));
+        const row=rows[r]||[];
+        const name=T(row[iName]||(n==='percas'?row[1]:''));if(!name)continue;
+        const value=Math.max(0,rowNum(row,iValue));if(value<=0)continue;
+        let received=0;const paidDates=[],unpaidDates=[],scheduledDates=[];
+        pairs.forEach(([di,ri])=>{
+          const d=excelDate(row[di]);const amount=Math.max(0,rowNum(row,ri));
+          if(d)scheduledDates.push(d);
+          if(amount>0){received+=amount;if(d)paidDates.push(d)}
+          else if(d)unpaidDates.push(d);
+        });
+        const remaining=Math.max(0,value-received);if(remaining<=0)continue;
+        paidDates.sort();unpaidDates.sort();scheduledDates.sort();
+        const purchaseDate=excelDate(row[iDate]);
+        const lastPaymentDate=paidDates.length?paidDates[paidDates.length-1]:'';
+        let dueDate=unpaidDates[0]||'';
+        if(!dueDate){
+          const base=scheduledDates.length?scheduledDates[scheduledDates.length-1]:(lastPaymentDate||purchaseDate);
+          dueDate=base?addDays(base,30):'';
+        }
         const sourceKey=`${hash}|${sn}|${r+1}`;
-        pushUnique(data.lpFinanceReview.receivables,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,customerName:name,value:rowNum(row,iValue),remaining,purchaseDate,dueDate,lastPaymentDate,category:n==='mao obra'?'Mão de Obra':'Promissória',reviewStatus:'Pendente'});count++;
+        const baseItem={id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,customerName:name,value,remaining,purchaseDate,dueDate,lastPaymentDate,received};
+        if(n==='percas'){
+          pushUnique(data.lpFinanceReview.losses,{...baseItem,category:'Perdas históricas'});lossCount++;
+        }else{
+          pushUnique(data.lpFinanceReview.receivables,{...baseItem,category:'Promissória',reviewStatus:'Pendente'});count++;
+        }
       }
     });
     return {count,lossCount};
@@ -13526,6 +13561,175 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 
   function relabelNav(){document.querySelectorAll('#nav .nav-text').forEach(x=>{if(T(x.textContent)==='Financeiro / Despesas')x.textContent='Financeiro / Contas'})}
   window.addEventListener('load',()=>setTimeout(()=>{ensureV63();relabelNav();try{renderAll()}catch(e){console.warn(e)}try{if(document.getElementById('fechamento')?.classList.contains('active'))renderFechamento()}catch(e){}},1500));
+})();
+</script>
+
+
+
+<style id="lp-finance-sync-v64-css">
+.lp-debtors-v64{margin-top:16px}
+.lp-debtors-v64 .lp-debtor-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.lp-debtors-v64 .lp-debtor-kpi{padding:13px;border:1px solid var(--line);border-radius:13px;background:var(--panel)}
+.lp-debtors-v64 .lp-debtor-kpi span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
+.lp-debtors-v64 .lp-debtor-kpi b{display:block;margin-top:6px;font-size:19px}
+.lp-sync-v64-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:800;background:var(--panel2)}
+.lp-sync-v64-badge.ok{color:#22c55e}.lp-sync-v64-badge.wait{color:#f59e0b}.lp-sync-v64-badge.err{color:#ef4444}
+@media(max-width:900px){.lp-debtors-v64 .lp-debtor-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.lp-debtors-v64 .lp-debtor-grid{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-finance-sync-v64-js">
+(function(){
+  if(window.__lpFinanceSyncV64)return;
+  window.__lpFinanceSyncV64=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v||0);return Number.isFinite(n)?n:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const DAY=86400000;
+  const state={started:false,chunks:new Map(),meta:{},error:''};
+  const TYPES=['historico','receber','pagar','movimento'];
+
+  function ensure(){
+    try{if(typeof window.lpEnsureFinanceV63==='function')window.lpEnsureFinanceV63()}catch(e){}
+    data.lpFinanceReview=data.lpFinanceReview||{receivables:[],payables:[],losses:[]};
+    data.lpFinanceReview.receivables=Array.isArray(data.lpFinanceReview.receivables)?data.lpFinanceReview.receivables:[];
+    data.lpFinanceReview.payables=Array.isArray(data.lpFinanceReview.payables)?data.lpFinanceReview.payables:[];
+    data.lpFinanceReview.losses=Array.isArray(data.lpFinanceReview.losses)?data.lpFinanceReview.losses:[];
+    data.lpHistoricalClosings=Array.isArray(data.lpHistoricalClosings)?data.lpHistoricalClosings:[];
+    data.lpDailyFinancial=Array.isArray(data.lpDailyFinancial)?data.lpDailyFinancial:[];
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.lpFinancialCloudMeta=data.lpFinancialCloudMeta||{};
+  }
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    try{if(window.firebase){if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);return firebase.firestore()}}catch(e){}
+    return null;
+  }
+  function dateMs(iso){if(!/^\d{4}-\d{2}-\d{2}$/.test(T(iso)))return NaN;const [y,m,d]=iso.split('-').map(Number);return new Date(y,m-1,d).getTime()}
+  function daysOverdue(iso){const a=dateMs(iso);if(!Number.isFinite(a))return null;const d=new Date(),b=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();return Math.floor((b-a)/DAY)}
+  function fmtDate(iso){const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(T(iso)||'-')}
+
+  function sourceItems(type){
+    const meta=state.meta[type];if(!meta)return [];
+    const syncId=T(meta.syncId),count=Math.max(0,N(meta.chunkCount));
+    const docs=[...state.chunks.values()].filter(x=>T(x.sourceType)===type&&T(x.syncId)===syncId&&N(x.chunkIndex)<count).sort((a,b)=>N(a.chunkIndex)-N(b.chunkIndex));
+    const out=[];
+    docs.forEach(d=>{try{const a=JSON.parse(T(d.json)||'[]');if(Array.isArray(a))out.push(...a)}catch(e){console.warn('Finance V64 JSON:',e)}});
+    return out;
+  }
+  function autoStatus(due){const x=daysOverdue(due);return x!==null&&x>0?'Vencido':'Pendente'}
+
+  function applyCloud(){
+    ensure();
+    const hist=sourceItems('historico');
+    const recv=sourceItems('receber');
+    const pay=sourceItems('pagar');
+    const move=sourceItems('movimento');
+
+    data.lpHistoricalClosings=[...data.lpHistoricalClosings.filter(x=>!x.autoSyncFinance),...hist.map(x=>({...x,autoSyncFinance:true,sourceFile:x.sourceFile||state.meta.historico?.sourceFile||''}))];
+    data.lpDailyFinancial=[...data.lpDailyFinancial.filter(x=>!x.autoSyncFinance),...move.map(x=>({...x,autoSyncFinance:true,sourceFile:x.sourceFile||state.meta.movimento?.sourceFile||''}))];
+
+    const recItems=recv.filter(x=>T(x.kind)!=='loss').map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
+    const lossItems=recv.filter(x=>T(x.kind)==='loss').map(x=>({...x,autoSyncFinance:true}));
+    const payItems=pay.map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
+    data.lpFinanceReview.receivables=[...data.lpFinanceReview.receivables.filter(x=>!x.autoSyncFinance),...recItems];
+    data.lpFinanceReview.losses=[...data.lpFinanceReview.losses.filter(x=>!x.autoSyncFinance),...lossItems];
+    data.lpFinanceReview.payables=[...data.lpFinanceReview.payables.filter(x=>!x.autoSyncFinance),...payItems];
+
+    // As planilhas financeiras sincronizadas são a fonte autoritativa destes lançamentos.
+    // Não altera lançamentos manuais do sistema.
+    const manual=data.finance.filter(x=>!x.cloudManagedFinance);
+    const cloud=[];
+    recItems.forEach(r=>{
+      if(N(r.remaining)<=0)return;
+      cloud.push({id:'finrec_'+T(r.sourceKey),type:'Receita',category:r.category||'A prazo',desc:r.customerName||'Cliente',customerName:r.customerName||'',value:N(r.remaining),date:r.purchaseDate||'',dueDate:r.dueDate||'',payment:r.category==='Cheque'?'Cheque':'A prazo',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.receber?.sourceFile||'Devedores LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.receber?.sourceFile||'',sourceSheet:r.sourceSheet||'',lastPaymentDate:r.lastPaymentDate||'',cloudManagedFinance:true});
+    });
+    payItems.forEach(r=>{
+      if(N(r.remaining)<=0)return;
+      cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',cloudManagedFinance:true});
+    });
+    data.finance=[...manual,...cloud];
+
+    TYPES.forEach(t=>{if(state.meta[t])data.lpFinancialCloudMeta[t]={...state.meta[t]}});
+    rerender();
+  }
+
+  function rerender(){
+    try{
+      const active=document.querySelector('.page.active')?.id;
+      if(active==='clientes'&&typeof window.renderClientes==='function')window.renderClientes();
+      else if(active==='planilhas'&&typeof window.renderPlanilhas==='function')window.renderPlanilhas();
+      else if(active==='financeiro'&&typeof window.renderFinanceiro==='function')window.renderFinanceiro();
+      else if(active==='fechamento'&&typeof window.renderFechamento==='function')window.renderFechamento();
+      else if(active==='dashboard'&&typeof window.renderDashboard==='function')window.renderDashboard();
+    }catch(e){console.warn('Finance sync V64 render:',e)}
+  }
+
+  function financialSyncStatusHtml(){
+    const got=TYPES.filter(t=>state.meta[t]).length;
+    const latest=TYPES.map(t=>T(state.meta[t]?.updatedAtText)).filter(Boolean).sort().pop()||'';
+    const cls=state.error?'err':got===4?'ok':'wait';
+    const label=state.error?'Erro na sincronização':got===4?'4/4 planilhas financeiras conectadas':`${got}/4 planilhas financeiras recebidas`;
+    return `<div class="notice" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><b>Sincronização financeira automática:</b> Balanço Anual, Devedores, Dívidas e Movimento de Caixa.</div><span class="lp-sync-v64-badge ${cls}">${E(label)}</span></div>${latest?`<small class="cell-sub">Última atualização: ${E(latest)}</small>`:''}</div>`;
+  }
+
+  function debtorGroups(){
+    ensure();const rows=(data.finance||[]).filter(f=>T(f.type)==='Receita'&&!/pago|recebido|cancelado/i.test(T(f.status)));
+    const map=new Map();
+    rows.forEach(f=>{const k=norm(f.customerName||f.desc);if(!k)return;let g=map.get(k);if(!g){g={name:f.customerName||f.desc,total:0,count:0,oldest:'',maxDays:0,categories:new Set()};map.set(k,g)}g.total+=N(f.value);g.count++;if(f.category)g.categories.add(f.category);const d=daysOverdue(f.dueDate);if(d!==null)g.maxDays=Math.max(g.maxDays,d);if(f.dueDate&&(!g.oldest||f.dueDate<g.oldest))g.oldest=f.dueDate});
+    return [...map.values()].sort((a,b)=>b.maxDays-a.maxDays||b.total-a.total);
+  }
+  function findCustomer(name){const n=norm(name);return (data.customers||[]).find(c=>norm(c.name)===n||norm(c.name).includes(n)||n.includes(norm(c.name)))}
+  window.lpChargeDebtorV64=function(name){
+    const c=findCustomer(name);let phone=T(c?.phone).replace(/\D/g,'');if(!phone)return alert('Este cliente ainda não tem telefone/WhatsApp cadastrado em Clientes.');if(phone.length<=11)phone='55'+phone;
+    const g=debtorGroups().find(x=>norm(x.name)===norm(name));if(!g)return;
+    const first=T(name).split(/\s+/)[0],msg=`Olá, ${first}! Tudo bem? Consta para nós um valor em aberto de ${M(g.total)}. Pode verificar para mim, por favor? Le Pneus.`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank','noopener');
+  };
+
+  function debtorsHtml(){
+    const groups=debtorGroups(),total=groups.reduce((s,x)=>s+x.total,0),collect=groups.filter(x=>x.maxDays>=Number(data.settings?.lpCollectionDays||20));
+    const body=groups.slice(0,120).map(g=>{const c=findCustomer(g.name),phone=T(c?.phone),late=g.maxDays>0?`${g.maxDays} dia(s)`:'Em dia';return `<tr><td><b>${E(g.name)}</b><small class="cell-sub">${E([...g.categories].join(' • '))}</small></td><td>${M(g.total)}</td><td>${g.count}</td><td>${fmtDate(g.oldest)}</td><td>${g.maxDays>=Number(data.settings?.lpCollectionDays||20)?`<span class="badge danger">Cobrar • ${late}</span>`:g.maxDays>0?`<span class="badge warn">Atrasado • ${late}</span>`:'<span class="badge ok">Em aberto</span>'}</td><td>${phone?E(phone):'<span class="cell-sub">Sem telefone</span>'}</td><td><button class="btn ghost small" onclick='lpChargeDebtorV64(${JSON.stringify(g.name)})' ${phone?'':'disabled'}>WhatsApp</button></td></tr>`}).join('');
+    return `<section class="card lp-debtors-v64"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Clientes com valores em aberto</h3><small class="cell-sub">Sincronizados da planilha Devedores LEPNEUS. O cadastro manual de clientes continua separado.</small></div><span class="soft-chip">${groups.length} cliente(s)</span></div><div class="lp-debtor-grid"><div class="lp-debtor-kpi"><span>Total em aberto</span><b>${M(total)}</b></div><div class="lp-debtor-kpi"><span>Clientes devendo</span><b>${groups.length}</b></div><div class="lp-debtor-kpi"><span>Para cobrar</span><b>${collect.length}</b></div><div class="lp-debtor-kpi"><span>Regra de cobrança</span><b>${Number(data.settings?.lpCollectionDays||20)} dias</b></div></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Em aberto</th><th>Contas</th><th>Vencimento mais antigo</th><th>Situação</th><th>Telefone</th><th>Ação</th></tr></thead><tbody>${body||'<tr><td colspan="7" class="empty">Nenhum cliente com valor em aberto sincronizado.</td></tr>'}</tbody></table></div></section>`;
+  }
+
+  // Remove do Estoque o painel de entradas. A confirmação continua somente em "Entrada de pneus".
+  const oldStock=window.renderEstoque;
+  window.renderEstoque=function(){
+    const r=typeof oldStock==='function'?oldStock.apply(this,arguments):undefined;
+    const host=document.getElementById('estoque');if(host)host.querySelectorAll('.lp-stock-entry-v62').forEach(el=>el.remove());
+    return r;
+  };
+
+  const oldClients=window.renderClientes;
+  window.renderClientes=function(){
+    const r=typeof oldClients==='function'?oldClients.apply(this,arguments):undefined;
+    const host=document.getElementById('clientes');if(host){host.querySelectorAll(':scope > .lp-debtors-v64').forEach(x=>x.remove());host.insertAdjacentHTML('beforeend',debtorsHtml())}
+    return r;
+  };
+
+  const oldPlanilhas=window.renderPlanilhas;
+  window.renderPlanilhas=function(){
+    const r=typeof oldPlanilhas==='function'?oldPlanilhas.apply(this,arguments):undefined;
+    const host=document.getElementById('planilhas');if(host){host.querySelectorAll(':scope > .lp-fin-sync-status-v64').forEach(x=>x.remove());const wrap=document.createElement('div');wrap.className='lp-fin-sync-status-v64';wrap.innerHTML=financialSyncStatusHtml();const h=host.querySelector('.heading');if(h)h.insertAdjacentElement('afterend',wrap);else host.prepend(wrap)}
+    return r;
+  };
+
+  function start(){
+    if(state.started)return;const d=db();if(!d){setTimeout(start,900);return}const user=window.firebase?.auth?.().currentUser;if(!user){setTimeout(start,900);return}
+    state.started=true;
+    d.collection('controleFinanceiroV2').onSnapshot(s=>{s.docChanges().forEach(ch=>{if(ch.type==='removed')state.chunks.delete(ch.doc.id);else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()})});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2:',e);rerender()});
+    d.collection('controleFinanceiroV2Meta').onSnapshot(s=>{s.forEach(doc=>state.meta[doc.id]=doc.data()||{});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2Meta:',e);rerender()});
+  }
+
+  window.lpFinanceSyncV64State=state;
+  function removeStockEntryPanel(){const host=document.getElementById('estoque');if(host)host.querySelectorAll('.lp-stock-entry-v62').forEach(el=>el.remove())}
+  window.addEventListener('load',()=>{setTimeout(start,1200);setTimeout(removeStockEntryPanel,300)});
+  setTimeout(start,1600);setTimeout(removeStockEntryPanel,100);
 })();
 </script>
 
