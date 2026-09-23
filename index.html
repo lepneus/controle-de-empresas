@@ -12796,5 +12796,352 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 })();
 </script>
 
+
+<style id="lp-stock-entries-v62-css">
+.lp-stock-entry-v62{
+  margin:14px 0 16px;
+  border:1px solid rgba(34,197,94,.28);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(240,253,244,.96),rgba(248,250,252,.98));
+  overflow:hidden;
+}
+.lp-stock-entry-v62 .head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 15px;
+  border-bottom:1px solid rgba(34,197,94,.18);
+}
+.lp-stock-entry-v62 .head h3{
+  margin:0;
+  font-size:14px;
+}
+.lp-stock-entry-v62 .head small{
+  display:block;
+  margin-top:3px;
+  color:var(--muted);
+}
+.lp-stock-entry-v62 .count{
+  min-width:34px;
+  height:34px;
+  padding:0 10px;
+  border-radius:999px;
+  background:#16a34a;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+}
+.lp-stock-entry-v62 .items{
+  display:grid;
+  gap:9px;
+  padding:12px;
+}
+.lp-stock-entry-item-v62{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--panel);
+}
+.lp-stock-entry-item-v62 .name{
+  font-weight:800;
+  font-size:13px;
+}
+.lp-stock-entry-item-v62 .meta{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.45;
+}
+.lp-stock-entry-item-v62 .qty{
+  font-size:22px;
+  font-weight:900;
+  color:#16a34a;
+  text-align:right;
+}
+.lp-stock-entry-item-v62 .actions{
+  grid-column:1/-1;
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+}
+.lp-stock-entry-v62 .empty{
+  padding:15px;
+  color:var(--muted);
+  text-align:center;
+}
+@media(max-width:650px){
+  .lp-stock-entry-item-v62{grid-template-columns:1fr auto}
+  .lp-stock-entry-item-v62 .actions{justify-content:stretch}
+  .lp-stock-entry-item-v62 .actions .btn{flex:1}
+}
+</style>
+
+<script id="lp-stock-entries-v62">
+(function(){
+  if(window.__lpStockEntriesV62)return;
+  window.__lpStockEntriesV62=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const J=v=>JSON.stringify(String(v));
+
+  function pendingStockEntries(){
+    data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)?data.pendingImportDifferences:[];
+    return data.pendingImportDifferences
+      .filter(d=>
+        N(d.diff)>0 &&
+        d.status==='Pendente' &&
+        ['carro','moto'].includes(T(d.type).toLowerCase())
+      )
+      .sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  }
+
+  function cloudDb(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return null;
+  }
+
+  async function markCloudEntryProcessed(d,resolution){
+    try{
+      const db=cloudDb();
+      if(!db || !d?.cloudMovementId)return;
+      const value={
+        processed:true,
+        resolution:T(resolution),
+        processedAtText:new Date().toLocaleString('pt-BR')
+      };
+      if(window.firebase?.firestore?.FieldValue){
+        value.processedAt=firebase.firestore.FieldValue.serverTimestamp();
+      }
+      await db.collection('controleMovimentosV2')
+        .doc(T(d.cloudMovementId))
+        .set(value,{merge:true});
+    }catch(e){
+      console.warn('Entrada de estoque: não foi possível marcar o movimento no Firebase.',e);
+    }
+  }
+
+  function entryPanelHtml(){
+    const list=pendingStockEntries();
+    if(!list.length){
+      return `
+        <section class="lp-stock-entry-v62">
+          <div class="head">
+            <div>
+              <h3>Entradas detectadas na planilha</h3>
+              <small>Quando a quantidade de um pneu aumentar, ele aparece aqui — nunca em Vendas.</small>
+            </div>
+            <div class="count">0</div>
+          </div>
+          <div class="empty">Nenhuma entrada de pneu aguardando confirmação.</div>
+        </section>`;
+    }
+
+    const shown=list.slice(0,30);
+    const cards=shown.map(d=>`
+      <div class="lp-stock-entry-item-v62">
+        <div>
+          <div class="name">${E(d.name||'Pneu')}</div>
+          <div class="meta">
+            ${E(d.code||'Sem código')} • ${T(d.type).toLowerCase()==='moto'?'Moto':'Carro'}<br>
+            Estoque: <b>${N(d.oldQty)}</b> → <b>${N(d.newQty)}</b>
+            ${d.cost!==undefined?` • custo planilha: ${M(d.cost)}`:''}
+            ${d.createdAt?` • ${E(d.createdAt)}`:''}
+          </div>
+        </div>
+        <div class="qty">+${N(d.diff)}</div>
+        <div class="actions">
+          <button class="btn ghost small" onclick='lpStockEntryAdjustV62(${J(d.id)})'>Foi ajuste</button>
+          <button class="btn primary small" onclick='lpStockEntryOpenV62(${J(d.id)})'>Confirmar entrada</button>
+        </div>
+      </div>`).join('');
+
+    return `
+      <section class="lp-stock-entry-v62">
+        <div class="head">
+          <div>
+            <h3>Entradas detectadas na planilha</h3>
+            <small>Aumento de estoque aparece somente aqui. Saída de estoque continua indo para Vendas.</small>
+          </div>
+          <div class="count">${list.length}</div>
+        </div>
+        <div class="items">${cards}</div>
+        ${list.length>shown.length?`<div class="empty">Mostrando ${shown.length} de ${list.length} entradas.</div>`:''}
+      </section>`;
+  }
+
+  function injectEntryPanel(){
+    const host=document.getElementById('estoque');
+    if(!host)return;
+    host.querySelectorAll('.lp-stock-entry-v62').forEach(el=>el.remove());
+
+    const summary=host.querySelector('.lp-stock-summary-v55');
+    if(summary){
+      summary.insertAdjacentHTML('afterend',entryPanelHtml());
+      return;
+    }
+
+    const cards=host.querySelector('.cards');
+    if(cards){
+      cards.insertAdjacentHTML('afterend',entryPanelHtml());
+      return;
+    }
+
+    const firstCard=host.querySelector('.card');
+    if(firstCard)firstCard.insertAdjacentHTML('beforebegin',entryPanelHtml());
+    else host.insertAdjacentHTML('beforeend',entryPanelHtml());
+  }
+
+  // Mantém Vendas só para baixas (diff < 0) e acrescenta entradas no Estoque.
+  const previousStockRender=window.renderEstoque;
+  window.renderEstoque=function(){
+    const result=typeof previousStockRender==='function'
+      ? previousStockRender.apply(this,arguments)
+      : undefined;
+    injectEntryPanel();
+    return result;
+  };
+
+  window.lpStockEntryOpenV62=function(id){
+    const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id));
+    if(!d || N(d.diff)<=0 || d.status!=='Pendente')return alert('Esta entrada não está mais pendente.');
+    if(typeof window.lpTireEntryModalV62==='function')return window.lpTireEntryModalV62(id);
+    if(typeof window.lpTireEntryModalV48==='function')return window.lpTireEntryModalV48(id);
+  };
+
+  // Modal corrigido para IDs de texto vindos do sincronizador V2.
+  window.lpTireEntryModalV62=function(id){
+    const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id));
+    if(!d)return alert('Entrada não encontrada.');
+    const qty=N(d.diff);
+    const unit=N(d.cost);
+    const total=qty*unit;
+    const today=(typeof today2==='function'?today2():new Date().toISOString().slice(0,10));
+
+    showModal(`<h2>Confirmar entrada de pneus</h2>
+      <div class="notice">
+        <b>${E(d.name)}</b><br>
+        Planilha detectou <b>+${qty}</b> unidade(s): ${N(d.oldQty)} → ${N(d.newQty)}.<br>
+        <small>O estoque já foi atualizado pela planilha. Aqui você só confirma a entrada/compra.</small>
+      </div>
+      <div class="form">
+        <label>Quantidade<input value="${qty}" disabled></label>
+        <label>Custo unitário<input id="lpEntryCostV48" type="number" min="0" step="0.01" value="${unit.toFixed(2)}" oninput="lpEntryCalcV48(${qty})"></label>
+        <label>Total pago / a pagar<input id="lpEntryTotalV48" type="number" min="0" step="0.01" value="${total.toFixed(2)}"></label>
+        <label>Data da compra<input id="lpEntryDateV48" type="date" value="${today}"></label>
+        <label>Forma de pagamento<select id="lpEntryPayV48">
+          ${['PIX','Dinheiro','Débito','Crédito','Boleto','Transferência','Cheque','Outro'].map(x=>`<option>${x}</option>`).join('')}
+        </select></label>
+        <label>Situação<select id="lpEntryStatusV48" onchange="lpEntryStatusV48()">
+          <option value="Pago">Pago</option>
+          <option value="Pendente">A pagar</option>
+        </select></label>
+        <label id="lpEntryDueWrapV48" style="display:none">Vencimento<input id="lpEntryDueV48" type="date"></label>
+        <label class="full">Observação<input id="lpEntryNoteV48" placeholder="Opcional"></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Depois</button>
+        <button class="btn ghost" onclick='lpResolveStockEntryV48(${J(id)},"ajuste")'>Foi só ajuste</button>
+        <button class="btn primary" onclick='lpResolveStockEntryV48(${J(id)},"compra")'>Registrar entrada</button>
+      </div>`);
+  };
+
+  // Mantém compatibilidade com qualquer botão antigo da tela "Entrada de pneus".
+  window.lpTireEntryModalV48=window.lpTireEntryModalV62;
+
+  const previousEntryResolve=window.lpResolveStockEntryV48;
+  window.lpResolveStockEntryV48=async function(id,action){
+    const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id));
+    if(!d)return alert('Entrada não encontrada.');
+
+    const before=T(d.status);
+    const result=typeof previousEntryResolve==='function'
+      ? previousEntryResolve.apply(this,arguments)
+      : undefined;
+
+    // A função antiga é síncrona; só marca no Firebase se realmente resolveu.
+    const after=T(d.status);
+    if(before==='Pendente' && after!=='Pendente'){
+      await markCloudEntryProcessed(
+        d,
+        action==='ajuste'?'ajuste_entrada':'entrada_confirmada'
+      );
+    }
+
+    try{window.renderEstoque()}catch(e){}
+    return result;
+  };
+
+  window.lpStockEntryAdjustV62=function(id){
+    return window.lpResolveStockEntryV48(id,'ajuste');
+  };
+
+  // Corrige também os cards antigos da página "Entrada de pneus" quando houver ID textual.
+  const previousCompras=window.renderCompras;
+  window.renderCompras=function(){
+    const result=typeof previousCompras==='function'
+      ? previousCompras.apply(this,arguments)
+      : undefined;
+
+    const host=document.getElementById('compras');
+    if(!host)return result;
+
+    // Substitui somente a área de pendências por uma versão segura para IDs V2.
+    const pending=pendingStockEntries();
+    const cards=pending.map(d=>`
+      <div class="lp-v48-pending">
+        <div class="row">
+          <div>
+            <b>${E(d.name||'Pneu')}</b>
+            <div class="meta">${E(d.code||'')} • ${T(d.type).toLowerCase()==='moto'?'Moto':'Carro'} • planilha ${E(d.sheet||'')}</div>
+          </div>
+          <div class="big">+${N(d.diff)}</div>
+        </div>
+        <div class="meta">Estoque ${N(d.oldQty)} → ${N(d.newQty)} • custo da planilha ${M(d.cost)} por unidade</div>
+        <div class="lp-v48-actions" style="margin-top:10px">
+          <button class="btn ghost small" onclick='lpStockEntryAdjustV62(${J(d.id)})'>Foi ajuste</button>
+          <button class="btn primary small" onclick='lpStockEntryOpenV62(${J(d.id)})'>Confirmar entrada</button>
+        </div>
+      </div>`).join('');
+
+    const panels=[...host.querySelectorAll('.card')];
+    const pendingPanel=panels.find(p=>/Aguardando confirmação/i.test(p.textContent||''));
+    if(pendingPanel){
+      const head=pendingPanel.querySelector('.panel-head');
+      [...pendingPanel.children].forEach(child=>{
+        if(child!==head)child.remove();
+      });
+      pendingPanel.insertAdjacentHTML('beforeend',cards||'<div class="empty">Nenhuma entrada aguardando confirmação.</div>');
+    }
+
+    return result;
+  };
+
+  // Se o usuário já estiver no Estoque quando o movimento chegar, atualiza o painel.
+  window.lpRefreshStockEntriesV62=function(){
+    if(document.getElementById('estoque')?.classList.contains('active')){
+      try{window.renderEstoque()}catch(e){}
+    }
+  };
+
+  // Garante render inicial.
+  window.addEventListener('load',()=>setTimeout(()=>{
+    if(document.getElementById('estoque')?.classList.contains('active')){
+      try{window.renderEstoque()}catch(e){}
+    }
+  },1200));
+})();
+</script>
+
 </body>
 </html>
