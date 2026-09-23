@@ -13143,5 +13143,391 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 })();
 </script>
 
+
+<style id="lp-finance-v63-css">
+.lp-fin-v63{margin-top:16px}
+.lp-fin-v63 .lp-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.lp-fin-v63 .lp-title-row h3{margin:0;font-size:16px}
+.lp-fin-v63 .lp-title-row p{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+.lp-fin-v63 .lp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.lp-fin-v63 .lp-kpi{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px;min-width:0}
+.lp-fin-v63 .lp-kpi span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.lp-fin-v63 .lp-kpi b{display:block;margin-top:7px;font-size:20px;line-height:1.05;word-break:break-word}
+.lp-fin-v63 .lp-kpi small{display:block;margin-top:6px;color:var(--muted);font-size:10px}
+.lp-fin-v63 .lp-danger{color:#ef4444!important}.lp-fin-v63 .lp-warn{color:#f59e0b!important}.lp-fin-v63 .lp-ok{color:#22c55e!important}.lp-fin-v63 .lp-info{color:#60a5fa!important}
+.lp-fin-v63 .lp-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px}
+.lp-fin-v63 .lp-panel{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px;min-width:0}
+.lp-fin-v63 .lp-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.lp-fin-v63 .lp-panel-head h4{margin:0;font-size:13px}
+.lp-fin-v63 .lp-chip{font-size:9px;font-weight:850;padding:5px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.lp-fin-v63 .lp-alerts{display:grid;gap:8px}
+.lp-fin-v63 .lp-alert-item{border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:11px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.lp-fin-v63 .lp-alert-item b{font-size:12px}.lp-fin-v63 .lp-alert-item small{display:block;color:var(--muted);font-size:10px;margin-top:4px;line-height:1.45}
+.lp-fin-v63 .lp-alert-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.lp-fin-v63 .lp-alert-item.collect{border-left:3px solid #ef4444}.lp-fin-v63 .lp-alert-item.soon{border-left:3px solid #f59e0b}.lp-fin-v63 .lp-alert-item.today{border-left:3px solid #60a5fa}.lp-fin-v63 .lp-alert-item.overdue{border-left:3px solid #ef4444}
+.lp-fin-v63 .lp-status{font-size:9px;font-weight:900;padding:5px 7px;border-radius:7px;white-space:nowrap}.lp-fin-v63 .lp-status.red{background:rgba(239,68,68,.14);color:#ef4444}.lp-fin-v63 .lp-status.orange{background:rgba(245,158,11,.14);color:#f59e0b}.lp-fin-v63 .lp-status.blue{background:rgba(96,165,250,.14);color:#60a5fa}.lp-fin-v63 .lp-status.green{background:rgba(34,197,94,.14);color:#22c55e}
+.lp-fin-v63 .lp-import-box{border:1px dashed color-mix(in srgb,var(--primary) 42%,var(--line));background:color-mix(in srgb,var(--primary-soft) 38%,var(--panel));border-radius:14px;padding:14px}
+.lp-fin-v63 .lp-import-row{display:grid;grid-template-columns:minmax(0,1fr) 165px auto;gap:9px;align-items:end}.lp-fin-v63 .lp-import-row label{display:grid;gap:6px;font-size:10px;font-weight:750;color:var(--muted)}
+.lp-fin-v63 .lp-import-row input{width:100%;min-height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 10px}
+.lp-fin-v63 .lp-note{margin-top:9px;color:var(--muted);font-size:10px;line-height:1.5}
+.lp-fin-v63 .lp-file-list{display:grid;gap:7px}.lp-fin-v63 .lp-file{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.lp-fin-v63 .lp-file:last-child{border-bottom:0}.lp-fin-v63 .lp-file b{font-size:11px}.lp-fin-v63 .lp-file small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.lp-fin-v63 .lp-table-scroll{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:12px}.lp-fin-v63 table{min-width:760px}.lp-fin-v63 th{position:sticky;top:0;z-index:1}.lp-fin-v63 td,.lp-fin-v63 th{font-size:11px}.lp-fin-v63 td .cell-sub{font-size:9px}
+.lp-fin-v63 .lp-review-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.lp-fin-v63 .lp-empty{padding:18px;text-align:center;color:var(--muted);font-size:11px}
+.lp-fin-v63 .lp-inline-actions{display:flex;gap:6px;flex-wrap:wrap}
+.lp-fin-v63 .lp-summary-list{display:grid;gap:0}.lp-fin-v63 .lp-summary-list>div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:11px}.lp-fin-v63 .lp-summary-list>div:last-child{border-bottom:0}.lp-fin-v63 .lp-summary-list span{color:var(--muted)}
+.lp-dashboard-v63{margin-top:14px}
+@media(max-width:1100px){.lp-fin-v63 .lp-kpis{grid-template-columns:repeat(2,1fr)}.lp-fin-v63 .lp-grid,.lp-fin-v63 .lp-review-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.lp-fin-v63 .lp-kpis{grid-template-columns:1fr}.lp-fin-v63 .lp-import-row{grid-template-columns:1fr}.lp-fin-v63 .lp-alert-item{grid-template-columns:1fr}.lp-fin-v63 .lp-status{justify-self:start}.lp-fin-v63 .lp-title-row{flex-direction:column}}
+</style>
+
+
+<script id="lp-finance-v63-js">
+(function(){
+  if(window.__lpFinanceV63)return;
+  window.__lpFinanceV63=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const J=v=>JSON.stringify(String(v));
+  const DAY=86400000;
+
+  function norm(v){return T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim()}
+  function key(v){return norm(v).replace(/[^a-z0-9]/g,'')}
+  function ensureV63(){
+    try{if(typeof ensureData==='function')ensureData()}catch(e){}
+    data.lpFinancialImports=Array.isArray(data.lpFinancialImports)?data.lpFinancialImports:[];
+    data.lpHistoricalClosings=Array.isArray(data.lpHistoricalClosings)?data.lpHistoricalClosings:[];
+    data.lpDailyFinancial=Array.isArray(data.lpDailyFinancial)?data.lpDailyFinancial:[];
+    data.lpFinanceReview=data.lpFinanceReview&&typeof data.lpFinanceReview==='object'?data.lpFinanceReview:{};
+    data.lpFinanceReview.receivables=Array.isArray(data.lpFinanceReview.receivables)?data.lpFinanceReview.receivables:[];
+    data.lpFinanceReview.payables=Array.isArray(data.lpFinanceReview.payables)?data.lpFinanceReview.payables:[];
+    data.lpFinanceReview.losses=Array.isArray(data.lpFinanceReview.losses)?data.lpFinanceReview.losses:[];
+    data.settings=data.settings||{};
+    if(data.settings.lpCollectionDays===undefined)data.settings.lpCollectionDays=20;
+    if(data.settings.lpPayAlertDays===undefined)data.settings.lpPayAlertDays=3;
+  }
+  window.lpEnsureFinanceV63=ensureV63;
+
+  function saveV63(){try{if(typeof save==='function')save();else localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){console.warn(e)}}
+  function todayIso(){
+    const d=new Date(),y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function excelDate(v){
+    if(v===null||v===undefined||v==='')return '';
+    if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+    if(typeof v==='number'&&Number.isFinite(v)){
+      const ms=Date.UTC(1899,11,30)+Math.round(v*DAY);
+      return new Date(ms).toISOString().slice(0,10);
+    }
+    const s=T(v);
+    let m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+    if(m){const y=+m[3];if(y<2000||y>2100)return '';return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`}
+    m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m)return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+    const d=new Date(s);if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return '';
+  }
+  function dateMs(iso){if(!/^\d{4}-\d{2}-\d{2}$/.test(T(iso)))return NaN;const [y,m,d]=iso.split('-').map(Number);return new Date(y,m-1,d).getTime()}
+  function daysOverdue(iso){const a=dateMs(iso),b=dateMs(todayIso());return Number.isFinite(a)?Math.floor((b-a)/DAY):null}
+  function daysUntil(iso){const d=daysOverdue(iso);return d===null?null:-d}
+  function addDays(iso,n){const ms=dateMs(iso);if(!Number.isFinite(ms))return '';const d=new Date(ms+n*DAY);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  function fmtDate(iso){if(!iso)return '-';const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:T(iso)}
+  function numOrNull(v){if(v===null||v===undefined||T(v)==='')return null;if(typeof v==='number')return Number.isFinite(v)?v:null;let s=T(v).replace(/R\$\s*/gi,'').replace(/\s/g,'');if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');else if(s.includes(','))s=s.replace(',','.');s=s.replace(/[^0-9.-]/g,'');const n=Number(s);return Number.isFinite(n)?n:null}
+  function rowNum(row,i){const v=numOrNull(row?.[i]);return v===null?0:v}
+  function rowNumNull(row,i){return numOrNull(row?.[i])}
+
+  async function fileHash(buffer,file){
+    try{
+      if(window.crypto&&crypto.subtle){
+        const h=await crypto.subtle.digest('SHA-256',buffer.slice(0));
+        return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      }
+    }catch(e){}
+    return `${file.name}|${file.size}|${file.lastModified}`;
+  }
+  function sheetRows(wb,name){const ws=wb.Sheets[name];return ws?XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true}):[]}
+  function headerIndex(headers,aliases){
+    const hs=headers.map(norm),as=aliases.map(norm);
+    for(const a of as){const ex=hs.findIndex(h=>h===a);if(ex>=0)return ex}
+    for(const a of as){const i=hs.findIndex(h=>h&&h.includes(a));if(i>=0)return i}
+    return -1;
+  }
+  function findHeader(rows,groups,max=12){
+    for(let r=0;r<Math.min(max,rows.length);r++){
+      const row=rows[r]||[];
+      if(groups.every(g=>headerIndex(row,g)>=0))return r;
+    }
+    return -1;
+  }
+  function detectWorkbook(wb){
+    const names=wb.SheetNames.map(norm);
+    const years=names.filter(n=>/^20\d{2}$/.test(n));
+    if(years.length>=3)return 'historico';
+    if(names.includes('fornecedores')&&names.includes('banco'))return 'pagar';
+    if(names.includes('cheques')&&names.includes('mao obra')&&names.includes('percas'))return 'receber';
+    if(names.includes('mc')&&names.some(n=>/^\d{1,2}$/.test(n)))return 'movimento';
+    return 'desconhecido';
+  }
+  function removePendingFromFile(name){
+    data.lpFinanceReview.receivables=data.lpFinanceReview.receivables.filter(x=>x.sourceFile!==name||x.reviewStatus!=='Pendente');
+    data.lpFinanceReview.payables=data.lpFinanceReview.payables.filter(x=>x.sourceFile!==name||x.reviewStatus!=='Pendente');
+    data.lpFinanceReview.losses=data.lpFinanceReview.losses.filter(x=>x.sourceFile!==name);
+  }
+
+  function parseHistorical(wb,file,hash){
+    const months=['01','02','03','04','05','06','07','08','09','10','11','12'];
+    let count=0;
+    wb.SheetNames.filter(n=>/^20\d{2}$/.test(T(n))).forEach(sn=>{
+      const rows=sheetRows(wb,sn),map={};
+      rows.forEach(r=>{const k=norm(r?.[0]);if(k&&!map[k])map[k]=r});
+      const aliases={
+        car:['carro'],moto:['moto'],accessories:['acessorios'],purchases:['compras'],payments:['pagamento'],receipts:['recebimento'],cashSales:['venda a vista'],cardSales:['cartao'],termSales:['prazo'],grossSales:['vl bruto venda'],cost:['custo total'],grossProfit:['lucro estimado brut'],services:['prestacao servicos'],totalGross:['total lucro bruto']
+      };
+      const get=(names,col)=>{for(const a of names){const row=map[norm(a)];if(row){const v=rowNumNull(row,col);if(v!==null)return v}}return null};
+      for(let mi=0;mi<12;mi++){
+        const col=mi+1;
+        const metrics={};Object.keys(aliases).forEach(k=>metrics[k]=get(aliases[k],col));
+        const present=['grossSales','services','purchases','payments','receipts'].some(k=>metrics[k]!==null);
+        if(!present)continue;
+        const month=`${sn}-${months[mi]}`;
+        data.lpHistoricalClosings=data.lpHistoricalClosings.filter(x=>x.month!==month);
+        data.lpHistoricalClosings.push({id:`hist-${month}`,month,year:+sn,label:new Date(+sn,mi,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),metrics,sourceFile:file.name,sourceHash:hash,importedAt:new Date().toLocaleString('pt-BR')});
+        count++;
+      }
+    });
+    return count;
+  }
+
+  function pushUnique(arr,item){if(!arr.some(x=>x.sourceKey===item.sourceKey))arr.push(item)}
+  function parsePayables(wb,file,hash){
+    let count=0;
+    ['Fornecedores','Banco'].forEach(sn=>{
+      if(!wb.SheetNames.includes(sn))return;
+      const rows=sheetRows(wb,sn),hi=findHeader(rows,[['data emissao'],['vencimento'],['valor restante']]);if(hi<0)return;
+      const h=rows[hi]||[];
+      const iDate=headerIndex(h,['data emissao']),iName=headerIndex(h,['cliente','fornecedor']),iDue=headerIndex(h,['vencimento']),iValue=headerIndex(h,['valor']),iPayment=headerIndex(h,['pagamento']),iRest=headerIndex(h,['valor restante']),iPaid=headerIndex(h,['data pagamento']);
+      for(let r=hi+1;r<rows.length;r++){
+        const row=rows[r]||[],name=T(row[iName]);if(!name)continue;
+        const value=rowNum(row,iValue),paid=rowNum(row,iPayment),restRaw=rowNumNull(row,iRest),remaining=restRaw===null?Math.max(0,value-paid):Math.max(0,restRaw);if(remaining<=0)continue;
+        const sourceKey=`${hash}|${sn}|${r+1}`;
+        pushUnique(data.lpFinanceReview.payables,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,name,value,remaining,emissionDate:excelDate(row[iDate]),dueDate:excelDate(row[iDue]),paidDate:excelDate(row[iPaid]),category:sn==='Banco'?'Banco / Empréstimo':'Fornecedor / Boleto',reviewStatus:'Pendente'});count++;
+      }
+    });
+    return count;
+  }
+
+  function parseSimpleReceivable(rows,hi,file,hash,sn,category,dueAliases){
+    let count=0;const h=rows[hi]||[];
+    const iDate=headerIndex(h,['data compra','data emissao']),iName=headerIndex(h,['cliente']),iValue=headerIndex(h,['valor compra','valor']),iRest=headerIndex(h,['valor restante']);
+    const due=headerIndex(h,dueAliases||['dt descontar']);
+    for(let r=hi+1;r<rows.length;r++){
+      const row=rows[r]||[],name=T(row[iName]);if(!name)continue;
+      const remaining=Math.max(0,rowNum(row,iRest));if(remaining<=0)continue;
+      const sourceKey=`${hash}|${sn}|${r+1}`;
+      pushUnique(data.lpFinanceReview.receivables,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,customerName:name,value:rowNum(row,iValue),remaining,purchaseDate:excelDate(row[iDate]),dueDate:due>=0?excelDate(row[due]):'',lastPaymentDate:'',category,reviewStatus:'Pendente'});count++;
+    }
+    return count;
+  }
+  function parseReceivables(wb,file,hash){
+    let count=0,lossCount=0;
+    wb.SheetNames.forEach(sn=>{
+      const n=norm(sn),rows=sheetRows(wb,sn);if(!rows.length)return;
+      if(n==='percas'){
+        const hi=findHeader(rows,[['data compra'],['valor restante']]);if(hi<0)return;const h=rows[hi]||[];
+        const iDate=headerIndex(h,['data compra']),iName=headerIndex(h,['cliente']),iValue=headerIndex(h,['valor compra']),iRest=headerIndex(h,['valor restante']),iInfo=headerIndex(h,['informacoes']);
+        for(let r=hi+1;r<rows.length;r++){
+          const row=rows[r]||[],remaining=Math.max(0,rowNum(row,iRest));if(remaining<=0)continue;const name=T(row[iName]||row[1]);if(!name)continue;
+          const sourceKey=`${hash}|${sn}|${r+1}`;pushUnique(data.lpFinanceReview.losses,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,customerName:name,value:rowNum(row,iValue),remaining,purchaseDate:excelDate(row[iDate]),info:T(row[iInfo]),category:'Perdas históricas'});lossCount++;
+        }
+        return;
+      }
+      if(n==='cheques'){
+        const hi=findHeader(rows,[['data emissao'],['cliente'],['valor restante']]);if(hi>=0)count+=parseSimpleReceivable(rows,hi,file,hash,sn,'Cheque',['dt descontar']);
+        return;
+      }
+      if(!(/^[a-z]$/i.test(T(sn))||n==='mao obra'))return;
+      const hi=findHeader(rows,[['data compra'],['cliente'],['valor restante']]);if(hi<0)return;
+      const h=rows[hi]||[],iDate=headerIndex(h,['data compra']),iName=headerIndex(h,['cliente']),iValue=headerIndex(h,['valor compra']),iRest=headerIndex(h,['valor restante']);
+      const heads=h.map(norm),pairs=[];
+      heads.forEach((x,i)=>{if(x.includes('dt pg')){let ri=i+1;if(!heads[ri]?.includes('recebido'))ri=heads.findIndex((v,j)=>j>i&&j<i+3&&v.includes('recebido'));if(ri>=0)pairs.push([i,ri])}});
+      for(let r=hi+1;r<rows.length;r++){
+        const row=rows[r]||[],name=T(row[iName]);if(!name)continue;const remaining=Math.max(0,rowNum(row,iRest));if(remaining<=0)continue;
+        const purchaseDate=excelDate(row[iDate]),paidDates=[],unpaidDates=[];
+        pairs.forEach(([di,ri])=>{const d=excelDate(row[di]);if(!d)return;const amount=rowNum(row,ri);if(amount>0)paidDates.push(d);else unpaidDates.push(d)});
+        paidDates.sort();unpaidDates.sort();const lastPaymentDate=paidDates.length?paidDates[paidDates.length-1]:purchaseDate;const dueDate=unpaidDates[0]||addDays(lastPaymentDate||purchaseDate,Number(data.settings.lpCollectionDays||20));
+        const sourceKey=`${hash}|${sn}|${r+1}`;
+        pushUnique(data.lpFinanceReview.receivables,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,customerName:name,value:rowNum(row,iValue),remaining,purchaseDate,dueDate,lastPaymentDate,category:n==='mao obra'?'Mão de Obra':'Promissória',reviewStatus:'Pendente'});count++;
+      }
+    });
+    return {count,lossCount};
+  }
+
+  function parseDaily(wb,file,hash,month){
+    const rows=sheetRows(wb,'MC');if(!rows.length)return 0;
+    data.lpDailyFinancial=data.lpDailyFinancial.filter(x=>x.month!==month);
+    let count=0;
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]||[],day=Number(row[0]);if(!Number.isInteger(day)||day<1||day>31)continue;
+      const item={id:`${hash}|MC|${r+1}`,sourceFile:file.name,sourceHash:hash,month,day,cashSales:rowNum(row,1),cardSales:rowNum(row,2),termSales:rowNum(row,3),salesTotal:rowNum(row,4),services:rowNum(row,5),payments:rowNum(row,6),receipts:rowNum(row,7)};
+      if([item.cashSales,item.cardSales,item.termSales,item.salesTotal,item.services,item.payments,item.receipts].some(v=>v!==0)){data.lpDailyFinancial.push(item);count++}
+    }
+    return count;
+  }
+
+  window.lpImportFinancialFilesV63=async function(){
+    ensureV63();
+    const input=document.getElementById('lpFinFilesV63');if(!input?.files?.length)return alert('Escolha uma ou mais planilhas financeiras.');
+    if(typeof XLSX==='undefined')return alert('O leitor de Excel não carregou. Confira sua internet e abra a página novamente.');
+    const month=document.getElementById('lpDailyMonthV63')?.value||todayIso().slice(0,7);
+    const messages=[];
+    for(const file of [...input.files]){
+      try{
+        const buffer=await file.arrayBuffer(),hash=await fileHash(buffer,file);
+        if(data.lpFinancialImports.some(x=>x.hash===hash)){messages.push(`${file.name}: duplicada, ignorada`);continue}
+        removePendingFromFile(file.name);
+        data.lpFinancialImports=data.lpFinancialImports.filter(x=>x.name!==file.name);
+        const wb=XLSX.read(buffer,{type:'array',cellDates:false}),type=detectWorkbook(wb);let detail='';
+        if(type==='historico'){const n=parseHistorical(wb,file,hash);detail=`${n} mês(es) históricos`}
+        else if(type==='pagar'){const n=parsePayables(wb,file,hash);detail=`${n} conta(s) a pagar para revisão`}
+        else if(type==='receber'){const o=parseReceivables(wb,file,hash);detail=`${o.count} a receber + ${o.lossCount} perda(s) histórica(s)`}
+        else if(type==='movimento'){const n=parseDaily(wb,file,hash,month);detail=`${n} dia(s) de movimento para conferência`}
+        else{detail='estrutura não reconhecida'}
+        data.lpFinancialImports.unshift({hash,name:file.name,size:file.size,lastModified:file.lastModified,type,detail,importedAt:new Date().toLocaleString('pt-BR')});
+        messages.push(`${file.name}: ${detail}`);
+      }catch(e){console.error(e);messages.push(`${file.name}: erro ao ler`)}
+    }
+    saveV63();
+    try{renderAll()}catch(e){try{renderPlanilhas()}catch(_){} }
+    alert('Importação concluída.\n\n'+messages.join('\n'));
+  };
+
+  function financeExists(sourceKey){return (data.finance||[]).some(x=>x.sourceKey===sourceKey)}
+  function reviewArray(kind){return kind==='receivable'?data.lpFinanceReview.receivables:data.lpFinanceReview.payables}
+  window.lpConfirmReviewV63=function(kind,id){
+    ensureV63();const arr=reviewArray(kind),r=arr.find(x=>String(x.id)===String(id));if(!r)return alert('Lançamento não encontrado.');
+    if(r.reviewStatus!=='Pendente')return alert('Este lançamento já foi conferido.');
+    if(financeExists(r.sourceKey)){r.reviewStatus='Integrado';saveV63();renderAll();return}
+    const isRec=kind==='receivable',due=T(r.dueDate),late=due&&daysOverdue(due)>0;
+    data.finance.unshift({id:Date.now()+Math.floor(Math.random()*100000),type:isRec?'Receita':'Despesa',category:r.category||'Importado',desc:isRec?(r.customerName||'Cliente'):(r.name||'Fornecedor'),value:N(r.remaining||r.value),date:r.purchaseDate||r.emissionDate||todayIso(),dueDate:due,payment:isRec?'A prazo':'Boleto',status:late?'Vencido':'Pendente',notes:`Importado de ${r.sourceFile} • ${r.sourceSheet} linha ${r.row}`,sourceKey:r.sourceKey,sourceFile:r.sourceFile,sourceSheet:r.sourceSheet,customerName:r.customerName||'',lastPaymentDate:r.lastPaymentDate||''});
+    r.reviewStatus='Integrado';saveV63();try{log((isRec?'Conta a receber':'Conta a pagar')+' importada da planilha')}catch(e){}renderAll();
+  };
+  window.lpIgnoreReviewV63=function(kind,id){ensureV63();const r=reviewArray(kind).find(x=>String(x.id)===String(id));if(!r)return;r.reviewStatus='Ignorado';saveV63();renderAll()};
+  window.lpConfirmAllV63=function(kind){
+    ensureV63();const arr=reviewArray(kind).filter(x=>x.reviewStatus==='Pendente');if(!arr.length)return alert('Nenhuma pendência para integrar.');
+    if(!confirm(`Integrar ${arr.length} lançamento(s) ao Financeiro?`))return;
+    arr.forEach(r=>{if(financeExists(r.sourceKey)){r.reviewStatus='Integrado';return}const isRec=kind==='receivable',due=T(r.dueDate),late=due&&daysOverdue(due)>0;data.finance.unshift({id:Date.now()+Math.floor(Math.random()*1000000),type:isRec?'Receita':'Despesa',category:r.category||'Importado',desc:isRec?(r.customerName||'Cliente'):(r.name||'Fornecedor'),value:N(r.remaining||r.value),date:r.purchaseDate||r.emissionDate||todayIso(),dueDate:due,payment:isRec?'A prazo':'Boleto',status:late?'Vencido':'Pendente',notes:`Importado de ${r.sourceFile} • ${r.sourceSheet} linha ${r.row}`,sourceKey:r.sourceKey,sourceFile:r.sourceFile,sourceSheet:r.sourceSheet,customerName:r.customerName||'',lastPaymentDate:r.lastPaymentDate||''});r.reviewStatus='Integrado'});
+    saveV63();renderAll();
+  };
+
+  function pendingFinance(){return (data.finance||[]).filter(f=>!/pago|recebido|cancelado/i.test(T(f.status)))}
+  function alerts(){
+    ensureV63();const collectDays=Number(data.settings.lpCollectionDays||20),payDays=Number(data.settings.lpPayAlertDays||3),pending=pendingFinance();
+    const rec=pending.filter(f=>T(f.type)==='Receita'),pay=pending.filter(f=>T(f.type)==='Despesa');
+    const collect=rec.map(f=>({f,days:daysOverdue(f.dueDate)})).filter(x=>x.days!==null&&x.days>=collectDays).sort((a,b)=>b.days-a.days);
+    const soon=pay.map(f=>({f,until:daysUntil(f.dueDate),over:daysOverdue(f.dueDate)})).filter(x=>x.until!==null&&x.until>=0&&x.until<=payDays).sort((a,b)=>a.until-b.until);
+    const overdue=pay.map(f=>({f,days:daysOverdue(f.dueDate)})).filter(x=>x.days!==null&&x.days>0).sort((a,b)=>b.days-a.days);
+    return {collect,soon,overdue,rec,pay,collectDays,payDays};
+  }
+  function findPhone(f){
+    let phone=T(f.phone);if(phone)return phone;const nm=norm(f.customerName||f.desc);if(!nm)return '';
+    const c=(data.customers||[]).find(x=>norm(x.name)===nm||norm(x.name).includes(nm)||nm.includes(norm(x.name)));return T(c?.phone);
+  }
+  window.lpChargeWhatsAppV63=function(id){
+    const f=(data.finance||[]).find(x=>String(x.id)===String(id));if(!f)return;let phone=findPhone(f).replace(/\D/g,'');if(!phone)return alert('Cadastre o telefone/WhatsApp deste cliente em Clientes antes de cobrar.');if(phone.length<=11)phone='55'+phone;
+    const name=T(f.customerName||f.desc||'cliente').split(/\s+/)[0],msg=`Olá, ${name}! Tudo bem? Consta para nós um valor de ${M(f.value)} com vencimento em ${fmtDate(f.dueDate)}. Pode verificar para mim, por favor? Le Pneus.`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank','noopener');
+  };
+  window.lpMarkFinanceDoneV63=function(id){try{if(typeof markFinancePaid==='function')markFinancePaid(id)}catch(e){console.error(e)}};
+  window.lpOpenPageV63=function(id){try{if(typeof openPage==='function')openPage(id)}catch(e){}};
+
+  function alertHtml(limit=8){
+    const a=alerts(),items=[];
+    a.collect.forEach(x=>items.push({kind:'collect',rank:0,label:'COBRAR',title:`${E(x.f.customerName||x.f.desc)} • ${x.days} dias em atraso`,sub:`${M(x.f.value)} • vencimento ${fmtDate(x.f.dueDate)}`,actions:`<button class="btn primary small" onclick='lpChargeWhatsAppV63(${J(x.f.id)})'>Cobrar no WhatsApp</button><button class="btn ghost small" onclick='lpMarkFinanceDoneV63(${J(x.f.id)})'>Marcar recebido</button>`}));
+    a.soon.forEach(x=>items.push({kind:x.until===0?'today':'soon',rank:x.until===0?1:2,label:x.until===0?'HOJE':`${x.until} DIA${x.until===1?'':'S'}`,title:x.until===0?`Conta vence hoje • ${E(x.f.desc)}`:`Boleto vence em ${x.until} dia(s) • ${E(x.f.desc)}`,sub:`${M(x.f.value)} • vencimento ${fmtDate(x.f.dueDate)}`,actions:`<button class="btn ghost small" onclick='lpMarkFinanceDoneV63(${J(x.f.id)})'>Marcar pago</button>`}));
+    a.overdue.filter(x=>!a.soon.some(s=>String(s.f.id)===String(x.f.id))).forEach(x=>items.push({kind:'overdue',rank:3,label:'ATRASADO',title:`Conta a pagar atrasada • ${E(x.f.desc)}`,sub:`${M(x.f.value)} • ${x.days} dia(s) em atraso`,actions:`<button class="btn ghost small" onclick='lpMarkFinanceDoneV63(${J(x.f.id)})'>Marcar pago</button>`}));
+    items.sort((a,b)=>a.rank-b.rank);if(!items.length)return '<div class="lp-empty">Nenhum aviso financeiro crítico hoje.</div>';
+    return items.slice(0,limit).map(x=>`<div class="lp-alert-item ${x.kind}"><div><b>${x.title}</b><small>${x.sub}</small><div class="lp-alert-actions">${x.actions}</div></div><span class="lp-status ${x.kind==='collect'||x.kind==='overdue'?'red':x.kind==='today'?'blue':'orange'}">${x.label}</span></div>`).join('');
+  }
+
+  function financeAddonHtml(){
+    const a=alerts(),pendingRec=a.rec.reduce((s,x)=>s+N(x.value),0),pendingPay=a.pay.reduce((s,x)=>s+N(x.value),0),reviewRec=data.lpFinanceReview.receivables.filter(x=>x.reviewStatus==='Pendente'),reviewPay=data.lpFinanceReview.payables.filter(x=>x.reviewStatus==='Pendente');
+    return `<section class="lp-fin-v63">
+      <div class="lp-title-row"><div><h3>Contas e avisos</h3><p>Cobranças com 20 dias de atraso e boletos avisados 3 dias antes e no dia do vencimento.</p></div><span class="lp-chip">Integrado ao Financeiro</span></div>
+      <div class="lp-kpis">
+        <div class="lp-kpi"><span>A receber pendente</span><b>${M(pendingRec)}</b><small>${a.rec.length} lançamento(s)</small></div>
+        <div class="lp-kpi"><span>Cobrança necessária</span><b class="lp-danger">${a.collect.length}</b><small>${a.collectDays}+ dias sem pagar</small></div>
+        <div class="lp-kpi"><span>A pagar pendente</span><b>${M(pendingPay)}</b><small>${a.pay.length} lançamento(s)</small></div>
+        <div class="lp-kpi"><span>Vence em até 3 dias</span><b class="lp-warn">${a.soon.length}</b><small>${a.soon.filter(x=>x.until===0).length} vence(m) hoje</small></div>
+      </div>
+      <div class="lp-grid">
+        <div class="lp-panel"><div class="lp-panel-head"><h4>Avisos de hoje</h4><span class="lp-chip">${a.collect.length+a.soon.length+a.overdue.length} alerta(s)</span></div><div class="lp-alerts">${alertHtml(10)}</div></div>
+        <div class="lp-panel"><div class="lp-panel-head"><h4>Aguardando conferência das planilhas</h4><span class="lp-chip">não entra duplicado</span></div><div class="lp-summary-list"><div><span>Contas a receber</span><b>${reviewRec.length}</b></div><div><span>Contas a pagar</span><b>${reviewPay.length}</b></div><div><span>Perdas históricas</span><b>${data.lpFinanceReview.losses.length}</b></div><div><span>Fechamentos históricos</span><b>${data.lpHistoricalClosings.length} mês(es)</b></div></div><button class="btn primary" style="width:100%;margin-top:12px" onclick="lpOpenPageV63('planilhas')">Conferir planilhas</button></div>
+      </div>
+    </section>`;
+  }
+
+  function reviewRows(kind){
+    const arr=reviewArray(kind).filter(x=>x.reviewStatus==='Pendente').slice(0,18);if(!arr.length)return '<tr><td colspan="6" class="lp-empty">Nenhum lançamento aguardando conferência.</td></tr>';
+    return arr.map(r=>`<tr><td><b>${E(kind==='receivable'?r.customerName:r.name)}</b><small class="cell-sub">${E(r.category||'')}</small></td><td>${fmtDate(r.dueDate)}</td><td>${M(r.remaining||r.value)}</td><td>${E(r.sourceSheet)} • linha ${r.row}</td><td><span class="lp-status orange">REVISAR</span></td><td><div class="lp-inline-actions"><button class="btn primary small" onclick='lpConfirmReviewV63(${J(kind)},${J(r.id)})'>Integrar</button><button class="btn ghost small" onclick='lpIgnoreReviewV63(${J(kind)},${J(r.id)})'>Ignorar</button></div></td></tr>`).join('');
+  }
+  function dailySummary(){
+    const month=document.getElementById('lpDailyMonthV63')?.value||todayIso().slice(0,7),rows=data.lpDailyFinancial.filter(x=>x.month===month),sum=k=>rows.reduce((a,x)=>a+N(x[k]),0);
+    if(!rows.length)return '<div class="lp-empty">Nenhum movimento diário importado para este mês.</div>';
+    return `<div class="lp-summary-list"><div><span>Dias com movimento</span><b>${rows.length}</b></div><div><span>Vendas à vista</span><b>${M(sum('cashSales'))}</b></div><div><span>Vendas no cartão</span><b>${M(sum('cardSales'))}</b></div><div><span>Vendas a prazo</span><b>${M(sum('termSales'))}</b></div><div><span>Serviços</span><b>${M(sum('services'))}</b></div><div><span>Pagamentos</span><b>${M(sum('payments'))}</b></div><div><span>Recebimentos</span><b>${M(sum('receipts'))}</b></div></div>`;
+  }
+  window.lpRefreshDailySummaryV63=function(){const el=document.getElementById('lpDailySummaryV63');if(el)el.innerHTML=dailySummary()};
+
+  function planilhasAddonHtml(){
+    const rec=data.lpFinanceReview.receivables.filter(x=>x.reviewStatus==='Pendente'),pay=data.lpFinanceReview.payables.filter(x=>x.reviewStatus==='Pendente'),loss=data.lpFinanceReview.losses,imports=data.lpFinancialImports;
+    const importList=imports.slice(0,8).map(x=>`<div class="lp-file"><div><b>${E(x.name)}</b><small>${E(x.detail||x.type)} • ${E(x.importedAt)}</small></div><span class="lp-status ${x.type==='desconhecido'?'red':'green'}">${E(x.type==='historico'?'HISTÓRICO':x.type==='pagar'?'A PAGAR':x.type==='receber'?'A RECEBER':x.type==='movimento'?'CAIXA':'REVISAR')}</span></div>`).join('')||'<div class="lp-empty">Nenhuma planilha financeira importada ainda.</div>';
+    return `<section class="lp-fin-v63">
+      <div class="lp-title-row"><div><h3>Planilhas financeiras e históricas</h3><p>Esta área é separada das três planilhas de estoque. Os arquivos são lidos no navegador e não ficam publicados dentro do HTML.</p></div><span class="lp-chip">Le Pneus</span></div>
+      <div class="lp-import-box">
+        <div class="lp-import-row"><label>Planilhas Excel<input id="lpFinFilesV63" type="file" accept=".xlsx,.xls" multiple></label><label>Mês do movimento diário<input id="lpDailyMonthV63" type="month" value="${todayIso().slice(0,7)}" onchange="lpRefreshDailySummaryV63()"></label><button class="btn primary" onclick="lpImportFinancialFilesV63()">Importar e conferir</button></div>
+        <div class="lp-note"><b>Proteção contra duplicados:</b> arquivos idênticos são reconhecidos pelo conteúdo e ignorados. Fechamento histórico, promissórias/cheques/mão de obra/perdas, fornecedores/banco e movimento diário são reconhecidos automaticamente. Retiradas não têm uma área fixa; quando houver uma nova, você lança normalmente no financeiro/planilha.</div>
+      </div>
+      <div class="lp-kpis" style="margin-top:12px">
+        <div class="lp-kpi"><span>Histórico importado</span><b class="lp-info">${data.lpHistoricalClosings.length}</b><small>mês(es) de fechamento</small></div>
+        <div class="lp-kpi"><span>A receber para revisar</span><b>${rec.length}</b><small>${M(rec.reduce((s,x)=>s+N(x.remaining),0))}</small></div>
+        <div class="lp-kpi"><span>A pagar para revisar</span><b>${pay.length}</b><small>${M(pay.reduce((s,x)=>s+N(x.remaining),0))}</small></div>
+        <div class="lp-kpi"><span>Perdas históricas</span><b>${loss.length}</b><small>${M(loss.reduce((s,x)=>s+N(x.remaining),0))}</small></div>
+      </div>
+      <div class="lp-review-grid">
+        <div class="lp-panel"><div class="lp-panel-head"><h4>Contas a receber aguardando conferência</h4><button class="btn ghost small" onclick="lpConfirmAllV63('receivable')">Integrar todas</button></div><div class="lp-table-scroll"><table><thead><tr><th>Cliente</th><th>Vencimento</th><th>Restante</th><th>Origem</th><th>Status</th><th>Ação</th></tr></thead><tbody>${reviewRows('receivable')}</tbody></table></div></div>
+        <div class="lp-panel"><div class="lp-panel-head"><h4>Contas a pagar aguardando conferência</h4><button class="btn ghost small" onclick="lpConfirmAllV63('payable')">Integrar todas</button></div><div class="lp-table-scroll"><table><thead><tr><th>Fornecedor</th><th>Vencimento</th><th>Restante</th><th>Origem</th><th>Status</th><th>Ação</th></tr></thead><tbody>${reviewRows('payable')}</tbody></table></div></div>
+      </div>
+      <div class="lp-grid" style="margin-top:12px"><div class="lp-panel"><div class="lp-panel-head"><h4>Movimento diário • conferência</h4><span class="lp-chip">não soma no caixa sozinho</span></div><div id="lpDailySummaryV63">${dailySummary()}</div></div><div class="lp-panel"><div class="lp-panel-head"><h4>Arquivos reconhecidos</h4><span class="lp-chip">${imports.length}</span></div><div class="lp-file-list">${importList}</div></div></div>
+    </section>`;
+  }
+
+  function historicalHtml(){
+    const rows=[...data.lpHistoricalClosings].sort((a,b)=>b.month.localeCompare(a.month));if(!rows.length)return `<section class="lp-fin-v63"><div class="lp-panel"><div class="lp-title-row"><div><h3>Histórico das planilhas 2021–2026</h3><p>Importe a planilha anual em Conexão Planilhas para preencher esta parte.</p></div><button class="btn ghost small" onclick="lpOpenPageV63('planilhas')">Ir para planilhas</button></div></div></section>`;
+    const body=rows.map(x=>{const m=x.metrics||{};return `<tr><td><b>${E(x.label||x.month)}</b></td><td>${M(m.grossSales)}</td><td>${M(m.services)}</td><td>${M(m.purchases)}</td><td>${M(m.payments)}</td><td>${M(m.receipts)}</td><td>${M(m.cost)}</td><td>${M(m.totalGross!==null?m.totalGross:m.grossProfit)}</td></tr>`}).join('');
+    return `<section class="lp-fin-v63"><div class="lp-title-row"><div><h3>Histórico das planilhas 2021–2026</h3><p>Histórico separado do fechamento automático do sistema. Valores de retirada/percentuais não são criados como uma área fixa.</p></div><span class="lp-chip">${rows.length} mês(es)</span></div><div class="lp-table-scroll"><table><thead><tr><th>Mês</th><th>Venda bruta</th><th>Serviços</th><th>Compras</th><th>Pagamentos</th><th>Recebimentos</th><th>Custo</th><th>Lucro bruto</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+  }
+
+  function dashboardAddonHtml(){
+    const a=alerts();if(!a.collect.length&&!a.soon.length&&!a.overdue.length)return '';
+    return `<section class="lp-fin-v63 lp-dashboard-v63"><div class="lp-panel"><div class="lp-panel-head"><h4>Avisos financeiros de hoje</h4><button class="btn ghost small" onclick="lpOpenPageV63('financeiro')">Abrir Financeiro</button></div><div class="lp-alerts">${alertHtml(5)}</div></div></section>`;
+  }
+
+  const oldPlanilhas=window.renderPlanilhas;
+  window.renderPlanilhas=function(){ensureV63();const r=typeof oldPlanilhas==='function'?oldPlanilhas.apply(this,arguments):undefined;const host=document.getElementById('planilhas');if(host){host.querySelectorAll(':scope > .lp-fin-v63').forEach(x=>x.remove());host.insertAdjacentHTML('beforeend',planilhasAddonHtml())}return r};
+  const oldFinance=window.renderFinanceiro;
+  window.renderFinanceiro=function(){ensureV63();const r=typeof oldFinance==='function'?oldFinance.apply(this,arguments):undefined;const host=document.getElementById('financeiro');if(host){host.querySelectorAll(':scope > .lp-fin-v63').forEach(x=>x.remove());const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',financeAddonHtml());else host.insertAdjacentHTML('afterbegin',financeAddonHtml())}return r};
+  const oldClosing=window.renderFechamento;
+  window.renderFechamento=function(){ensureV63();const r=typeof oldClosing==='function'?oldClosing.apply(this,arguments):undefined;const host=document.getElementById('fechamento');if(host){host.querySelectorAll(':scope > .lp-fin-v63').forEach(x=>x.remove());const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',historicalHtml());else host.insertAdjacentHTML('afterbegin',historicalHtml())}return r};
+  const oldDash=window.renderDashboard;
+  window.renderDashboard=function(){ensureV63();const r=typeof oldDash==='function'?oldDash.apply(this,arguments):undefined;const host=document.getElementById('dashboard');if(host){host.querySelectorAll(':scope > .lp-fin-v63').forEach(x=>x.remove());const cards=host.querySelector('.cards'),html=dashboardAddonHtml();if(html){if(cards)cards.insertAdjacentHTML('afterend',html);else host.insertAdjacentHTML('beforeend',html)}}return r};
+
+  function relabelNav(){document.querySelectorAll('#nav .nav-text').forEach(x=>{if(T(x.textContent)==='Financeiro / Despesas')x.textContent='Financeiro / Contas'})}
+  window.addEventListener('load',()=>setTimeout(()=>{ensureV63();relabelNav();try{renderAll()}catch(e){console.warn(e)}try{if(document.getElementById('fechamento')?.classList.contains('active'))renderFechamento()}catch(e){}},1500));
+})();
+</script>
+
 </body>
 </html>
