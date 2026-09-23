@@ -14199,5 +14199,429 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 })();
 </script>
 
+<style id="lp-v70-css">
+.lp-v70-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.lp-v70-toolbar .lp-v70-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lp-v70-toolbar input,.lp-v70-toolbar select{
+  min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);padding:8px 10px
+}
+.lp-v70-toolbar input{min-width:230px}
+.lp-v70-alerts{display:grid;gap:8px}
+.lp-v70-alert{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;
+  padding:12px;border:1px solid var(--line);border-left:3px solid #ef4444;border-radius:12px;background:var(--panel2)
+}
+.lp-v70-alert b{font-size:12px}.lp-v70-alert small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+.lp-v70-alert-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.lp-v70-pay-alert{border-left-color:#f59e0b}
+.lp-v70-pay-alert.today{border-left-color:#3b82f6}
+.lp-v70-pay-alert.overdue{border-left-color:#ef4444}
+.lp-v70-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.lp-v70-kpi{padding:13px;border:1px solid var(--line);border-radius:13px;background:var(--panel)}
+.lp-v70-kpi span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
+.lp-v70-kpi b{display:block;margin-top:6px;font-size:18px}
+.lp-v70-status{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:900;white-space:nowrap}
+.lp-v70-status.red{color:#ef4444;background:rgba(239,68,68,.12)}
+.lp-v70-status.orange{color:#f59e0b;background:rgba(245,158,11,.12)}
+.lp-v70-status.blue{color:#3b82f6;background:rgba(59,130,246,.12)}
+.lp-v70-status.green{color:#22c55e;background:rgba(34,197,94,.12)}
+.lp-v70-annual{margin-top:16px}
+.lp-v70-annual .lp-v70-import{
+  display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:10px;align-items:end;margin-top:12px
+}
+.lp-v70-annual .lp-v70-import label{display:grid;gap:6px;font-size:10px;font-weight:800;color:var(--muted)}
+.lp-v70-annual .lp-v70-import input{width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);padding:8px 10px}
+.lp-v70-note{font-size:10px;line-height:1.5;color:var(--muted);margin-top:9px}
+.lp-v70-annual-table{overflow:auto;max-height:560px;margin-top:12px}
+.lp-v70-annual-table table{min-width:900px}
+.lp-v70-annual-table th{position:sticky;top:0;z-index:1}
+@media(max-width:800px){
+  .lp-v70-kpis{grid-template-columns:1fr 1fr}
+  .lp-v70-annual .lp-v70-import{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  .lp-v70-kpis{grid-template-columns:1fr}
+  .lp-v70-alert{grid-template-columns:1fr}
+  .lp-v70-toolbar input{min-width:100%;width:100%}
+}
+</style>
+
+<script id="lp-v70-clientes-contas-fechamento">
+(function(){
+  if(window.__lpV70)return;
+  window.__lpV70=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const DAY=86400000;
+
+  window.lpClientSortV70=window.lpClientSortV70||'alpha';
+  window.lpClientSearchV70=window.lpClientSearchV70||'';
+  window.lpDebtorSortV70=window.lpDebtorSortV70||'oldest';
+
+  function ensure(){
+    try{if(typeof ensureData==='function')ensureData()}catch(e){}
+    try{if(typeof enhanceData==='function')enhanceData()}catch(e){}
+    data.customers=Array.isArray(data.customers)?data.customers:[];
+    data.sales=Array.isArray(data.sales)?data.sales:[];
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.lpAnnualBalanceV70=Array.isArray(data.lpAnnualBalanceV70)?data.lpAnnualBalanceV70:[];
+    // Migra histórico da versão anterior, se existir.
+    if(!data.lpAnnualBalanceV70.length&&Array.isArray(data.lpAnnualBalanceV68)&&data.lpAnnualBalanceV68.length){
+      data.lpAnnualBalanceV70=data.lpAnnualBalanceV68.map(x=>({
+        ...x,
+        detailsRows:Array.isArray(x.detailsRows)?x.detailsRows:Object.entries(x.details||{}).map(([label,value])=>({label,value:N(value)}))
+      }));
+    }
+  }
+  function saveNow(){try{if(typeof save==='function')save();else localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){console.warn(e)}}
+  function isoMs(iso){
+    const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!m)return NaN;
+    const y=+m[1],mo=+m[2],d=+m[3];if(y<2000||y>2100)return NaN;
+    const dt=new Date(y,mo-1,d);return dt.getFullYear()===y&&dt.getMonth()===mo-1&&dt.getDate()===d?dt.getTime():NaN;
+  }
+  function fmtDate(iso){const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(T(iso)||'-')}
+  function daysOver(iso){const a=isoMs(iso);if(!Number.isFinite(a))return null;const d=new Date(),b=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();return Math.floor((b-a)/DAY)}
+  function daysUntil(iso){const d=daysOver(iso);return d===null?null:-d}
+  function saleDateMs(v){
+    try{if(typeof parseBRDateTime==='function'){const d=parseBRDateTime(v);if(d&&!isNaN(d))return d.getTime()}}catch(e){}
+    const d=new Date(v);return isNaN(d)?NaN:d.getTime();
+  }
+  function activeSalesV70(){
+    try{if(typeof activeSales==='function')return activeSales()}catch(e){}
+    return data.sales.filter(s=>s.status!=='Cancelada');
+  }
+
+  // ================= CLIENTES =================
+  function customerCreatedOrder(c){
+    const created=saleDateMs(c?.createdAt||c?.created||'');
+    if(Number.isFinite(created))return created;
+    const id=Number(c?.id);
+    return Number.isFinite(id)?id:0;
+  }
+  function customerRows(){
+    const salesAll=activeSalesV70();
+    const q=norm(window.lpClientSearchV70);
+    let rows=data.customers.map(c=>{
+      const sales=salesAll.filter(s=>String(s.customerId)===String(c.id)||norm(s.customer)===norm(c.name));
+      const spent=sales.reduce((a,s)=>a+N(s.total),0);
+      let lastMs=NaN;
+      sales.forEach(s=>{const ms=saleDateMs(s.date||s.createdAt);if(Number.isFinite(ms)&&(!Number.isFinite(lastMs)||ms>lastMs))lastMs=ms});
+      return {c,salesCount:sales.length,spent,lastMs,createdOrder:customerCreatedOrder(c)};
+    });
+    if(q)rows=rows.filter(x=>norm(x.c.name).includes(q)||norm(x.c.phone).includes(q)||norm(x.c.doc).includes(q));
+    const sort=window.lpClientSortV70;
+    if(sort==='recent')rows.sort((a,b)=>b.createdOrder-a.createdOrder||T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
+    else if(sort==='old')rows.sort((a,b)=>a.createdOrder-b.createdOrder||T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
+    else rows.sort((a,b)=>T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
+    return rows;
+  }
+  function findCustomer(name){
+    const n=norm(name);return data.customers.find(c=>norm(c.name)===n||norm(c.name).includes(n)||n.includes(norm(c.name)));
+  }
+  function openReceivables(){
+    return data.finance.filter(f=>T(f.type)==='Receita'&&!/pago|recebido|cancelado/i.test(T(f.status)));
+  }
+  function debtorGroups(){
+    const map=new Map();
+    openReceivables().forEach(f=>{
+      const name=T(f.customerName||f.desc);const k=norm(name);if(!k)return;
+      let g=map.get(k);
+      if(!g){g={name,total:0,count:0,oldest:'',newest:'',maxDays:0,categories:new Set(),items:[]};map.set(k,g)}
+      g.total+=N(f.value);g.count++;g.items.push(f);if(f.category)g.categories.add(f.category);
+      const d=daysOver(f.dueDate);if(d!==null)g.maxDays=Math.max(g.maxDays,d);
+      if(f.dueDate&&(!g.oldest||f.dueDate<g.oldest))g.oldest=f.dueDate;
+      if(f.dueDate&&(!g.newest||f.dueDate>g.newest))g.newest=f.dueDate;
+    });
+    let out=[...map.values()];
+    const s=window.lpDebtorSortV70;
+    if(s==='alpha')out.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}));
+    else if(s==='recent')out.sort((a,b)=>(b.newest||'').localeCompare(a.newest||'')||a.name.localeCompare(b.name,'pt-BR'));
+    else out.sort((a,b)=>(a.oldest||'9999').localeCompare(b.oldest||'9999')||b.maxDays-a.maxDays);
+    return out;
+  }
+  window.lpSetClientSortV70=function(v){window.lpClientSortV70=v;window.renderClientes()};
+  window.lpSetClientSearchV70=function(v){window.lpClientSearchV70=v;window.renderClientes()};
+  window.lpSetDebtorSortV70=function(v){window.lpDebtorSortV70=v;window.renderClientes()};
+
+  window.lpChargeDebtorV70=function(name){
+    const c=findCustomer(name);let phone=T(c?.phone).replace(/\D/g,'');
+    if(!phone)return alert('Este cliente ainda não tem telefone/WhatsApp cadastrado em Clientes.');
+    if(phone.length<=11)phone='55'+phone;
+    const g=debtorGroups().find(x=>norm(x.name)===norm(name));if(!g)return;
+    const first=T(name).split(/\s+/)[0];
+    const msg=`Olá, ${first}! Tudo bem? Consta para nós um valor em aberto de ${M(g.total)}. Pode verificar para mim, por favor? Le Pneus.`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank','noopener');
+  };
+
+  function collectionAlertsHtml(){
+    const minDays=Number(data.settings?.lpCollectionDays||20);
+    const rows=debtorGroups().filter(g=>g.maxDays>=minDays);
+    if(!rows.length)return `<div class="empty">Nenhum cliente atingiu ${minDays} dias de atraso.</div>`;
+    return `<div class="lp-v70-alerts">${rows.slice(0,30).map(g=>{
+      const c=findCustomer(g.name),phone=T(c?.phone);
+      return `<div class="lp-v70-alert">
+        <div><b>${E(g.name)} • ${g.maxDays} dias em atraso</b><small>${M(g.total)} em aberto • vencimento mais antigo ${fmtDate(g.oldest)}</small>
+        <div class="lp-v70-alert-actions"><button class="btn primary small" onclick='lpChargeDebtorV70(${JSON.stringify(g.name)})' ${phone?'':'disabled'}>Cobrar no WhatsApp</button>${phone?'':'<span class="cell-sub">Cadastre o telefone para cobrar pelo WhatsApp.</span>'}</div></div>
+        <span class="lp-v70-status red">COBRAR</span>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  function debtorsSectionHtml(){
+    const groups=debtorGroups(),total=groups.reduce((s,x)=>s+x.total,0),minDays=Number(data.settings?.lpCollectionDays||20),collect=groups.filter(x=>x.maxDays>=minDays);
+    const body=groups.slice(0,160).map(g=>{
+      const c=findCustomer(g.name),phone=T(c?.phone),late=g.maxDays>0?`${g.maxDays} dia(s)`:'Em dia';
+      return `<tr><td><b>${E(g.name)}</b><small class="cell-sub">${E([...g.categories].join(' • '))}</small></td><td>${M(g.total)}</td><td>${g.count}</td><td>${fmtDate(g.oldest)}</td>
+      <td>${g.maxDays>=minDays?`<span class="badge danger">Cobrar • ${late}</span>`:g.maxDays>0?`<span class="badge warn">Atrasado • ${late}</span>`:'<span class="badge ok">Em aberto</span>'}</td>
+      <td>${phone?E(phone):'<span class="cell-sub">Sem telefone</span>'}</td><td><button class="btn ghost small" onclick='lpChargeDebtorV70(${JSON.stringify(g.name)})' ${phone?'':'disabled'}>WhatsApp</button></td></tr>`;
+    }).join('');
+    return `<section class="card lp-debtors-v64" style="margin-top:16px">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Clientes com valores em aberto</h3><small class="cell-sub">Contas a receber ficam somente na área de Clientes.</small></div><span class="soft-chip">${groups.length} cliente(s)</span></div>
+      <div class="lp-v70-kpis"><div class="lp-v70-kpi"><span>Total em aberto</span><b>${M(total)}</b></div><div class="lp-v70-kpi"><span>Clientes devendo</span><b>${groups.length}</b></div><div class="lp-v70-kpi"><span>Para cobrar</span><b>${collect.length}</b></div><div class="lp-v70-kpi"><span>Regra</span><b>${minDays} dias</b></div></div>
+      <div class="lp-v70-toolbar"><b>Relação de clientes em aberto</b><div class="lp-v70-controls"><select onchange="lpSetDebtorSortV70(this.value)">
+        <option value="oldest" ${window.lpDebtorSortV70==='oldest'?'selected':''}>Dívidas mais antigas</option>
+        <option value="recent" ${window.lpDebtorSortV70==='recent'?'selected':''}>Dívidas mais recentes</option>
+        <option value="alpha" ${window.lpDebtorSortV70==='alpha'?'selected':''}>Ordem alfabética</option>
+      </select></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Em aberto</th><th>Contas</th><th>Vencimento mais antigo</th><th>Situação</th><th>Telefone</th><th>Ação</th></tr></thead><tbody>${body||'<tr><td colspan="7" class="empty">Nenhum cliente com valor em aberto.</td></tr>'}</tbody></table></div>
+    </section>`;
+  }
+
+  window.renderClientes=function(){
+    ensure();
+    const rows=customerRows();
+    const body=rows.map(x=>{
+      const c=x.c,days=Number.isFinite(x.lastMs)?Math.max(0,Math.floor((Date.now()-x.lastMs)/DAY)):null;
+      return `<tr><td><b>${E(c.name)}</b></td><td>${E(c.phone||'-')}</td><td>${x.salesCount}</td><td>${M(x.spent)}</td><td>${days===null?'Nunca comprou':days===0?'Hoje':days+' dia(s)'}</td><td><button class="btn ghost small" onclick="customerModalV2(${c.id})">Editar</button></td></tr>`;
+    }).join('');
+    const host=document.getElementById('clientes');if(!host)return;
+    host.innerHTML=
+      heading('Clientes','Cadastro, valores em aberto e cobranças ficam reunidos aqui.',`<button class="btn primary" onclick="customerModalV2()">+ Novo cliente</button>`)+
+      `<section class="card">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Avisos de cobrança</h3><small class="cell-sub">Clientes com ${Number(data.settings?.lpCollectionDays||20)} dias ou mais de atraso.</small></div><span class="soft-chip">Somente contas a receber</span></div>
+        ${collectionAlertsHtml()}
+      </section>
+      <section class="card" style="margin-top:16px">
+        <div class="lp-v70-toolbar"><div><b>Clientes cadastrados</b><small class="cell-sub">Filtre sem alterar os dados.</small></div>
+          <div class="lp-v70-controls">
+            <input value="${E(window.lpClientSearchV70)}" placeholder="Buscar nome, telefone ou CPF/CNPJ" oninput="lpSetClientSearchV70(this.value)">
+            <select onchange="lpSetClientSortV70(this.value)">
+              <option value="alpha" ${window.lpClientSortV70==='alpha'?'selected':''}>Ordem alfabética</option>
+              <option value="recent" ${window.lpClientSortV70==='recent'?'selected':''}>Mais recentes</option>
+              <option value="old" ${window.lpClientSortV70==='old'?'selected':''}>Mais antigos</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Compras</th><th>Total gasto</th><th>Última compra</th><th>Ação</th></tr></thead><tbody>${body||'<tr><td colspan="6" class="empty">Nenhum cliente encontrado.</td></tr>'}</tbody></table></div>
+      </section>`+
+      debtorsSectionHtml();
+  };
+
+  // ================= CONTAS A PAGAR =================
+  function isDebtSource(f){
+    const s=norm(f?.sourceFile||'')+' '+norm(f?.notes||'');
+    return !!f?.cloudManagedFinance||s.includes('dividas lepneus');
+  }
+  function payables(){
+    return data.finance.filter(f=>T(f.type)==='Despesa'&&!/pago|recebido|cancelado/i.test(T(f.status))&&isDebtSource(f))
+      .sort((a,b)=>(T(a.dueDate)||'9999').localeCompare(T(b.dueDate)||'9999'));
+  }
+  function payState(f){
+    const over=daysOver(f.dueDate),until=daysUntil(f.dueDate);
+    if(over!==null&&over>0)return {text:`Atrasado ${over} dia${over===1?'':'s'}`,cls:'red',kind:'overdue'};
+    if(until===0)return {text:'Vence hoje',cls:'blue',kind:'today'};
+    if(until!==null&&until>0&&until<=3)return {text:`Vence em ${until} dia${until===1?'':'s'}`,cls:'orange',kind:'soon'};
+    if(until!==null&&until>3)return {text:`A vencer • ${until} dias`,cls:'green',kind:'future'};
+    return {text:'Sem vencimento válido',cls:'orange',kind:'invalid'};
+  }
+  function payableAlerts(rows){
+    const alertRows=rows.filter(f=>['overdue','today','soon'].includes(payState(f).kind));
+    if(!alertRows.length)return `<div class="empty">Nenhum boleto vencendo nos próximos 3 dias e nenhuma conta atrasada.</div>`;
+    return `<div class="lp-v70-alerts">${alertRows.slice(0,30).map(f=>{
+      const st=payState(f);
+      return `<div class="lp-v70-alert lp-v70-pay-alert ${st.kind}">
+        <div><b>${E(f.desc||'Fornecedor')}</b><small>${M(f.value)} • vencimento ${fmtDate(f.dueDate)} • ${E(f.sourceSheet||'Dívidas LEPNEUS')}</small></div>
+        <span class="lp-v70-status ${st.cls}">${E(st.text)}</span>
+      </div>`;
+    }).join('')}</div>`;
+  }
+  window.renderFinanceiro=function(){
+    ensure();
+    const rows=payables(),total=rows.reduce((s,x)=>s+N(x.value),0);
+    const overdue=rows.filter(x=>payState(x).kind==='overdue');
+    const today=rows.filter(x=>payState(x).kind==='today');
+    const soon=rows.filter(x=>payState(x).kind==='soon');
+    const body=rows.map(f=>{const st=payState(f);return `<tr>
+      <td><b>${E(f.desc||'Fornecedor')}</b><small class="cell-sub">${E(f.category||'Conta')}</small></td>
+      <td>${fmtDate(f.dueDate)}</td><td><b>${M(f.value)}</b></td><td><span class="lp-v70-status ${st.cls}">${E(st.text)}</span></td>
+      <td>${E(f.sourceSheet||'Dívidas LEPNEUS')}</td><td><span class="cell-sub">Baixa pela planilha Dívidas LEPNEUS</span></td>
+    </tr>`}).join('');
+    const host=document.getElementById('financeiro');if(!host)return;
+    host.innerHTML=
+      heading('Contas a pagar','Somente dívidas pendentes sincronizadas da planilha Dívidas LEPNEUS.')+
+      `<div class="lp-v70-kpis">
+        <div class="lp-v70-kpi"><span>Total em aberto</span><b>${M(total)}</b></div>
+        <div class="lp-v70-kpi"><span>Vence hoje</span><b>${today.length}</b></div>
+        <div class="lp-v70-kpi"><span>Próximos 3 dias</span><b>${soon.length}</b></div>
+        <div class="lp-v70-kpi"><span>Atrasadas</span><b>${overdue.length}</b></div>
+      </div>
+      <section class="card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Avisos de vencimento</h3><small class="cell-sub">3 dias antes, no dia e depois do vencimento.</small></div></div>${payableAlerts(rows)}</section>
+      <section class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>Fornecedor / conta</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Origem</th><th>Baixa</th></tr></thead><tbody>${body||'<tr><td colspan="6" class="empty">Nenhuma dívida pendente.</td></tr>'}</tbody></table></section>`;
+  };
+
+  // ================= BALANÇO ANUAL / FECHAMENTO =================
+  function rowNumber(v){
+    if(v===null||v===undefined||T(v)==='')return null;
+    if(typeof v==='number')return Number.isFinite(v)?v:null;
+    let s=T(v).replace(/R\$\s*/gi,'').replace(/\s/g,'');
+    if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+    else if(s.includes(','))s=s.replace(',','.');
+    s=s.replace(/[^0-9.-]/g,'');const n=Number(s);return Number.isFinite(n)?n:null;
+  }
+  async function workbookFromFile(file){
+    if(typeof XLSX==='undefined')throw new Error('Leitor Excel não carregou. Atualize a página e tente novamente.');
+    const ab=await file.arrayBuffer();return XLSX.read(ab,{type:'array',cellDates:true});
+  }
+  function metricFrom(detailsRows,aliases){
+    for(const a of aliases){
+      for(let i=detailsRows.length-1;i>=0;i--){
+        const x=detailsRows[i];if(norm(x.label)===norm(a))return N(x.value);
+      }
+    }
+    return null;
+  }
+  const months=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function annualSection(){
+    ensure();
+    const records=[...data.lpAnnualBalanceV70].sort((a,b)=>T(b.month).localeCompare(T(a.month)));
+    const body=records.map(x=>`<tr>
+      <td><b>${E(x.label)}</b><small class="cell-sub">${E(x.sourceFile||'Balanço Anual')}</small></td>
+      <td>${M(x.metrics?.grossSales)}</td><td>${M(x.metrics?.services)}</td><td>${M(x.metrics?.totalExpense)}</td><td>${M(x.metrics?.profitTotal)}</td>
+      <td><button class="btn ghost small" onclick='lpShowAnnualMonthV70(${JSON.stringify(x.month)})'>Ver todos os dados</button></td>
+    </tr>`).join('');
+    return `<section class="card lp-v70-annual">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Balanço Anual dentro do Fechamento Mensal</h3>
+      <small class="cell-sub">Escolha a planilha e o sistema importa automaticamente todos os meses preenchidos das abas 2021, 2022, 2023, 2024, 2025 e 2026.</small></div><span class="soft-chip">${records.length} mês(es)</span></div>
+      <div class="lp-v70-import"><label>Escolher Balanço Anual LEPNEUS<input id="lpAnnualFileV70" type="file" accept=".xlsx,.xls" onchange="lpImportAnnualBalanceV70()"></label>
+      <button class="btn primary" onclick="lpImportAnnualBalanceV70()">Importar novamente</button></div>
+      <div class="lp-v70-note"><b>Importa tudo:</b> vendas, carro, moto, acessórios, compras, pagamentos, recebimentos, custos, serviços, despesas fixas, despesas variáveis, despesa total, lucros e todas as demais linhas numéricas de cada mês. O ano é lido pelo <b>nome da aba</b>; portanto a aba 2026 é tratada como 2026 mesmo que uma célula interna esteja escrita diferente.</div>
+      ${records.length?`<div class="table-wrap lp-v70-annual-table"><table><thead><tr><th>Mês</th><th>Venda bruta</th><th>Serviços</th><th>Despesa total</th><th>Lucro total</th><th>Detalhes</th></tr></thead><tbody>${body}</tbody></table></div>`:''}
+    </section>`;
+  }
+
+  window.lpImportAnnualBalanceV70=async function(){
+    ensure();
+    const input=document.getElementById('lpAnnualFileV70'),file=input?.files?.[0];
+    if(!file)return alert('Escolha a planilha Balanço Anual LEPNEUS.');
+    try{
+      const wb=await workbookFromFile(file),years=wb.SheetNames.filter(n=>/^20\d{2}$/.test(T(n)));
+      if(!years.length)throw new Error('Não encontrei abas de ano como 2021, 2022, 2023...');
+      const imported=[];
+      years.forEach(sn=>{
+        const ws=wb.Sheets[sn],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+        for(let mi=0;mi<12;mi++){
+          const detailsRows=[];
+          rows.forEach(row=>{
+            const label=T(row?.[0]);if(!label)return;
+            const isVariableMonthIndex=norm(label)==='despesa variavel'&&Array.from({length:12},(_,j)=>Number(row?.[j+1])===j+1).every(Boolean);
+            if(isVariableMonthIndex)return;
+            const val=rowNumber(row?.[mi+1]);if(val===null)return;
+            detailsRows.push({label,value:val});
+          });
+          const metrics={
+            car:metricFrom(detailsRows,['Carro']),
+            moto:metricFrom(detailsRows,['Moto']),
+            accessories:metricFrom(detailsRows,['Acessorios','Acessórios']),
+            purchases:metricFrom(detailsRows,['Compras']),
+            payments:metricFrom(detailsRows,['Pagamento']),
+            receipts:metricFrom(detailsRows,['Recebimento']),
+            cashSales:metricFrom(detailsRows,['Venda a Vista']),
+            cardSales:metricFrom(detailsRows,['Cartão','Cartao']),
+            termSales:metricFrom(detailsRows,['Prazo']),
+            grossSales:metricFrom(detailsRows,['Vl Bruto Venda']),
+            cost:metricFrom(detailsRows,['Custo Total']),
+            grossProfit:metricFrom(detailsRows,['Lucro Estimado Brut']),
+            services:metricFrom(detailsRows,['Prestação Serviços','Prestacao Servicos','Mo']),
+            totalGross:metricFrom(detailsRows,['Total Lucro Bruto']),
+            fixedExpense:metricFrom(detailsRows,['Despesa Fixa']),
+            variableExpense:metricFrom(detailsRows,['Despesa Variavel','Despesa Variável']),
+            totalExpense:metricFrom(detailsRows,['Despesa Total']),
+            profitFixed:metricFrom(detailsRows,['Lucro - Fixa']),
+            profitTotal:metricFrom(detailsRows,['Lucro - Total'])
+          };
+          const present=['grossSales','services','purchases','payments','receipts','totalExpense','profitTotal'].some(k=>metrics[k]!==null&&metrics[k]!==0);
+          if(!present)continue;
+          const month=`${sn}-${months[mi]}`;
+          imported.push({id:`annual-v70-${month}`,month,year:Number(sn),label:`${monthNames[mi]}/${sn}`,metrics,detailsRows,sourceFile:file.name,manualBalanceV70:true,importedAt:new Date().toLocaleString('pt-BR')});
+        }
+      });
+      if(!imported.length)throw new Error('Não encontrei nenhum mês preenchido.');
+      const set=new Set(imported.map(x=>x.month));
+      data.lpAnnualBalanceV70=data.lpAnnualBalanceV70.filter(x=>!set.has(x.month));
+      data.lpAnnualBalanceV70.push(...imported);
+      // Mantém compatibilidade com versões anteriores do histórico.
+      data.lpAnnualBalanceV68=imported.map(x=>({...x,manualBalanceV68:true,details:Object.fromEntries(x.detailsRows.map(r=>[r.label,r.value]))}));
+      saveNow();
+      window.renderFechamento();
+      alert(`Balanço Anual importado com sucesso.\n${imported.length} mês(es) preenchido(s) foram carregados com todos os dados numéricos.`);
+    }catch(e){console.error(e);alert('Não foi possível importar o Balanço Anual: '+(e?.message||e))}
+  };
+
+  window.lpShowAnnualMonthV70=function(month){
+    ensure();const x=data.lpAnnualBalanceV70.find(r=>r.month===month);if(!x)return;
+    const rows=(x.detailsRows||[]).map(r=>`<tr><td>${E(r.label)}</td><td style="text-align:right"><b>${M(r.value)}</b></td></tr>`).join('');
+    const cards=`<div class="cards" style="margin-top:12px">
+      ${typeof metric==='function'?metric('Venda bruta',M(x.metrics?.grossSales),'Balanço Anual','green'):''}
+      ${typeof metric==='function'?metric('Serviços',M(x.metrics?.services),'Balanço Anual','green'):''}
+      ${typeof metric==='function'?metric('Despesa total',M(x.metrics?.totalExpense),'Balanço Anual','red'):''}
+      ${typeof metric==='function'?metric('Lucro total',M(x.metrics?.profitTotal),'Balanço Anual',N(x.metrics?.profitTotal)>=0?'green':'red'):''}
+    </div>`;
+    const html=`<h2>Fechamento • ${E(x.label)}</h2><div class="notice"><b>Origem:</b> ${E(x.sourceFile)}<br>Todos os valores numéricos deste mês foram lidos diretamente da planilha.</div>${cards}
+    <div class="table-wrap" style="margin-top:12px;max-height:60vh"><table><thead><tr><th>Descrição</th><th>Valor</th></tr></thead><tbody>${rows||'<tr><td colspan="2" class="empty">Sem dados.</td></tr>'}</tbody></table></div>
+    <div class="modal-actions"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`;
+    if(typeof showModal==='function')showModal(html);
+  };
+
+  const previousClosing=window.renderFechamento;
+  window.renderFechamento=function(){
+    ensure();
+    const r=typeof previousClosing==='function'?previousClosing.apply(this,arguments):undefined;
+    const host=document.getElementById('fechamento');
+    if(host){
+      host.querySelectorAll(':scope > .lp-fin-v63,:scope > .lp-annual-v68,:scope > .lp-v70-annual').forEach(x=>x.remove());
+      const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',annualSection());else host.insertAdjacentHTML('afterbegin',annualSection());
+    }
+    return r;
+  };
+
+  // ================= RÓTULOS / DASHBOARD =================
+  function relabel(){
+    try{
+      const item=typeof menu!=='undefined'?menu.find(x=>x[0]==='financeiro'):null;if(item)item[2]='Contas a pagar';
+      document.querySelectorAll('#nav button').forEach(b=>{if((b.getAttribute('onclick')||'').includes("'financeiro'")){const t=b.querySelector('.nav-text');if(t)t.textContent='Contas a pagar'}});
+      document.querySelectorAll('#dashboard button').forEach(b=>{if((b.getAttribute('onclick')||'').includes("'financeiro'"))b.textContent='Contas a pagar'});
+    }catch(e){}
+  }
+  const previousInitNav=window.initNav;
+  if(typeof previousInitNav==='function')window.initNav=function(){const r=previousInitNav.apply(this,arguments);relabel();return r};
+
+  const previousDashboard=window.renderDashboard;
+  window.renderDashboard=function(){
+    const r=typeof previousDashboard==='function'?previousDashboard.apply(this,arguments):undefined;
+    const host=document.getElementById('dashboard');if(host)host.querySelectorAll('.lp-dashboard-v63').forEach(x=>x.remove());
+    relabel();return r;
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{relabel();try{if(document.querySelector('.page.active')?.id==='clientes')window.renderClientes()}catch(e){}},1900));
+  relabel();
+})();
+</script>
+
 </body>
 </html>
