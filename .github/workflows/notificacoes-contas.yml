@@ -1,0 +1,63 @@
+name: Avisos Contas a Pagar
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+      timezone: 'America/Sao_Paulo'
+    - cron: '30 13 * * *'
+      timezone: 'America/Sao_Paulo'
+
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'Escolha o tipo de execução manual'
+        required: true
+        default: 'teste'
+        type: choice
+        options:
+          - teste
+          - 08h
+          - 13h30
+
+permissions:
+  contents: read
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Firebase Admin
+        run: npm install --no-save firebase-admin@13
+
+      - name: Definir modo
+        id: modo
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "${{ inputs.modo }}" in
+              teste) echo "value=test" >> "$GITHUB_OUTPUT" ;;
+              08h) echo "value=morning" >> "$GITHUB_OUTPUT" ;;
+              13h30) echo "value=afternoon" >> "$GITHUB_OUTPUT" ;;
+            esac
+          elif [ "${{ github.event.schedule }}" = "0 8 * * *" ]; then
+            echo "value=morning" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=afternoon" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enviar notificações
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          LEPNEUS_SITE_URL: https://controle.wwtom.com.br/?open=financeiro
+          RUN_MODE: ${{ steps.modo.outputs.value }}
+        run: node scripts/notificacoes-contas.js
