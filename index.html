@@ -15163,7 +15163,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     const s=status(),hasKey=!!vapid();
     return `<section class="card lp-push-v73">
       <div class="lp-push-row">
-        <div class="lp-push-copy"><h3>Notificações no celular</h3><p>Receba aviso das Contas a Pagar 3 dias antes do vencimento e no dia. O aviso pode chegar mesmo com o site fechado depois que a configuração do Firebase estiver concluída.</p></div>
+        <div class="lp-push-copy"><h3>Notificações no celular</h3><p>Receba aviso das Contas a Pagar 3 dias antes do vencimento. No dia do vencimento, receba um aviso às 08:00 e outro lembrete às 13:30. Os avisos podem chegar mesmo com o site fechado depois que a configuração do Firebase estiver concluída.</p></div>
         <span class="lp-push-status ${s.cls}">${E(s.text)}</span>
         <div class="lp-push-actions">
           <button class="btn primary" onclick="lpEnablePushV73()">Ativar neste celular</button>
@@ -15503,6 +15503,409 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   // Exposto para futuras telas que tenham campo de cliente.
   window.lpAttachClientAutocompleteV76=attachText;
   window.lpAttachClientSelectV76=attachSelect;
+})();
+</script>
+
+
+<style id="lp-v77-test-mode-css">
+#lpTestBannerV77{
+  position:fixed;left:0;right:0;top:0;z-index:9999;height:40px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:0 12px;background:#f59e0b;color:#1f2937;
+  font-size:12px;font-weight:900;box-shadow:0 4px 18px rgba(0,0,0,.18)
+}
+#lpTestBannerV77 button{
+  border:1px solid rgba(31,41,55,.22);background:#fff;color:#1f2937;
+  border-radius:8px;padding:5px 10px;font-weight:900;cursor:pointer
+}
+body.lp-test-mode-v77 .app{padding-top:40px}
+body.lp-test-mode-v77 .sidebar{top:40px;height:calc(100vh - 40px)}
+body.lp-test-mode-v77 .topbar{top:40px}
+body.lp-test-mode-v77 .profile .avatar{background:#fef3c7!important;color:#92400e!important}
+body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
+.lp-test-card-v77{
+  margin-top:16px;border:2px dashed #f59e0b!important;background:rgba(245,158,11,.06)!important
+}
+.lp-test-grid-v77{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:12px}
+.lp-test-grid-v77 label{display:grid;gap:6px;font-size:11px;font-weight:800;color:var(--muted)}
+.lp-test-grid-v77 input{min-height:42px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px 10px}
+.lp-test-chip-v77{display:inline-flex;padding:6px 9px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:900}
+.lp-test-note-v77{margin-top:12px;padding:11px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.55}
+@media(max-width:760px){.lp-test-grid-v77{grid-template-columns:1fr}.lp-test-grid-v77 button{width:100%}}
+</style>
+
+<script id="lp-v77-test-mode-js">
+(function(){
+  if(window.__lpTestModeLayerV77)return;
+  window.__lpTestModeLayerV77=true;
+
+  const TEST_USER='teste';
+  const TEST_PASS='teste123';
+  const T=v=>String(v??'').trim();
+  const blockedLog=[];
+  const originals={firestore:[],storage:null,fetch:null,open:null,save:null,logout:null,fbLogout:null,pushEnable:null,pushDisable:null};
+  let guardTimer=null;
+
+  function isTest(){return window.__LP_TEST_MODE_V77__===true}
+  window.lpIsTestModeV77=isTest;
+
+  function deepClone(v){
+    try{
+      if(typeof structuredClone==='function')return structuredClone(v);
+    }catch(e){}
+    return JSON.parse(JSON.stringify(v));
+  }
+
+  function logBlocked(kind,detail=''){
+    blockedLog.unshift({time:new Date().toLocaleTimeString('pt-BR'),kind,detail:T(detail).slice(0,180)});
+    if(blockedLog.length>100)blockedLog.length=100;
+    window.__LP_TEST_BLOCKED_V77__=blockedLog;
+  }
+
+  function installStorageGuard(){
+    if(originals.storage)return;
+    const proto=Storage.prototype;
+    originals.storage={
+      setItem:proto.setItem,
+      removeItem:proto.removeItem,
+      clear:proto.clear
+    };
+    proto.setItem=function(k,v){
+      if(isTest()&&this===window.localStorage){
+        logBlocked('localStorage.setItem',k);
+        return;
+      }
+      return originals.storage.setItem.call(this,k,v);
+    };
+    proto.removeItem=function(k){
+      if(isTest()&&this===window.localStorage){
+        logBlocked('localStorage.removeItem',k);
+        return;
+      }
+      return originals.storage.removeItem.call(this,k);
+    };
+    proto.clear=function(){
+      if(isTest()&&this===window.localStorage){
+        logBlocked('localStorage.clear','bloqueado');
+        return;
+      }
+      return originals.storage.clear.call(this);
+    };
+  }
+
+  function restoreStorageGuard(){
+    if(!originals.storage)return;
+    const proto=Storage.prototype;
+    proto.setItem=originals.storage.setItem;
+    proto.removeItem=originals.storage.removeItem;
+    proto.clear=originals.storage.clear;
+    originals.storage=null;
+  }
+
+  function patchMethod(proto,name,replacement){
+    if(!proto||typeof proto[name]!=='function')return;
+    if(originals.firestore.some(x=>x.proto===proto&&x.name===name))return;
+    originals.firestore.push({proto,name,fn:proto[name]});
+    proto[name]=replacement;
+  }
+
+  function installFirestoreGuard(){
+    if(!isTest()||!window.firebase?.firestore)return;
+    let db;
+    try{
+      if(firebase.apps?.length)db=firebase.firestore();
+    }catch(e){return}
+    if(!db)return;
+
+    try{
+      const col=db.collection('__lp_test_guard__');
+      const doc=col.doc('__guard__');
+      const docProto=Object.getPrototypeOf(doc);
+      const colProto=Object.getPrototypeOf(col);
+      const batchProto=Object.getPrototypeOf(db.batch());
+
+      patchMethod(docProto,'set',function(){
+        logBlocked('Firestore SET',this?.path||'documento');
+        return Promise.resolve();
+      });
+      patchMethod(docProto,'update',function(){
+        logBlocked('Firestore UPDATE',this?.path||'documento');
+        return Promise.resolve();
+      });
+      patchMethod(docProto,'delete',function(){
+        logBlocked('Firestore DELETE',this?.path||'documento');
+        return Promise.resolve();
+      });
+      patchMethod(colProto,'add',function(){
+        const id='TEST_'+Date.now()+'_'+Math.floor(Math.random()*10000);
+        logBlocked('Firestore ADD',this?.path||'coleção');
+        try{return Promise.resolve(this.doc(id))}catch(e){return Promise.resolve({id})}
+      });
+      patchMethod(batchProto,'commit',function(){
+        logBlocked('Firestore BATCH','commit');
+        return Promise.resolve([]);
+      });
+
+      const dbProto=Object.getPrototypeOf(db);
+      if(typeof dbProto.runTransaction==='function'){
+        patchMethod(dbProto,'runTransaction',function(){
+          logBlocked('Firestore TRANSACTION','bloqueada');
+          return Promise.reject(new Error('Transação bloqueada pelo Modo Teste.'));
+        });
+      }
+    }catch(e){
+      console.warn('Proteção Firestore V77:',e);
+    }
+  }
+
+  function restoreFirestoreGuard(){
+    originals.firestore.reverse().forEach(x=>{
+      try{x.proto[x.name]=x.fn}catch(e){}
+    });
+    originals.firestore=[];
+  }
+
+  function installExternalGuards(){
+    if(!originals.fetch&&window.fetch){
+      originals.fetch=window.fetch;
+      window.fetch=async function(resource,options={}){
+        const method=T(options?.method||'GET').toUpperCase();
+        if(isTest()&&!['GET','HEAD'].includes(method)){
+          logBlocked('HTTP '+method,typeof resource==='string'?resource:'requisição externa');
+          return new Response(JSON.stringify({testMode:true,blocked:true}),{
+            status:200,headers:{'Content-Type':'application/json'}
+          });
+        }
+        return originals.fetch.apply(this,arguments);
+      };
+    }
+
+    if(!originals.open&&window.open){
+      originals.open=window.open;
+      window.open=function(url){
+        const u=T(url).toLowerCase();
+        if(isTest()&&(u.includes('wa.me/')||u.includes('api.whatsapp.com'))){
+          logBlocked('WhatsApp externo',url);
+          alert('MODO TESTE: a abertura do WhatsApp foi bloqueada para não enviar nada para um cliente real.');
+          return null;
+        }
+        return originals.open.apply(this,arguments);
+      };
+    }
+  }
+
+  function restoreExternalGuards(){
+    if(originals.fetch){window.fetch=originals.fetch;originals.fetch=null}
+    if(originals.open){window.open=originals.open;originals.open=null}
+  }
+
+  function testSave(){
+    if(!isTest())return originals.save?.apply(this,arguments);
+    window.__LP_TEST_DIRTY_V77__=true;
+    logBlocked('SAVE','dados mantidos somente na memória');
+    paint();
+  }
+
+  function paint(){
+    if(!isTest())return;
+
+    document.body.classList.add('lp-test-mode-v77');
+    let bar=document.getElementById('lpTestBannerV77');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='lpTestBannerV77';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML=`<span>🧪 MODO TESTE • tudo é temporário • Firebase, localStorage e envios externos bloqueados</span>
+      <button onclick="lpExitTestModeV77()">Sair sem salvar</button>`;
+
+    const profile=document.querySelector('.profile-copy');
+    if(profile){
+      const strong=profile.querySelector('strong'),small=profile.querySelector('small');
+      if(strong)strong.textContent='TESTE';
+      if(small)small.textContent='Sandbox • não salva';
+    }
+    const avatar=document.querySelector('.profile .avatar');
+    if(avatar)avatar.textContent='TS';
+
+    const cloud=document.getElementById('lpCloudPersistBadgeV50');
+    if(cloud){
+      cloud.textContent='Dados: MODO TESTE • gravação bloqueada';
+      cloud.className='wait';
+    }
+  }
+
+  function installRuntimeGuards(){
+    installStorageGuard();
+    installExternalGuards();
+    installFirestoreGuard();
+    if(!guardTimer)guardTimer=setInterval(()=>{
+      if(!isTest())return;
+      installFirestoreGuard();
+      paint();
+    },700);
+  }
+
+  function restoreRuntimeGuards(){
+    if(guardTimer){clearInterval(guardTimer);guardTimer=null}
+    restoreFirestoreGuard();
+    restoreExternalGuards();
+    restoreStorageGuard();
+  }
+
+  window.lpEnterTestModeV77=function(){
+    if(isTest())return alert('O Modo Teste já está ativo.');
+    const user=T(document.getElementById('lpTestUserV77')?.value).toLowerCase();
+    const pass=T(document.getElementById('lpTestPassV77')?.value);
+    if(user!==TEST_USER||pass!==TEST_PASS){
+      return alert('Usuário ou senha do Modo Teste incorretos.');
+    }
+
+    try{
+      const sandbox=deepClone(data);
+
+      window.__LP_TEST_MODE_V77__=true;
+      window.__LP_TEST_STARTED_AT_V77__=new Date().toISOString();
+      window.__LP_TEST_DIRTY_V77__=false;
+
+      installRuntimeGuards();
+
+      originals.save=window.save;
+      window.save=testSave;
+
+      originals.logout=window.logout;
+      window.logout=function(){
+        if(isTest())return window.lpExitTestModeV77();
+        return originals.logout?.apply(this,arguments);
+      };
+
+      originals.fbLogout=window.lpFirebaseAdminLogout;
+      if(typeof window.lpFirebaseAdminLogout==='function'){
+        window.lpFirebaseAdminLogout=function(){
+          if(isTest())return alert('MODO TESTE: desconectar o Firebase foi bloqueado.');
+          return originals.fbLogout?.apply(this,arguments);
+        };
+      }
+
+      originals.pushEnable=window.lpEnablePushV73;
+      if(typeof window.lpEnablePushV73==='function'){
+        window.lpEnablePushV73=function(){
+          if(isTest())return alert('MODO TESTE: o registro real deste aparelho no Firebase foi bloqueado. O botão Testar notificação local continua disponível.');
+          return originals.pushEnable?.apply(this,arguments);
+        };
+      }
+      originals.pushDisable=window.lpDisablePushV73;
+      if(typeof window.lpDisablePushV73==='function'){
+        window.lpDisablePushV73=function(){
+          if(isTest())return alert('MODO TESTE: alteração do cadastro real de notificações foi bloqueada.');
+          return originals.pushDisable?.apply(this,arguments);
+        };
+      }
+
+      // A partir daqui toda alteração trabalha apenas nessa cópia em memória.
+      data=sandbox;
+      try{if(typeof ensureData==='function')ensureData()}catch(e){}
+      paint();
+      try{if(typeof closeModal==='function')closeModal()}catch(e){}
+      try{if(typeof renderAll==='function')renderAll()}catch(e){console.warn(e)}
+      if(document.getElementById('usuarios')?.classList.contains('active')){
+        try{renderUsuarios()}catch(e){}
+      }
+
+      alert(
+        'MODO TESTE ATIVADO.\n\n'+
+        'Você pode importar planilhas, lançar vendas, serviços, caixa, fechamento e testar o sistema.\n\n'+
+        'Nada será gravado no Firebase nem no armazenamento original deste navegador. '+
+        'Ao sair ou atualizar a página, tudo que foi feito no teste é descartado.'
+      );
+    }catch(e){
+      window.__LP_TEST_MODE_V77__=false;
+      restoreRuntimeGuards();
+      console.error(e);
+      alert('Não foi possível iniciar o Modo Teste: '+(e?.message||e));
+    }
+  };
+
+  window.lpExitTestModeV77=function(){
+    if(!isTest())return;
+    if(!confirm('Sair do Modo Teste e DESCARTAR todas as alterações feitas nele?'))return;
+
+    // Não copiamos a sandbox de volta. Restauramos as proteções e recarregamos
+    // a página; os dados oficiais são lidos novamente do local/Firebase.
+    window.__LP_TEST_MODE_V77__=false;
+    restoreRuntimeGuards();
+
+    try{if(originals.save)window.save=originals.save}catch(e){}
+    try{if(originals.logout)window.logout=originals.logout}catch(e){}
+    try{if(originals.fbLogout)window.lpFirebaseAdminLogout=originals.fbLogout}catch(e){}
+    try{if(originals.pushEnable)window.lpEnablePushV73=originals.pushEnable}catch(e){}
+    try{if(originals.pushDisable)window.lpDisablePushV73=originals.pushDisable}catch(e){}
+
+    location.reload();
+  };
+
+  function testCard(){
+    if(isTest()){
+      return `<section class="card lp-test-card-v77">
+        <div class="panel-head">
+          <div><h3 class="section-title" style="margin:0">🧪 Modo Teste ativo</h3>
+          <small class="cell-sub">Esta sessão é uma sandbox temporária. Nenhuma alteração é enviada ao sistema oficial.</small></div>
+          <span class="lp-test-chip-v77">TESTE ATIVO</span>
+        </div>
+        <div class="lp-test-note-v77">
+          <b>Proteções ativas:</b> gravação do Firebase bloqueada, localStorage oficial bloqueado,
+          POST/webhooks bloqueados e WhatsApp externo bloqueado. Importações e lançamentos alteram somente
+          a cópia em memória. Atualizar a página ou sair do teste descarta tudo.
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn primary" onclick="lpExitTestModeV77()">Sair do teste sem salvar</button>
+        </div>
+      </section>`;
+    }
+
+    return `<section class="card lp-test-card-v77">
+      <div class="panel-head">
+        <div><h3 class="section-title" style="margin:0">🧪 Usuário de teste / Sandbox</h3>
+        <small class="cell-sub">Use para testar planilhas e funções sem alterar o sistema oficial.</small></div>
+        <span class="lp-test-chip-v77">NÃO SALVA</span>
+      </div>
+      <div class="lp-test-grid-v77">
+        <label>Usuário<input id="lpTestUserV77" value="teste" autocomplete="off"></label>
+        <label>Senha<input id="lpTestPassV77" type="password" placeholder="Digite a senha do teste" autocomplete="off"
+          onkeydown="if(event.key==='Enter')lpEnterTestModeV77()"></label>
+        <button class="btn primary" onclick="lpEnterTestModeV77()">Entrar no modo teste</button>
+      </div>
+      <div class="lp-test-note-v77">
+        <b>Acesso de teste:</b> usuário <code>teste</code> • senha <code>teste123</code>.<br>
+        O Modo Teste copia os dados atuais para a memória do navegador. Você pode importar o Movimento de Caixa,
+        Balanço Anual, testar clientes, serviços, vendas e demais telas. Ao sair, nada da sandbox é enviado de volta.
+        <br><b>Importante:</b> essa senha é apenas para abrir a sandbox; ela não é uma senha de segurança do Firebase.
+      </div>
+    </section>`;
+  }
+
+  // Acrescenta o Modo Teste na tela final de Usuários.
+  const prevUsersV77=window.renderUsuarios;
+  window.renderUsuarios=function(){
+    const r=typeof prevUsersV77==='function'?prevUsersV77.apply(this,arguments):undefined;
+    const host=document.getElementById('usuarios');
+    if(host){
+      host.querySelectorAll(':scope > .lp-test-card-v77').forEach(x=>x.remove());
+      host.insertAdjacentHTML('beforeend',testCard());
+    }
+    if(isTest())paint();
+    return r;
+  };
+
+  // Caso outro render redesenhe a tela, mantém a identificação visual.
+  const prevRenderAllV77=window.renderAll;
+  if(typeof prevRenderAllV77==='function'){
+    window.renderAll=function(){
+      const r=prevRenderAllV77.apply(this,arguments);
+      if(isTest())paint();
+      return r;
+    };
+  }
 })();
 </script>
 
