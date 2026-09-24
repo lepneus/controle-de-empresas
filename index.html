@@ -852,7 +852,7 @@ body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
   <header class="topbar">
     <button class="iconbtn menu-toggle" onclick="toggleSidebar()">☰</button>
     <div class="search"><span class="search-icon">⌕</span><input id="globalSearch" placeholder="Pesquisar produtos, clientes, vendas..." oninput="globalSearch()"><kbd>Ctrl K</kbd></div>
-    <div class="top-actions"><button class="iconbtn" title="Alternar tema" onclick="toggleTheme()">◐</button><div class="profile"><div class="avatar">AD</div><div class="profile-copy"><strong>Administrador</strong><small>Administrador</small></div></div><button id="lpDevicesBtnV79" class="iconbtn lp-devices-btn-v79" onclick="lpOpenConnectedDevicesV79()" title="Ver celulares e dispositivos conectados">📱 <span id="lpDevicesCountV79">0</span></button><button class="iconbtn lp-switch-user-btn-v79" onclick="lpOpenUserSwitcherV79()">Trocar usuário</button><button class="iconbtn logout-btn" onclick="logout()">Sair</button></div>
+    <div class="top-actions"><button class="iconbtn" title="Alternar tema" onclick="toggleTheme()">◐</button><div class="profile"><div class="avatar">AD</div><div class="profile-copy"><strong>Administrador</strong><small>Administrador</small></div></div><button id="lpDevicesBtnV79" class="iconbtn lp-devices-btn-v79" onclick="lpOpenConnectedDevicesV79()" title="Ver celulares e dispositivos conectados"><span class="lp-devices-icon-v80">📱</span><span class="lp-devices-label-v80">Conectados</span><span id="lpDevicesCountV79">0</span></button><button class="iconbtn lp-switch-user-btn-v79" onclick="lpOpenUserSwitcherV79()">Trocar usuário</button><button class="iconbtn logout-btn" onclick="logout()">Sair</button></div>
   </header>
   <section class="content">
     <div class="page active" id="dashboard"></div>
@@ -15955,6 +15955,143 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 }
 </style>
 
+<style id="lp-v80-topbar-fix">
+/* ===== V80: topo responsivo / usuários / dispositivos ===== */
+.topbar{
+  min-width:0!important;
+}
+.top-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  flex:0 0 auto!important;
+  min-width:0!important;
+}
+.top-actions .profile{
+  flex:0 1 auto!important;
+  min-width:0!important;
+  margin-left:0!important;
+}
+.top-actions .profile-copy{
+  min-width:0!important;
+  max-width:170px!important;
+}
+.top-actions .profile-copy strong,
+.top-actions .profile-copy small{
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+.top-actions .lp-devices-btn-v79,
+.top-actions .lp-switch-user-btn-v79,
+.top-actions .logout-btn{
+  width:auto!important;
+  min-width:max-content!important;
+  flex:0 0 auto!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+}
+.top-actions .lp-devices-btn-v79{
+  min-height:40px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  padding:0 10px!important;
+}
+.top-actions .lp-switch-user-btn-v79{
+  min-height:40px!important;
+  padding:0 12px!important;
+}
+.top-actions .logout-btn{
+  min-height:40px!important;
+  padding:0 12px!important;
+}
+.lp-devices-label-v80{
+  font-size:11px;
+  font-weight:800;
+}
+#lpDevicesCountV79{
+  min-width:20px!important;
+  height:20px!important;
+  padding:0 5px!important;
+  flex:0 0 auto!important;
+}
+.search{
+  min-width:120px!important;
+}
+
+/* Tela intermediária: preserva todos os controles, mas economiza espaço. */
+@media(max-width:1180px){
+  .topbar{padding-left:16px!important;padding-right:16px!important;gap:10px!important}
+  .top-actions .profile-copy{max-width:120px!important}
+  .lp-devices-label-v80{display:none!important}
+  .top-actions .lp-devices-btn-v79{padding:0 8px!important}
+}
+
+/* Tablet/celular: ícones compactos, sem sobreposição. */
+@media(max-width:900px){
+  .topbar{padding:0 10px!important;gap:8px!important}
+  .topbar .search{display:none!important}
+  .top-actions{gap:6px!important}
+  .top-actions .profile{
+    padding:0!important;
+    margin:0!important;
+  }
+  .top-actions .profile-copy{display:none!important}
+  .top-actions .avatar{
+    width:36px!important;height:36px!important;flex:0 0 36px!important;
+  }
+  .top-actions .lp-devices-btn-v79{
+    width:auto!important;
+    min-width:48px!important;
+    padding:0 7px!important;
+  }
+  .top-actions .lp-switch-user-btn-v79{
+    width:40px!important;
+    min-width:40px!important;
+    padding:0!important;
+    font-size:0!important;
+  }
+  .top-actions .lp-switch-user-btn-v79:before{
+    content:'↔'!important;
+    font-size:18px!important;
+  }
+  .top-actions .logout-btn{
+    display:inline-grid!important;
+    place-items:center!important;
+    width:40px!important;
+    min-width:40px!important;
+    padding:0!important;
+    font-size:0!important;
+  }
+  .top-actions .logout-btn:before{
+    content:'⎋'!important;
+    font-size:17px!important;
+  }
+}
+
+/* Celular bem estreito: mantém menu + perfil + conectados + trocar + sair. */
+@media(max-width:520px){
+  .topbar{height:64px!important}
+  .top-actions{gap:5px!important}
+  .top-actions .avatar{
+    width:34px!important;height:34px!important;flex-basis:34px!important;
+  }
+  .top-actions .lp-devices-btn-v79{
+    min-width:44px!important;height:38px!important;
+  }
+  .top-actions .lp-switch-user-btn-v79,
+  .top-actions .logout-btn{
+    width:38px!important;min-width:38px!important;height:38px!important;
+  }
+  .menu-toggle{
+    width:38px!important;height:38px!important;flex:0 0 38px!important;
+  }
+}
+</style>
+
 <script id="lp-v79-users-presence">
 (function(){
   if(window.__lpUsersPresenceV79)return;
@@ -16186,9 +16323,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       <div class="lp-v79-user-grid">
         <div class="lp-v79-user-card">
           <h3>👤 Administrador</h3>
-          <p>Use outra conta administrativa do Firebase.</p>
-          <div class="actions" style="margin-top:12px">
+          <p>Use outra conta administrativa do Firebase ou confira os aparelhos que estão usando o sistema.</p>
+          <div class="actions" style="margin-top:12px;flex-wrap:wrap">
             <button class="btn ghost" onclick="lpSwitchFirebaseAccountV79()">Trocar conta administrativa</button>
+            <button class="btn ghost" onclick="closeModal();setTimeout(lpOpenConnectedDevicesV79,80)">📱 Dispositivos conectados</button>
           </div>
         </div>
         <div class="lp-v79-user-card">
