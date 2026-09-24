@@ -14652,6 +14652,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 (function(){
   if(window.__lpV72)return;
   window.__lpV72=true;
+  window.__LP_CLIENT_SEARCH_FIX__='v75';
 
   const T=v=>String(v??'').trim();
   const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
@@ -14701,10 +14702,34 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   window.lpClientSearchV72=window.lpClientSearchV72||'';
   window.lpClientSortV72=window.lpClientSortV72||'alpha';
   window.lpClientFinancialV72=window.lpClientFinancialV72||'all';
+  window.lpDebtorSearchV75=window.lpDebtorSearchV75||'';
   window.lpDebtorSortV72=window.lpDebtorSortV72||'oldest';
   window.lpDebtorAgeV72=window.lpDebtorAgeV72||'all';
 
-  window.lpSetClientSearchV72=v=>{window.lpClientSearchV72=v;window.renderClientes()};
+  function lpRefocusSearchV75(id,value){
+    requestAnimationFrame(()=>{
+      const el=document.getElementById(id);
+      if(!el)return;
+      el.focus({preventScroll:true});
+      try{el.setSelectionRange(value.length,value.length)}catch(e){}
+    });
+  }
+  window.lpSetClientSearchV72=v=>{
+    window.lpClientSearchV72=v;
+    clearTimeout(window.__lpClientSearchTimerV75);
+    window.__lpClientSearchTimerV75=setTimeout(()=>{
+      window.renderClientes();
+      lpRefocusSearchV75('lpClientSearchInputV75',v);
+    },220);
+  };
+  window.lpSetDebtorSearchV75=v=>{
+    window.lpDebtorSearchV75=v;
+    clearTimeout(window.__lpDebtorSearchTimerV75);
+    window.__lpDebtorSearchTimerV75=setTimeout(()=>{
+      window.renderClientes();
+      lpRefocusSearchV75('lpDebtorSearchInputV75',v);
+    },220);
+  };
   window.lpSetClientSortV72=v=>{window.lpClientSortV72=v;window.renderClientes()};
   window.lpSetClientFinancialV72=v=>{window.lpClientFinancialV72=v;window.renderClientes()};
   window.lpSetDebtorSortV72=v=>{window.lpDebtorSortV72=v;window.renderClientes()};
@@ -14743,9 +14768,10 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     else rows.sort((a,b)=>T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
 
     let debtRows=[...groups];
+    const debtQ=norm(window.lpDebtorSearchV75);
     if(window.lpDebtorAgeV72==='90')debtRows=debtRows.filter(g=>g.maxDays>=90);
     else if(window.lpDebtorAgeV72==='under90')debtRows=debtRows.filter(g=>g.maxDays<90);
-    if(q)debtRows=debtRows.filter(g=>norm(g.name).includes(q));
+    if(debtQ)debtRows=debtRows.filter(g=>norm(g.name).includes(debtQ));
     if(window.lpDebtorSortV72==='alpha')debtRows.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}));
     else if(window.lpDebtorSortV72==='recent')debtRows.sort((a,b)=>(b.oldest||'').localeCompare(a.oldest||'')||a.name.localeCompare(b.name,'pt-BR'));
     else debtRows.sort((a,b)=>(a.oldest||'9999').localeCompare(b.oldest||'9999')||b.maxDays-a.maxDays);
@@ -14776,7 +14802,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
       <section class="card">
         <div class="panel-head"><div><h3 class="section-title" style="margin:0">Clientes cadastrados</h3><small class="cell-sub">Os filtros podem ser usados juntos.</small></div><span class="soft-chip">${rows.length} resultado(s)</span></div>
         <div class="lp-v72-filterbar" style="margin-bottom:12px">
-          <label>Buscar<input value="${E(window.lpClientSearchV72)}" placeholder="Nome, telefone ou CPF/CNPJ" oninput="lpSetClientSearchV72(this.value)"></label>
+          <label>Buscar<input id="lpClientSearchInputV75" value="${E(window.lpClientSearchV72)}" placeholder="Nome, telefone ou CPF/CNPJ" autocomplete="off" oninput="lpSetClientSearchV72(this.value)"></label>
           <label>Ordenar<select onchange="lpSetClientSortV72(this.value)">
             <option value="alpha" ${window.lpClientSortV72==='alpha'?'selected':''}>Ordem alfabética</option>
             <option value="recent" ${window.lpClientSortV72==='recent'?'selected':''}>Mais recentes</option>
@@ -14795,6 +14821,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
       <section class="card" style="margin-top:16px">
         <div class="panel-head"><div><h3 class="section-title" style="margin:0">Clientes com valores em aberto</h3><small class="cell-sub">Sem cartão separado de avisos: use o filtro de 90+ dias quando quiser ver quem precisa de atenção.</small></div><span class="soft-chip">${debtRows.length} resultado(s)</span></div>
         <div class="lp-v72-filterbar" style="margin-bottom:12px">
+          <label>Pesquisar cliente<input id="lpDebtorSearchInputV75" value="${E(window.lpDebtorSearchV75)}" placeholder="Digite o nome do cliente..." autocomplete="off" oninput="lpSetDebtorSearchV75(this.value)"></label>
           <label>Ordenar<select onchange="lpSetDebtorSortV72(this.value)">
             <option value="oldest" ${window.lpDebtorSortV72==='oldest'?'selected':''}>Dívidas mais antigas</option>
             <option value="recent" ${window.lpDebtorSortV72==='recent'?'selected':''}>Dívidas mais recentes</option>
@@ -15184,6 +15211,298 @@ window.__LP_PERSISTENCE_VERSION__='v60';
       try{history.replaceState({},'',location.pathname+location.hash)}catch(e){}
     }
   },2600));
+})();
+</script>
+
+
+<style id="lp-v76-client-autocomplete-css">
+.lp-client-auto-v76{display:grid;gap:5px}
+.lp-client-auto-v76 input{width:100%}
+.lp-client-auto-v76 small{color:var(--muted);font-size:10px;line-height:1.4}
+</style>
+
+<script id="lp-v76-client-autocomplete-js">
+(function(){
+  if(window.__lpClientAutoV76)return;
+  window.__lpClientAutoV76=true;
+
+  const T=v=>String(v??'').trim();
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+
+  function ensureCustomers(){
+    data.customers=Array.isArray(data.customers)?data.customers:[];
+    return data.customers;
+  }
+
+  function knownClients(){
+    const map=new Map();
+    const add=(name,phone='',id='')=>{
+      name=T(name);if(!name)return;
+      const k=norm(name);if(!k)return;
+      const old=map.get(k)||{name,phone:'',id:''};
+      if(!old.phone&&phone)old.phone=T(phone);
+      if(!old.id&&id)old.id=id;
+      if(!old.name)old.name=name;
+      map.set(k,old);
+    };
+
+    ensureCustomers().forEach(c=>add(c.name,c.phone,c.id));
+
+    (data.finance||[]).forEach(f=>{
+      if(T(f.type)!=='Receita')return;
+      const name=T(f.customerName)||(f.cloudManagedFinance?T(f.desc):'');
+      if(name)add(name,'',f.customerId||'');
+    });
+
+    (data.lpFinanceReview?.receivables||[]).forEach(r=>add(r.customerName||r.name,r.phone||'',r.customerId||''));
+    (data.sales||[]).forEach(s=>add(s.customer||'', '', s.customerId||''));
+    (data.serviceOrders||[]).forEach(o=>{
+      const c=ensureCustomers().find(x=>String(x.id)===String(o.customerId));
+      if(c)add(c.name,o.customerPhone||c.phone,c.id);
+    });
+
+    return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}));
+  }
+
+  function exactKnown(name){
+    const k=norm(name);if(!k)return null;
+    return knownClients().find(x=>norm(x.name)===k)||null;
+  }
+
+  function exactCustomer(name){
+    const k=norm(name);if(!k)return null;
+    return ensureCustomers().find(x=>norm(x.name)===k)||null;
+  }
+
+  function createOrGet(name,phone='',source='Sistema'){
+    name=T(name);phone=T(phone);
+    if(!name)return '';
+
+    let c=exactCustomer(name);
+    if(c){
+      if(phone&&!T(c.phone))c.phone=phone;
+      return c.id;
+    }
+
+    const known=exactKnown(name);
+    if(known?.id){
+      c=ensureCustomers().find(x=>String(x.id)===String(known.id));
+      if(c){
+        if(phone&&!T(c.phone))c.phone=phone;
+        return c.id;
+      }
+    }
+
+    const id=typeof idNow==='function'?idNow():Date.now()+Math.floor(Math.random()*1000);
+    c={
+      id,
+      name,
+      phone:phone||known?.phone||'',
+      email:'',
+      doc:'',
+      address:'',
+      city:'',
+      notes:`Cliente gerado automaticamente em ${source}`,
+      createdAt:new Date().toLocaleString('pt-BR'),
+      generatedClient:true
+    };
+    ensureCustomers().unshift(c);
+    return c.id;
+  }
+  window.lpCreateOrGetClientV76=createOrGet;
+
+  function setHiddenSelect(select,name,phone){
+    if(!select)return '';
+    const id=createOrGet(name,phone,select.dataset.lpClientSource||'Sistema');
+    select.innerHTML='<option value=""></option>';
+    if(id){
+      const c=ensureCustomers().find(x=>String(x.id)===String(id));
+      const op=document.createElement('option');
+      op.value=id;op.textContent=c?.name||name;op.selected=true;
+      select.appendChild(op);
+    }
+    select.value=id?String(id):'';
+    return id;
+  }
+
+  function fillPhoneFromName(name,phoneId){
+    if(!phoneId)return;
+    const phone=document.getElementById(phoneId);if(!phone)return;
+    const known=exactKnown(name);
+    if(known?.phone&&!T(phone.value))phone.value=known.phone;
+  }
+
+  function attachSelect(selectId,inputId,source,phoneId='',required=false){
+    const select=document.getElementById(selectId);if(!select)return null;
+    if(document.getElementById(inputId))return document.getElementById(inputId);
+
+    const current=select.value;
+    const currentCustomer=ensureCustomers().find(x=>String(x.id)===String(current));
+    const listId=inputId+'-list';
+
+    const wrap=document.createElement('div');
+    wrap.className='lp-client-auto-v76';
+
+    const input=document.createElement('input');
+    input.id=inputId;
+    input.setAttribute('list',listId);
+    input.setAttribute('autocomplete','off');
+    input.placeholder='Digite o nome para buscar ou cadastrar';
+    input.value=currentCustomer?.name||'';
+    if(required)input.required=true;
+
+    const list=document.createElement('datalist');
+    list.id=listId;
+    knownClients().forEach(c=>{
+      const op=document.createElement('option');
+      op.value=c.name;
+      if(c.phone)op.label=c.phone;
+      list.appendChild(op);
+    });
+
+    const hint=document.createElement('small');
+    hint.textContent='Selecione um cliente existente ou digite um nome novo. Ao salvar, um cliente novo é criado automaticamente em Clientes.';
+
+    wrap.append(input,list,hint);
+    select.style.display='none';
+    select.dataset.lpClientSource=source;
+    select.insertAdjacentElement('afterend',wrap);
+
+    input.addEventListener('input',()=>{
+      const known=exactKnown(input.value);
+      select.value='';
+      if(known?.id){
+        if(![...select.options].some(o=>String(o.value)===String(known.id))){
+          const op=document.createElement('option');op.value=known.id;op.textContent=known.name;select.appendChild(op);
+        }
+        select.value=String(known.id);
+      }
+      fillPhoneFromName(input.value,phoneId);
+    });
+    input.addEventListener('change',()=>fillPhoneFromName(input.value,phoneId));
+    return input;
+  }
+
+  function attachText(inputId,source,phoneId=''){
+    const input=document.getElementById(inputId);if(!input||input.dataset.lpAutoV76)return;
+    input.dataset.lpAutoV76='1';
+    const listId=inputId+'-client-list-v76';
+    input.setAttribute('list',listId);
+    input.setAttribute('autocomplete','off');
+
+    const list=document.createElement('datalist');
+    list.id=listId;
+    knownClients().forEach(c=>{
+      const op=document.createElement('option');op.value=c.name;if(c.phone)op.label=c.phone;list.appendChild(op);
+    });
+    input.insertAdjacentElement('afterend',list);
+    input.addEventListener('input',()=>fillPhoneFromName(input.value,phoneId));
+    input.dataset.lpClientSource=source;
+  }
+
+  function prepareSelectSave(selectId,inputId,source,phoneId='',required=false){
+    const select=document.getElementById(selectId),input=document.getElementById(inputId);
+    const name=T(input?.value),phone=T(document.getElementById(phoneId)?.value);
+    if(required&&!name){alert('Informe o nome do cliente.');input?.focus();return null}
+    if(!name){if(select)select.value='';return ''}
+    if(select)select.dataset.lpClientSource=source;
+    return setHiddenSelect(select,name,phone);
+  }
+
+  // ===== SERVIÇOS =====
+  const oldOSModalV76=window.osModal;
+  window.osModal=function(){
+    const r=typeof oldOSModalV76==='function'?oldOSModalV76.apply(this,arguments):undefined;
+
+    // Remove o seletor antigo "Cliente cadastrado / Digitar nome".
+    const mode=document.querySelector('#modalBody .lp-client-mode');if(mode)mode.remove();
+    const free=document.getElementById('lp-os-free');if(free)free.remove();
+    const existing=document.getElementById('lp-os-existing');if(existing)existing.style.display='grid';
+
+    attachSelect('oscustomer','oscustomernameV76','Serviço','osphone',true);
+
+    const saveBtn=[...document.querySelectorAll('#modalBody .modal-actions button')].find(b=>/salvar servi[cç]o|salvar os/i.test(b.textContent||''));
+    if(saveBtn)saveBtn.onclick=window.lpSaveServiceV76;
+    return r;
+  };
+  window.lpSaveServiceV76=function(){
+    const id=prepareSelectSave('oscustomer','oscustomernameV76','Serviço','osphone',true);
+    if(id===null)return;
+    return typeof window.saveOS==='function'?window.saveOS():undefined;
+  };
+
+  // ===== VENDAS =====
+  const oldSaleModalV76=window.saleModal;
+  window.saleModal=function(){
+    const r=typeof oldSaleModalV76==='function'?oldSaleModalV76.apply(this,arguments):undefined;
+    attachSelect('scustomer','scustomernameV76','Venda','',false);
+    const btn=[...document.querySelectorAll('#modalBody .modal-actions button')].find(b=>/concluir venda/i.test(b.textContent||''));
+    if(btn)btn.onclick=window.lpFinishSaleV76;
+    return r;
+  };
+  window.lpFinishSaleV76=function(){
+    const id=prepareSelectSave('scustomer','scustomernameV76','Venda','',false);
+    if(id===null)return;
+    return typeof window.finishSale==='function'?window.finishSale():undefined;
+  };
+
+  // ===== ORÇAMENTOS =====
+  const oldQuoteModalV76=window.quoteModal;
+  window.quoteModal=function(){
+    const r=typeof oldQuoteModalV76==='function'?oldQuoteModalV76.apply(this,arguments):undefined;
+    attachSelect('qcustomer','qcustomernameV76','Orçamento','',false);
+    const btn=[...document.querySelectorAll('#modalBody .modal-actions button')].find(b=>/salvar or[cç]amento/i.test(b.textContent||''));
+    if(btn)btn.onclick=window.lpSaveQuoteV76;
+    return r;
+  };
+  window.lpSaveQuoteV76=function(){
+    const id=prepareSelectSave('qcustomer','qcustomernameV76','Orçamento','',false);
+    if(id===null)return;
+    return typeof window.saveQuote==='function'?window.saveQuote():undefined;
+  };
+
+  // ===== AGENDA / LEMBRETES =====
+  const oldReminderModalV76=window.reminderModal;
+  window.reminderModal=function(){
+    const r=typeof oldReminderModalV76==='function'?oldReminderModalV76.apply(this,arguments):undefined;
+    attachText('rcustomer','Agenda');
+    return r;
+  };
+  const oldSaveReminderV76=window.saveReminder;
+  window.saveReminder=function(){
+    const name=T(document.getElementById('rcustomer')?.value);
+    if(name)createOrGet(name,'','Agenda');
+    return typeof oldSaveReminderV76==='function'?oldSaveReminderV76.apply(this,arguments):undefined;
+  };
+
+  // ===== WHATSAPP =====
+  const oldWaMessageModalV76=window.waMessageModal;
+  window.waMessageModal=function(){
+    const r=typeof oldWaMessageModalV76==='function'?oldWaMessageModalV76.apply(this,arguments):undefined;
+    attachText('wacontact','WhatsApp','waphone');
+    return r;
+  };
+  const oldSaveWaV76=window.saveWaMessage;
+  window.saveWaMessage=function(){
+    const name=T(document.getElementById('wacontact')?.value),phone=T(document.getElementById('waphone')?.value);
+    if(name)createOrGet(name,phone,'WhatsApp');
+    return typeof oldSaveWaV76==='function'?oldSaveWaV76.apply(this,arguments):undefined;
+  };
+
+  // ===== VENDA DETECTADA NA PLANILHA =====
+  const oldDiffSaleV76=window.lpDifferenceSaleModal;
+  if(typeof oldDiffSaleV76==='function'){
+    window.lpDifferenceSaleModal=function(){
+      const r=oldDiffSaleV76.apply(this,arguments);
+      attachText('dicustomer','Venda detectada na planilha','diphone');
+      return r;
+    };
+  }
+
+  // Exposto para futuras telas que tenham campo de cliente.
+  window.lpAttachClientAutocompleteV76=attachText;
+  window.lpAttachClientSelectV76=attachSelect;
 })();
 </script>
 
