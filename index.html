@@ -2046,8 +2046,9 @@ async function firebaseLogin(){
   if(!email||!password) return alert('Informe e-mail e senha.');
   const msg=$('#fbLoginMsg'); if(msg) msg.textContent='Conectando...';
   try{
-    await lpAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+    await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     await lpAuth.signInWithEmailAndPassword(email,password);
+      try{if(window.lpClearOwnDisconnectAfterLoginV81)await window.lpClearOwnDisconnectAfterLoginV81(lpAuth.currentUser)}catch(e){}
     closeModal();
     renderCatalogo();
     alert('Firebase conectado com sucesso.');
@@ -10065,10 +10066,9 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       lpDb=firebase.firestore();
       lpAuth=firebase.auth();
 
-      /* V79: sessão somente em memória. Ao atualizar/fechar, exige login novamente. */
-      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-      /* remove qualquer sessão LOCAL deixada pelas versões antigas */
-      if(lpAuth.currentUser) await lpAuth.signOut();
+      /* V81: mantém a sessão do Firebase neste dispositivo para login automático. */
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      /* A senha não é salva pelo sistema; o Firebase mantém apenas a sessão autenticada. */
 
       lpAuth.onAuthStateChanged(function(user){
         lpFirebaseUser=user||null;
@@ -10091,7 +10091,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
     }
   }
 
-  /* V79: login sem persistência automática de sessão. */
+  /* V81: login persistente neste dispositivo. */
   window.doLogin=async function(){
     const email=(document.getElementById('loginUser')?.value||'').trim();
     const pass=document.getElementById('loginPass')?.value||'';
@@ -10114,8 +10114,9 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       lpDb=firebase.firestore();
       lpAuth=firebase.auth();
 
-      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
       const cred=await lpAuth.signInWithEmailAndPassword(email,pass);
+      try{if(window.lpClearOwnDisconnectAfterLoginV81)await window.lpClearOwnDisconnectAfterLoginV81(lpAuth.currentUser)}catch(e){}
       lpFirebaseUser=cred.user||null;
       setGate(lpFirebaseUser);
     }catch(e){
@@ -16092,6 +16093,37 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 }
 </style>
 
+
+<style id="lp-v81-remote-disconnect-css">
+.lp-v81-device-actions{
+  display:flex;align-items:center;gap:8px;flex:0 0 auto
+}
+.lp-v81-disconnect-btn{
+  border:1px solid rgba(220,38,38,.32);
+  background:rgba(220,38,38,.08);
+  color:#dc2626;
+  border-radius:9px;
+  min-height:32px;
+  padding:0 9px;
+  font-size:10px;
+  font-weight:900;
+  cursor:pointer;
+  white-space:nowrap
+}
+.lp-v81-disconnect-btn:hover{background:rgba(220,38,38,.14)}
+.lp-v81-disconnect-btn:disabled{opacity:.5;cursor:not-allowed}
+.lp-v81-this-device{
+  display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;
+  background:rgba(59,130,246,.12);color:#2563eb;font-size:9px;font-weight:900;
+  margin-left:5px
+}
+@media(max-width:620px){
+  .lp-v79-device{align-items:flex-start!important}
+  .lp-v81-device-actions{flex-direction:column;align-items:flex-end}
+  .lp-v81-disconnect-btn{min-height:30px;padding:0 8px}
+}
+</style>
+
 <script id="lp-v79-users-presence">
 (function(){
   if(window.__lpUsersPresenceV79)return;
@@ -16104,6 +16136,8 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   let deviceModalTimer=null;
   let currentPresenceDoc='';
   let lastPresenceUser='';
+  let disconnectUnsubscribeV81=null;
+  let disconnectingV81=false;
 
   function isTest(){
     try{return !!window.lpIsTestModeV77?.()}catch(e){return false}
@@ -16183,6 +16217,93 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     return T(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   }
 
+
+  async function performRemoteLogoutV81(reason='Este dispositivo foi desconectado remotamente.'){
+    if(disconnectingV81)return;
+    disconnectingV81=true;
+
+    try{
+      if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null}
+      if(disconnectUnsubscribeV81){disconnectUnsubscribeV81();disconnectUnsubscribeV81=null}
+
+      const d=db(),u=authUser();
+      if(d&&u&&currentPresenceDoc){
+        try{
+          await d.collection('controlePushDevices').doc(currentPresenceDoc).set({
+            online:false,
+            disconnectedAt:firebase.firestore.FieldValue.serverTimestamp(),
+            disconnectAcknowledged:true
+          },{merge:true});
+        }catch(e){}
+      }
+
+      try{
+        const a=window.lpAuth||firebase.auth();
+        await a.signOut();
+      }catch(e){}
+
+      try{
+        const p=document.getElementById('loginPass');if(p)p.value='';
+      }catch(e){}
+
+      alert(reason+'\n\nPara entrar novamente neste aparelho, faça o login de novo.');
+      try{setGate(null)}catch(e){location.reload()}
+    } finally {
+      disconnectingV81=false;
+    }
+  }
+
+  function watchOwnDisconnectV81(user){
+    if(disconnectUnsubscribeV81){try{disconnectUnsubscribeV81()}catch(e){} disconnectUnsubscribeV81=null}
+    const d=db();
+    if(!d||!user)return;
+
+    const id=presencePath(user);
+    currentPresenceDoc=id;
+
+    try{
+      disconnectUnsubscribeV81=d.collection('controlePushDevices').doc(id).onSnapshot(snap=>{
+        if(!snap.exists)return;
+        const row=snap.data()||{};
+        if(row.disconnectRequested===true && row.disconnectAcknowledged!==true){
+          performRemoteLogoutV81('Este dispositivo foi desconectado pelo administrador.');
+        }
+      },err=>console.warn('Listener de desconexão V81:',err?.message||err));
+    }catch(e){
+      console.warn('Listener de desconexão V81:',e?.message||e);
+    }
+  }
+
+  window.lpDisconnectDeviceV81=async function(deviceId,label='dispositivo'){
+    if(isTest())return alert('No Modo Teste não é possível desconectar dispositivos reais.');
+    const d=db(),u=authUser();
+    if(!d||!u)return alert('Firebase não está conectado.');
+
+    if(!confirm(`Desconectar ${label}?\n\nEsse aparelho perderá a sessão automática e terá que fazer login novamente.`))return;
+
+    try{
+      const ref=d.collection('controlePushDevices').doc(deviceId);
+      const snap=await ref.get();
+      if(!snap.exists)return alert('Esse dispositivo não foi encontrado.');
+
+      const row=snap.data()||{};
+      if(row.uid!==u.uid)return alert('Esse dispositivo não pertence ao usuário atual.');
+
+      await ref.set({
+        disconnectRequested:true,
+        disconnectAcknowledged:false,
+        disconnectRequestedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        online:false
+      },{merge:true});
+
+      await lpRefreshConnectedDevicesV79();
+      alert('Pedido de desconexão enviado. Se o aparelho estiver online, ele será desconectado em instantes. Se estiver fechado, será desconectado quando abrir o sistema novamente.');
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível desconectar esse dispositivo: '+(e?.message||e));
+    }
+  };
+
   async function heartbeat(force=false){
     if(isTest())return;
     const d=db(),u=authUser();
@@ -16194,7 +16315,17 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     lastPresenceUser=u.uid||'';
 
     try{
-      await d.collection('controlePushDevices').doc(id).set({
+      const ref=d.collection('controlePushDevices').doc(id);
+      const current=await ref.get();
+      if(current.exists){
+        const row=current.data()||{};
+        if(row.disconnectRequested===true && row.disconnectAcknowledged!==true){
+          await performRemoteLogoutV81('Este dispositivo foi desconectado pelo administrador.');
+          return;
+        }
+      }
+
+      await ref.set({
         presenceOnly:true,
         enabled:false,
         uid:u.uid,
@@ -16216,6 +16347,23 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       console.warn('Presença V79:',e?.message||e);
     }
   }
+
+
+  async function clearOwnDisconnectAfterLoginV81(user){
+    const d=db();
+    if(!d||!user)return;
+    const id=presencePath(user);
+    currentPresenceDoc=id;
+    try{
+      await d.collection('controlePushDevices').doc(id).set({
+        disconnectRequested:false,
+        disconnectAcknowledged:false,
+        reconnectedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }catch(e){}
+  }
+
+  window.lpClearOwnDisconnectAfterLoginV81=clearOwnDisconnectAfterLoginV81;
 
   async function markOffline(){
     const d=db(),u=authUser();
@@ -16273,12 +16421,19 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const who=esc2(x.email||x.userLabel||'Administrador');
       const where=[x.deviceLabel,x.browser].filter(Boolean).map(esc2).join(' • ');
       const page=x.page?` • tela: ${esc2(x.page)}`:'';
+      const own=x.id===currentPresenceDoc;
+      const pending=x.disconnectRequested===true && x.disconnectAcknowledged!==true;
+      const safeId=JSON.stringify(String(x.id));
+      const labelJs=JSON.stringify(`${x.deviceLabel||'Dispositivo'} • ${x.browser||'Navegador'}`);
       return `<div class="lp-v79-device">
         <div class="lp-v79-device-main">
-          <b>${icon} ${where||'Dispositivo'}</b>
-          <small>${who}${page}<br>Última atividade: ${esc2(ago(ms))}</small>
+          <b>${icon} ${where||'Dispositivo'} ${own?'<span class="lp-v81-this-device">ESTE APARELHO</span>':''}</b>
+          <small>${who}${page}<br>Última atividade: ${esc2(ago(ms))}${pending?' • desconexão solicitada':''}</small>
         </div>
-        <span class="lp-v79-device-state ${on?'on':'off'}">${on?'ONLINE':'OFFLINE'}</span>
+        <div class="lp-v81-device-actions">
+          <span class="lp-v79-device-state ${on?'on':'off'}">${pending?'SAINDO':(on?'ONLINE':'OFFLINE')}</span>
+          <button class="lp-v81-disconnect-btn" ${pending?'disabled':''} onclick='lpDisconnectDeviceV81(${safeId},${labelJs})'>${pending?'Aguardando':'Desconectar'}</button>
+        </div>
       </div>`;
     }).join('');
 
@@ -16296,7 +16451,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   window.lpOpenConnectedDevicesV79=function(){
     if(isTest())return alert('No Modo Teste a presença real fica pausada para não alterar o Firebase.');
     showModal(`<h2>📱 Celulares e dispositivos conectados</h2>
-      <div class="notice">Mostra quem está usando o Controle agora. Um aparelho fica como online enquanto envia atividade recente ao Firebase.</div>
+      <div class="notice">Mostra quem está usando o Controle agora. Você também pode desconectar um aparelho; ele perderá o login automático e precisará entrar novamente.</div>
       <div id="lpConnectedDevicesHostV79"><div class="notice">Carregando...</div></div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button></div>`);
     lpRefreshConnectedDevicesV79();
@@ -16314,16 +16469,16 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <div class="notice"><b>Modo Teste está ativo.</b><br>Tudo feito nesta sessão é temporário e será descartado ao sair.</div>
         <div class="lp-v79-user-grid">
           <div class="lp-v79-user-card"><h3>🧪 TESTE</h3><p>Sandbox temporária, sem salvar no sistema oficial.</p><div class="actions" style="margin-top:12px"><button class="btn primary" onclick="closeModal();lpExitTestModeV77()">Sair do teste e voltar</button></div></div>
-          <div class="lp-v79-user-card"><h3>👤 Administrador</h3><p>Ao sair do teste a página recarrega e o login administrativo será solicitado novamente.</p></div>
+          <div class="lp-v79-user-card"><h3>👤 Administrador</h3><p>Ao sair do teste a página recarrega e volta para a sessão administrativa deste dispositivo.</p></div>
         </div>`);
     }
 
     showModal(`<h2>↔ Trocar usuário</h2>
-      <div class="notice">Conta atual: <b>${esc2(u?.email||'Administrador')}</b>. O sistema não mantém login automático e não grava a senha.</div>
+      <div class="notice">Conta atual: <b>${esc2(u?.email||'Administrador')}</b>. O login fica automático neste dispositivo. O sistema não grava sua senha; o Firebase mantém somente a sessão autenticada.</div>
       <div class="lp-v79-user-grid">
         <div class="lp-v79-user-card">
           <h3>👤 Administrador</h3>
-          <p>Use outra conta administrativa do Firebase ou confira os aparelhos que estão usando o sistema.</p>
+          <p>Use outra conta administrativa do Firebase, confira os aparelhos conectados ou desconecte um dispositivo remotamente.</p>
           <div class="actions" style="margin-top:12px;flex-wrap:wrap">
             <button class="btn ghost" onclick="lpSwitchFirebaseAccountV79()">Trocar conta administrativa</button>
             <button class="btn ghost" onclick="closeModal();setTimeout(lpOpenConnectedDevicesV79,80)">📱 Dispositivos conectados</button>
@@ -16377,10 +16532,12 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     if(window.firebase?.auth){
       firebase.auth().onAuthStateChanged(user=>{
         if(user){
+          watchOwnDisconnectV81(user);
           startPresence();
           setTimeout(updateCount,1200);
         }else{
           if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null}
+          if(disconnectUnsubscribeV81){try{disconnectUnsubscribeV81()}catch(e){} disconnectUnsubscribeV81=null}
           const el=document.getElementById('lpDevicesCountV79');if(el)el.textContent='0';
         }
       });
