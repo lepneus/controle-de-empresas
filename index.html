@@ -16561,5 +16561,1131 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 })();
 </script>
 
+
+<style id="lp-v83-cash-accounts-css">
+.lp-v82-account-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.lp-v82-account{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px;min-width:0}
+.lp-v82-account span{display:block;font-size:10px;font-weight:850;color:var(--muted);text-transform:uppercase;letter-spacing:.045em}
+.lp-v82-account b{display:block;margin-top:7px;font-size:20px;line-height:1.05;word-break:break-word}
+.lp-v82-account small{display:block;margin-top:6px;font-size:9px;color:var(--muted);line-height:1.35}
+.lp-v82-account.money b{color:#059669}.lp-v82-account.bank b{color:#2563eb}.lp-v82-account.cheque b{color:#7c3aed}.lp-v82-account.card b{color:#d97706}
+.lp-v82-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.lp-v82-summary .card{margin:0}
+.lp-v82-import{margin-top:0}
+.lp-v82-import-grid{display:grid;grid-template-columns:minmax(260px,1fr) 180px auto;gap:10px;align-items:end}
+.lp-v82-import-grid label{display:grid;gap:6px;font-size:10px;font-weight:800;color:var(--muted)}
+.lp-v82-import-grid input,.lp-v82-import-grid select{min-height:42px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 10px}
+.lp-v82-actions{display:flex;gap:8px;flex-wrap:wrap}
+.lp-v82-account-picker{display:grid;gap:6px}
+.lp-v82-reconcile{margin-top:16px}
+.lp-v82-diff-ok{color:#059669;font-weight:850}.lp-v82-diff-bad{color:#dc2626;font-weight:850}
+.lp-v82-mini{font-size:9px;color:var(--muted);line-height:1.45}
+@media(max-width:1100px){.lp-v82-account-grid,.lp-v82-summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.lp-v82-account-grid,.lp-v82-summary{grid-template-columns:1fr}.lp-v82-import-grid{grid-template-columns:1fr}.lp-v82-actions .btn{flex:1 1 auto}}
+</style>
+
+<script id="lp-v83-cash-accounts-js">
+(function(){
+  if(window.__lpCashAccountsV82)return;
+  window.__lpCashAccountsV82=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const E=v=>typeof window.esc==='function'?window.esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof window.money==='function'?window.money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+
+  const ACCOUNTS=[
+    {id:'loja',name:'Dinheiro na Loja',short:'Loja',kind:'money',icon:'💵'},
+    {id:'casa',name:'Dinheiro em Casa',short:'Casa',kind:'money',icon:'🏠'},
+    {id:'sicredi',name:'Sicredi Le Pneus',short:'Sicredi',kind:'bank',icon:'🏦'},
+    {id:'sicoob',name:'Sicoob Le Pneus',short:'Sicoob',kind:'bank',icon:'🏦'},
+    {id:'chequeVista',name:'Cheques à Vista',short:'Cheque à vista',kind:'cheque',icon:'🧾'},
+    {id:'chequePre',name:'Cheques Pré-datados',short:'Pré-datados',kind:'cheque',icon:'📅'},
+    {id:'cartoes',name:'Cartões a Receber',short:'Cartões',kind:'card',icon:'💳'}
+  ];
+  window.lpCashAccountDefsV82=ACCOUNTS;
+
+  function ensure(){
+    data.settings=data.settings||{};
+    data.cash=Array.isArray(data.cash)?data.cash:[];
+    data.lpDailyFinancial=Array.isArray(data.lpDailyFinancial)?data.lpDailyFinancial:[];
+    data.lpCashImportsV68=Array.isArray(data.lpCashImportsV68)?data.lpCashImportsV68:[];
+    const s=data.settings.lpCashAccountsV82=data.settings.lpCashAccountsV82||{};
+    s.snapshots=Array.isArray(s.snapshots)?s.snapshots:[];
+    s.months=s.months&&typeof s.months==='object'?s.months:{};
+    s.lastReconciliation=s.lastReconciliation||null;
+    s.version=82;
+    return s;
+  }
+  function latestSnapshot(){
+    const s=ensure();
+    return [...s.snapshots].sort((a,b)=>T(b.importedAtIso).localeCompare(T(a.importedAtIso)))[0]||null;
+  }
+  function snapshotForMonth(month){
+    return ensure().snapshots.find(x=>x.month===month)||null;
+  }
+  function cashCreatedMs(c){
+    const iso=T(c.createdAtIso);
+    if(iso){const n=Date.parse(iso);if(Number.isFinite(n))return n}
+    const d=T(c.date);
+    if(!d)return 0;
+    const br=d.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:,\s*(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if(br){
+      const dt=new Date(Number(br[3]),Number(br[2])-1,Number(br[1]),Number(br[4]||0),Number(br[5]||0),Number(br[6]||0));
+      return dt.getTime();
+    }
+    const n=Date.parse(d);return Number.isFinite(n)?n:0;
+  }
+  function accountDef(id){return ACCOUNTS.find(a=>a.id===id)||null}
+  function accountBalance(id,snap=latestSnapshot()){
+    let total=N(snap?.accounts?.[id]);
+    const after=snap?.importedAtIso?Date.parse(snap.importedAtIso):0;
+    (data.cash||[]).forEach(c=>{
+      if(T(c.accountId)!==id)return;
+      if(c.cashMovementImportV82||c.cashMovementImportV68||c.accountReconciledV82)return;
+      const created=cashCreatedMs(c);
+      if(after&&created&&created<=after)return;
+      const v=N(c.value);
+      if(c.type==='Entrada')total+=v;
+      else if(c.type==='Saída')total-=v;
+      else if(c.accountDelta!==undefined)total+=N(c.accountDelta);
+    });
+    return total;
+  }
+  window.lpCashAccountBalanceV82=accountBalance;
+
+  function balances(snap=latestSnapshot()){
+    const out={};
+    ACCOUNTS.forEach(a=>out[a.id]=accountBalance(a.id,snap));
+    out.dinheiro=out.loja+out.casa;
+    out.bancos=out.sicredi+out.sicoob;
+    out.disponivel=out.dinheiro+out.bancos+out.chequeVista;
+    out.geral=out.disponivel+out.chequePre+out.cartoes;
+    return out;
+  }
+  function paymentKey(v){return norm(v).replace(/\s+/g,'')}
+  function allowedAccounts(payment,direction='in'){
+    const p=paymentKey(payment);
+    if(p.includes('dinheiro')||p==='avista')return ['loja','casa'];
+    if(p.includes('pix')||p.includes('transfer'))return ['sicredi','sicoob'];
+    if(p.includes('debito')||p.includes('credito')||p.includes('cartao'))return direction==='in'?['cartoes','sicredi','sicoob']:['sicredi','sicoob'];
+    if(p.includes('cheque'))return ['chequeVista','chequePre'];
+    if(p.includes('boleto'))return ['sicredi','sicoob'];
+    return direction==='in'?['loja','sicredi','sicoob','chequeVista','cartoes']:['loja','casa','sicredi','sicoob','chequeVista'];
+  }
+  function defaultAccount(payment,direction='in'){
+    const a=allowedAccounts(payment,direction);
+    return a[0]||'loja';
+  }
+  function accountOptions(payment,direction='in',selected=''){
+    const ids=allowedAccounts(payment,direction);
+    return ids.map(id=>{
+      const a=accountDef(id);return `<option value="${id}" ${selected===id?'selected':''}>${a?.icon||''} ${E(a?.name||id)}</option>`;
+    }).join('');
+  }
+
+  function setOverride(id){
+    window.__lpNextAccountV82=T(id);
+  }
+  function clearOverride(){
+    window.__lpNextAccountV82='';
+  }
+
+  const oldAddCash=window.addCashMovement;
+  if(typeof oldAddCash==='function'){
+    window.addCashMovement=function(type,desc,value,payment,originType='',originId='',originNumber=''){
+      let chosen=T(window.__lpNextAccountV82);
+      if(!chosen && /^estorno/i.test(norm(desc))){
+        const prev=(data.cash||[]).find(c=>T(c.originId)===T(originId)&&c.accountId&&c.type==='Entrada');
+        if(prev)chosen=T(prev.accountId);
+      }
+      if(!chosen)chosen=defaultAccount(payment,type==='Entrada'?'in':'out');
+
+      const c=oldAddCash.apply(this,arguments);
+      if(c){
+        c.accountId=chosen;
+        c.accountName=accountDef(chosen)?.name||chosen;
+        c.createdAtIso=c.createdAtIso||new Date().toISOString();
+        c.accountSchema='v82';
+      }
+      return c;
+    };
+  }
+
+  function injectPicker(paymentId,selectId,direction='in',statusId='',label='Conta'){
+    const pay=document.getElementById(paymentId);
+    if(!pay||document.getElementById(selectId))return;
+    const wrap=document.createElement('label');
+    wrap.className='lp-v82-account-picker';
+    wrap.innerHTML=`${label}<select id="${selectId}"></select><small class="lp-v82-mini">Define exatamente onde o dinheiro entra ou sai.</small>`;
+    pay.closest('label')?.insertAdjacentElement('afterend',wrap);
+    const sel=wrap.querySelector('select');
+
+    const refresh=()=>{
+      const status=statusId?T(document.getElementById(statusId)?.value):'Pago';
+      const disabled=/pendente|a receber|parcelado/i.test(status);
+      const current=T(sel.value);
+      sel.innerHTML=accountOptions(pay.value,direction,current);
+      sel.disabled=disabled;
+      wrap.style.opacity=disabled?'.55':'1';
+      if(disabled)sel.title='A conta será escolhida quando o lançamento for recebido/pago.';
+    };
+    pay.addEventListener('change',refresh);
+    if(statusId)document.getElementById(statusId)?.addEventListener('change',refresh);
+    refresh();
+  }
+  window.lpInjectAccountPickerV82=injectPicker;
+
+  function wrapModal(name,after){
+    const old=window[name];
+    if(typeof old!=='function'||old.__lpV82)return;
+    const fn=function(){
+      const r=old.apply(this,arguments);
+      try{after.apply(this,arguments)}catch(e){console.warn('V82 modal',name,e)}
+      return r;
+    };
+    fn.__lpV82=true;
+    window[name]=fn;
+  }
+
+  wrapModal('saleModal',()=>injectPicker('spayment','saccountV82','in','sfinancial','Destino do recebimento'));
+  wrapModal('purchaseModal',()=>injectPicker('pupayment','puaccountV82','out','pustatus','Conta usada no pagamento'));
+  wrapModal('receiveOSModal',()=>injectPicker('ospay','osaccountV82','in','osfinstatus','Destino do recebimento'));
+  wrapModal('lpExpenseModalV48',()=>injectPicker('lpExpPayV48','lpExpAccountV82','out','lpExpStatusV48','Conta usada no pagamento'));
+  wrapModal('financeModalV2',()=>injectPicker('fpayment','faccountV82',document.getElementById('ftype')?.value==='Despesa'?'out':'in','fstatus','Conta'));
+  wrapModal('lpDifferenceSaleModal',()=>injectPicker('dipayment','diaccountV82','in','dipaymentstatus','Destino do recebimento'));
+  wrapModal('lpTireEntryModalV48',()=>injectPicker('lpEntryPayV48','lpEntryAccountV82','out','lpEntryStatusV48','Conta usada no pagamento'));
+  wrapModal('lpStockEntryOpenV62',()=>injectPicker('lpEntryPayV48','lpEntryAccountV82','out','lpEntryStatusV48','Conta usada no pagamento'));
+
+  function wrapAction(name,selectId,statusId='',paidValues=['Pago'],asyncMode=false){
+    const old=window[name];if(typeof old!=='function'||old.__lpV82)return;
+    if(asyncMode){
+      const fn=async function(){
+        const status=statusId?T(document.getElementById(statusId)?.value):'Pago';
+        if(!statusId||paidValues.includes(status))setOverride(document.getElementById(selectId)?.value);
+        try{return await old.apply(this,arguments)}finally{clearOverride()}
+      };
+      fn.__lpV82=true;window[name]=fn;
+    }else{
+      const fn=function(){
+        const status=statusId?T(document.getElementById(statusId)?.value):'Pago';
+        if(!statusId||paidValues.includes(status))setOverride(document.getElementById(selectId)?.value);
+        try{return old.apply(this,arguments)}finally{clearOverride()}
+      };
+      fn.__lpV82=true;window[name]=fn;
+    }
+  }
+
+  wrapAction('finishSale','saccountV82','sfinancial',['Pago']);
+  wrapAction('savePurchase','puaccountV82','pustatus',['Pago']);
+  wrapAction('receiveOS','osaccountV82','osfinstatus',['Pago']);
+  wrapAction('lpSaveExpenseV48','lpExpAccountV82','lpExpStatusV48',['Pago']);
+  wrapAction('saveFinanceV2','faccountV82','fstatus',['Pago']);
+
+  const oldResolveDiff=window.lpResolveDifference;
+  if(typeof oldResolveDiff==='function'&&!oldResolveDiff.__lpV82){
+    const fn=async function(id,action){
+      const paid=T(document.getElementById('dipaymentstatus')?.value)==='Pago';
+      if(action==='venda'&&paid)setOverride(document.getElementById('diaccountV82')?.value);
+      try{return await oldResolveDiff.apply(this,arguments)}finally{clearOverride()}
+    };
+    fn.__lpV82=true;window.lpResolveDifference=fn;
+  }
+
+  const oldResolveEntry=window.lpResolveStockEntryV48;
+  if(typeof oldResolveEntry==='function'&&!oldResolveEntry.__lpV82){
+    const fn=async function(id,action){
+      const paid=T(document.getElementById('lpEntryStatusV48')?.value)==='Pago';
+      if(action==='compra'&&paid)setOverride(document.getElementById('lpEntryAccountV82')?.value);
+      try{return await oldResolveEntry.apply(this,arguments)}finally{clearOverride()}
+    };
+    fn.__lpV82=true;window.lpResolveStockEntryV48=fn;
+  }
+
+  window.markFinancePaid=function(id){
+    ensure();
+    const f=(data.finance||[]).find(x=>String(x.id)===String(id));
+    if(!f||f.status==='Pago'||f.status==='Cancelado')return;
+    const direction=f.type==='Receita'?'in':'out';
+    const options=accountOptions(f.payment||'PIX',direction);
+    showModal(`<h2>Dar baixa • ${E(f.desc||'Lançamento')}</h2>
+      <div class="notice">${E(f.type)} de <b>${M(f.value)}</b>. Escolha a forma de pagamento e a conta para o saldo bater corretamente.</div>
+      <div class="form">
+        <label>Forma de pagamento
+          <select id="lpFinPayV82">
+            ${['PIX','Dinheiro','Débito','Crédito','Boleto','Transferência','Cheque','Outro'].map(x=>`<option ${norm(x)===norm(f.payment)?'selected':''}>${x}</option>`).join('')}
+          </select>
+        </label>
+        <label>Conta
+          <select id="lpFinAccountV82">${options}</select>
+        </label>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick='lpConfirmFinancePaidV82(${JSON.stringify(String(id))})'>Confirmar baixa</button></div>`);
+    const pay=document.getElementById('lpFinPayV82'),sel=document.getElementById('lpFinAccountV82');
+    pay?.addEventListener('change',()=>{if(sel)sel.innerHTML=accountOptions(pay.value,direction)});
+  };
+  window.lpConfirmFinancePaidV82=function(id){
+    const f=(data.finance||[]).find(x=>String(x.id)===String(id));
+    if(!f||f.status==='Pago'||f.status==='Cancelado')return;
+    const pay=T(document.getElementById('lpFinPayV82')?.value)||f.payment||'Manual';
+    const account=T(document.getElementById('lpFinAccountV82')?.value)||defaultAccount(pay,f.type==='Receita'?'in':'out');
+    f.payment=pay;f.status='Pago';
+    setOverride(account);
+    try{
+      if(!f.cashId){
+        const c=window.addCashMovement(f.type==='Receita'?'Entrada':'Saída',f.desc,f.value,pay,f.originType,f.originId,f.originNumber);
+        f.cashId=c?.id||'';
+      }
+    }finally{clearOverride()}
+    try{if(typeof completeLinkedReminder==='function')completeLinkedReminder(f)}catch(e){}
+    if(f.originType==='Compra'){
+      const pu=(data.purchases||[]).find(p=>String(p.id)===String(f.originId));if(pu)pu.status='Pago';
+    }
+    if(f.originType==='Venda'&&typeof window.lpRefreshSaleFinancialV46==='function')window.lpRefreshSaleFinancialV46(f.originId);
+    try{if(typeof log==='function')log(`Baixa ${f.desc} • ${accountDef(account)?.name||account}`)}catch(e){}
+    try{if(typeof save==='function')save()}catch(e){}
+    closeModal();
+    try{if(typeof renderAll==='function')renderAll()}catch(e){}
+  };
+
+  function readWorkbook(file){
+    return file.arrayBuffer().then(buf=>XLSX.read(buf,{type:'array',cellDates:true}));
+  }
+  function sheetRows(wb,name){
+    const ws=wb.Sheets[name];if(!ws)return [];
+    return XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  }
+  function findNextValue(rows,labels){
+    const wanted=labels.map(norm);
+    for(let r=0;r<rows.length;r++){
+      const row=rows[r]||[];
+      for(let c=0;c<Math.min(row.length,14);c++){
+        const txt=norm(row[c]);
+        if(!txt||!wanted.includes(txt))continue;
+        for(let k=c+1;k<=Math.min(c+2,row.length-1);k++){
+          const v=Number(row[k]);
+          if(Number.isFinite(v))return v;
+        }
+      }
+    }
+    return null;
+  }
+  function summaryFromSheet(wb,day){
+    const rows=sheetRows(wb,String(day));if(!rows.length)return null;
+    const a={
+      loja:findNextValue(rows,['DINHEIRO EM LOJA','LOJA']),
+      casa:findNextValue(rows,['DINHEIRO EM CASA','CASA']),
+      sicredi:findNextValue(rows,['SICREDI E RAMOS','SICREDI LE PNEUS']),
+      sicoob:findNextValue(rows,['SICOOB E RAMOS','SICOOB LE PNEUS']),
+      chequeVista:findNextValue(rows,['CHEQUE A VISTA','CHEQUES A VISTA']),
+      chequePre:findNextValue(rows,['CHEQUE PRÉ DATADO','CHEQUE PRE DATADO','CHEQUES PRÉ DATADOS','CHEQUES PRE DATADOS']),
+      cartoes:0
+    };
+    const dinheiro=findNextValue(rows,['DINHEIRO']);
+    const totalDisponivel=findNextValue(rows,['TOTAL CAIXA DISPONIVEL','TOTAL CAIXA DISPONÍVEL']);
+    const totalPredatado=findNextValue(rows,['TOTAL CAIXA PREDATADO','TOTAL CAIXA PRÉ DATADO','TOTAL CAIXA PRE DATADO']);
+    const valid=Object.values(a).some(v=>v!==null&&v!==0)||N(totalDisponivel)!==0;
+    if(!valid)return null;
+    Object.keys(a).forEach(k=>{if(a[k]===null)a[k]=0});
+    return {day,accounts:a,dinheiro:N(dinheiro),totalDisponivel:N(totalDisponivel),totalPredatado:N(totalPredatado)};
+  }
+  function latestWorkbookSummary(wb){
+    for(let d=31;d>=1;d--){const s=summaryFromSheet(wb,d);if(s)return s}
+    return null;
+  }
+  function guessMonth(name){
+    const s=T(name);
+    const m=s.match(/(?:^|\D)(0?[1-9]|1[0-2])[-_ ]?(20\d{2})(?:\D|$)/);
+    if(m)return `${m[2]}-${String(m[1]).padStart(2,'0')}`;
+    const m2=s.match(/(20\d{2})[-_ ]?(0?[1-9]|1[0-2])/);
+    if(m2)return `${m2[1]}-${String(m2[2]).padStart(2,'0')}`;
+    return '';
+  }
+  window.lpGuessCashMonthV82=function(){
+    const f=document.getElementById('lpCashFileV82')?.files?.[0];
+    const g=guessMonth(f?.name||'');if(g)document.getElementById('lpCashMonthV82').value=g;
+  };
+
+  function currentBalancesBeforeImport(){
+    const b=balances();
+    const out={};ACCOUNTS.forEach(a=>out[a.id]=b[a.id]);
+    return out;
+  }
+  function saveCompat(){
+    try{if(typeof save==='function')save()}catch(e){console.warn(e)}
+  }
+
+  window.lpImportCashMovementV82=async function(){
+    ensure();
+    const file=document.getElementById('lpCashFileV82')?.files?.[0];
+    if(!file)return alert('Escolha a planilha Movimento de Caixa.');
+    const month=T(document.getElementById('lpCashMonthV82')?.value)||guessMonth(file.name);
+    if(!/^\d{4}-\d{2}$/.test(month))return alert('Informe corretamente o mês da planilha.');
+
+    try{
+      const wb=await readWorkbook(file);
+      const ws=wb.Sheets['MC']||wb.Sheets[wb.SheetNames.find(n=>norm(n)==='mc')];
+      if(!ws)throw new Error('Não encontrei a aba MC.');
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+      const [year,mon]=month.split('-').map(Number);
+      const lastDay=new Date(year,mon,0).getDate();
+      const daily=[],cash=[];
+      const add=(day,key,type,desc,value,payment)=>{
+        value=N(value);if(value<=0)return;
+        const date=`${String(day).padStart(2,'0')}/${String(mon).padStart(2,'0')}/${year}`;
+        cash.push({
+          id:`cashmov-v82-${month}-${String(day).padStart(2,'0')}-${key}`,
+          type,desc,value,payment,date,sourceMonth:month,sourceFile:file.name,
+          cashMovementImportV82:true,cashMovementImportV68:true,accountReconciledV82:true
+        });
+      };
+      for(let r=1;r<rows.length;r++){
+        const row=rows[r]||[],day=Number(row[0]);
+        if(!Number.isInteger(day)||day<1||day>lastDay)continue;
+        const item={
+          id:`manual-v82-${month}-${day}`,month,day,
+          cashSales:N(row[1]),cardSales:N(row[2]),termSales:N(row[3]),salesTotal:N(row[4]),
+          services:N(row[5]),payments:N(row[6]),receipts:N(row[7]),
+          manualCashImportV82:true,manualCashImportV68:true,sourceFile:file.name
+        };
+        if(![item.cashSales,item.cardSales,item.termSales,item.salesTotal,item.services,item.payments,item.receipts].some(v=>v!==0))continue;
+        daily.push(item);
+        add(day,'vista','Entrada','Vendas à vista • Movimento de Caixa',item.cashSales,'À vista');
+        add(day,'cartao','Entrada','Vendas no cartão • Movimento de Caixa',item.cardSales,'Cartão');
+        add(day,'servicos','Entrada','Serviços • Movimento de Caixa',item.services,'Serviços');
+        add(day,'recebimentos','Entrada','Recebimentos • Movimento de Caixa',item.receipts,'Recebimentos');
+        add(day,'pagamentos','Saída','Pagamentos • Movimento de Caixa',item.payments,'Pagamentos');
+      }
+
+      const summary=latestWorkbookSummary(wb);
+      if(!summary)throw new Error('Não encontrei o RESUMO DO CAIXA nas abas diárias.');
+
+      const previous=currentBalancesBeforeImport();
+      const importedAtIso=new Date().toISOString();
+      const snapshotDate=`${year}-${String(mon).padStart(2,'0')}-${String(summary.day).padStart(2,'0')}`;
+      const accounts={...summary.accounts};
+
+      const diffs={};
+      ACCOUNTS.forEach(a=>diffs[a.id]=N(accounts[a.id])-N(previous[a.id]));
+
+      const state=ensure();
+      state.lastReconciliation={
+        month,snapshotDate,sourceFile:file.name,checkedAtIso:importedAtIso,
+        beforeSystem:previous,planilha:{...accounts},differences:diffs
+      };
+      state.snapshots=state.snapshots.filter(x=>x.month!==month);
+      state.snapshots.push({
+        month,snapshotDate,day:summary.day,sourceFile:file.name,importedAtIso,
+        accounts,
+        dinheiroPlanilha:summary.dinheiro,
+        totalDisponivelPlanilha:summary.totalDisponivel,
+        totalPredatadoPlanilha:summary.totalPredatado
+      });
+      state.snapshots=state.snapshots.sort((a,b)=>T(b.month).localeCompare(T(a.month))).slice(0,36);
+      state.months[month]={
+        month,sourceFile:file.name,importedAtIso,daily,
+        summaryDay:summary.day,totalDisponivel:summary.totalDisponivel,totalPredatado:summary.totalPredatado
+      };
+
+      data.cash=data.cash.filter(x=>!(x.cashMovementImportV82&&x.sourceMonth===month) && !(x.cashMovementImportV68&&x.sourceMonth===month));
+      data.lpDailyFinancial=data.lpDailyFinancial.filter(x=>!((x.manualCashImportV82||x.manualCashImportV68)&&x.month===month));
+      data.lpCashImportsV68=data.lpCashImportsV68.filter(x=>x.month!==month);
+      data.cash.unshift(...cash);
+      data.lpDailyFinancial.push(...daily);
+
+      const inTotal=cash.filter(x=>x.type==='Entrada').reduce((s,x)=>s+N(x.value),0);
+      const outTotal=cash.filter(x=>x.type==='Saída').reduce((s,x)=>s+N(x.value),0);
+      data.lpCashImportsV68.push({
+        month,file:file.name,rows:daily.length,cashEntries:cash.length,inTotal,outTotal,
+        importedAt:new Date().toLocaleString('pt-BR'),importedAtIso,importSchema:'v82',
+        snapshotDay:summary.day
+      });
+
+      saveCompat();
+      window.renderCaixa();
+      alert(`Movimento de Caixa ${month} importado.\n\nResumo do dia ${summary.day}:\nDinheiro Loja: ${M(accounts.loja)}\nDinheiro Casa: ${M(accounts.casa)}\nSicredi: ${M(accounts.sicredi)}\nSicoob: ${M(accounts.sicoob)}\nCheque à vista: ${M(accounts.chequeVista)}\nPré-datados: ${M(accounts.chequePre)}\n\nTotal disponível: ${M(summary.totalDisponivel)}.`);
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível importar o Movimento de Caixa: '+(e?.message||e));
+    }
+  };
+
+  function accountCard(a,b){
+    return `<div class="lp-v82-account ${a.kind}">
+      <span>${a.icon} ${E(a.name)}</span>
+      <b>${M(b[a.id])}</b>
+      <small>${a.id==='loja'||a.id==='casa'?'Dinheiro físico':a.id==='cartoes'?'Aguardando compensação':'Saldo desta conta'}</small>
+    </div>`;
+  }
+  function reconcileHtml(){
+    const s=ensure().lastReconciliation;if(!s)return '<div class="notice">Ainda não há conferência de planilha registrada.</div>';
+    const rows=ACCOUNTS.filter(a=>a.id!=='cartoes').map(a=>{
+      const d=N(s.differences?.[a.id]);
+      return `<tr><td>${E(a.name)}</td><td>${M(s.beforeSystem?.[a.id])}</td><td>${M(s.planilha?.[a.id])}</td><td class="${Math.abs(d)<.01?'lp-v82-diff-ok':'lp-v82-diff-bad'}">${M(d)}</td></tr>`;
+    }).join('');
+    return `<div class="lp-v82-mini">Conferência feita antes de atualizar o saldo-base com a última importação. Diferença = Planilha − Sistema.</div>
+      <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Conta</th><th>Sistema antes</th><th>Planilha</th><th>Diferença</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  window.lpTransferAccountV82=function(){
+    const opts=ACCOUNTS.map(a=>`<option value="${a.id}">${a.icon} ${E(a.name)} • ${M(accountBalance(a.id))}</option>`).join('');
+    showModal(`<h2>Transferir entre contas</h2>
+      <div class="notice">Ex.: Dinheiro da Loja → Sicredi, Cartões a Receber → Banco. A transferência não altera o resultado, apenas muda onde o dinheiro está.</div>
+      <div class="form">
+        <label>Conta de origem<select id="lpTransFromV82">${opts}</select></label>
+        <label>Conta de destino<select id="lpTransToV82">${opts}</select></label>
+        <label>Valor<input id="lpTransValueV82" type="number" min="0" step="0.01"></label>
+        <label class="full">Observação<input id="lpTransNoteV82" placeholder="Opcional"></label>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpConfirmTransferV82()">Transferir</button></div>`);
+  };
+  window.lpConfirmTransferV82=function(){
+    ensure();
+    const from=T(document.getElementById('lpTransFromV82')?.value),to=T(document.getElementById('lpTransToV82')?.value);
+    const value=N(document.getElementById('lpTransValueV82')?.value),note=T(document.getElementById('lpTransNoteV82')?.value);
+    if(!from||!to||from===to)return alert('Escolha contas diferentes.');
+    if(value<=0)return alert('Informe um valor maior que zero.');
+    if(value>accountBalance(from)&&!confirm('O valor é maior que o saldo atual desta conta. Continuar mesmo assim?'))return;
+    const id='TR-'+Date.now();
+    const iso=new Date().toISOString(),date=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+    data.cash.unshift(
+      {id:id+'-OUT',type:'Saída',desc:`Transferência para ${accountDef(to)?.name}`,value,payment:'Transferência interna',date,createdAtIso:iso,originType:'Transferência',originId:id,accountId:from,accountName:accountDef(from)?.name,internalTransferV82:true,note,accountSchema:'v82'},
+      {id:id+'-IN',type:'Entrada',desc:`Transferência de ${accountDef(from)?.name}`,value,payment:'Transferência interna',date,createdAtIso:iso,originType:'Transferência',originId:id,accountId:to,accountName:accountDef(to)?.name,internalTransferV82:true,note,accountSchema:'v82'}
+    );
+    try{if(typeof log==='function')log(`Transferiu ${M(value)}: ${accountDef(from)?.name} → ${accountDef(to)?.name}`)}catch(e){}
+    saveCompat();closeModal();window.renderCaixa();
+  };
+
+  window.lpAdjustAccountV82=function(){
+    const opts=ACCOUNTS.map(a=>`<option value="${a.id}">${a.icon} ${E(a.name)} • atual ${M(accountBalance(a.id))}</option>`).join('');
+    showModal(`<h2>Ajustar saldo de uma conta</h2>
+      <div class="notice">Use para correção/conferência. O sistema registra a diferença no histórico.</div>
+      <div class="form">
+        <label>Conta<select id="lpAdjAccountV82">${opts}</select></label>
+        <label>Novo saldo<input id="lpAdjValueV82" type="number" step="0.01"></label>
+        <label class="full">Motivo<input id="lpAdjNoteV82" placeholder="Ex.: conferência do caixa"></label>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpConfirmAdjustAccountV82()">Aplicar ajuste</button></div>`);
+    const sel=document.getElementById('lpAdjAccountV82'),val=document.getElementById('lpAdjValueV82');
+    const fill=()=>{if(val)val.value=accountBalance(sel.value).toFixed(2)};sel?.addEventListener('change',fill);fill();
+  };
+  window.lpConfirmAdjustAccountV82=function(){
+    const id=T(document.getElementById('lpAdjAccountV82')?.value),desired=N(document.getElementById('lpAdjValueV82')?.value),note=T(document.getElementById('lpAdjNoteV82')?.value);
+    if(!id)return;
+    const current=accountBalance(id),diff=desired-current;
+    if(Math.abs(diff)<.005)return alert('O saldo já está nesse valor.');
+    const iso=new Date().toISOString(),date=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+    data.cash.unshift({
+      id:'AJ-'+Date.now(),type:diff>0?'Entrada':'Saída',desc:'Ajuste de saldo • '+(note||accountDef(id)?.name),
+      value:Math.abs(diff),payment:'Ajuste',date,createdAtIso:iso,originType:'Ajuste de conta',accountId:id,accountName:accountDef(id)?.name,accountSchema:'v82'
+    });
+    saveCompat();closeModal();window.renderCaixa();
+  };
+
+  window.renderCaixa=function(){
+    ensure();
+    const b=balances(),snap=latestSnapshot();
+    const month=new Date().toISOString().slice(0,7);
+    const latestCash=(data.cash||[]).filter(c=>!c.cashMovementImportV82).slice(0,120);
+    const rows=latestCash.map(c=>{
+      const acc=accountDef(c.accountId);
+      return `<tr>
+        <td>${E(c.date||'-')}</td>
+        <td>${typeof statusBadge==='function'?statusBadge(c.type):E(c.type)}</td>
+        <td><b>${E(c.desc||'')}</b>${c.internalTransferV82?'<small class="cell-sub">Transferência interna</small>':''}</td>
+        <td>${E(acc?.name||c.accountName||'-')}</td>
+        <td>${E(c.payment||'-')}</td>
+        <td><b>${M(c.value)}</b></td>
+      </tr>`;
+    }).join('');
+
+    const actions=`<div class="lp-v82-actions">
+      <button class="btn ghost" onclick="lpTransferAccountV82()">↔ Transferir</button>
+      <button class="btn ghost" onclick="lpAdjustAccountV82()">Ajustar saldo</button>
+      ${data.cashRegister?.open?`<button class="btn ghost" onclick="closeCashModal()">Fechar caixa</button>`:`<button class="btn ghost" onclick="openCashModal()">Abrir caixa</button>`}
+    </div>`;
+
+    const host=document.getElementById('caixa');if(!host)return;
+    host.innerHTML=
+      heading('Caixa e Contas','Dinheiro físico, bancos, cheques e recebimentos interligados ao Financeiro.',actions)+
+      `<section class="card lp-v82-import">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar Movimento de Caixa</h3><small class="cell-sub">Lê o movimento diário e também os saldos de Loja, Casa, Sicredi, Sicoob e cheques.</small></div>${snap?`<span class="soft-chip">Base: ${E(snap.snapshotDate||snap.month)}</span>`:''}</div>
+        <div class="lp-v82-import-grid">
+          <label>Planilha Movimento de Caixa<input id="lpCashFileV82" type="file" accept=".xlsx,.xls" onchange="lpGuessCashMonthV82()"></label>
+          <label>Mês da planilha<input id="lpCashMonthV82" type="month" value="${E(snap?.month||month)}"></label>
+          <button class="btn primary" onclick="lpImportCashMovementV82()">Importar e conferir</button>
+        </div>
+        <div class="lp-v82-mini" style="margin-top:9px">A planilha vira a base de conferência. Depois da importação, vendas, serviços, pagamentos e transferências alteram a conta escolhida automaticamente.</div>
+      </section>
+
+      <div class="lp-v82-summary">
+        ${metric('Dinheiro físico',M(b.dinheiro),'Loja + Casa','green')}
+        ${metric('Bancos',M(b.bancos),'Sicredi + Sicoob','green')}
+        ${metric('Total disponível',M(b.disponivel),'sem pré-datados/cartões',b.disponivel>=0?'green':'red')}
+        ${metric('Total geral',M(b.geral),'inclui pré-datados + cartões',b.geral>=0?'green':'red')}
+      </div>
+
+      <div class="lp-v82-account-grid">${ACCOUNTS.map(a=>accountCard(a,b)).join('')}</div>
+
+      <section class="card lp-v82-reconcile">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Conferência Planilha × Sistema</h3><small class="cell-sub">Mostra a diferença que existia antes da última importação.</small></div>${ensure().lastReconciliation?`<span class="soft-chip">${E(ensure().lastReconciliation.snapshotDate||'')}</span>`:''}</div>
+        ${reconcileHtml()}
+      </section>
+
+      <section class="card table-wrap" style="margin-top:16px">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Movimentações por conta</h3><small class="cell-sub">Vendas, serviços, baixas, despesas e transferências feitas dentro do sistema.</small></div></div>
+        <table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Conta</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">Nenhuma movimentação nova por conta.</td></tr>'}</tbody></table>
+      </section>`;
+  };
+
+  const oldClosing=window.renderFechamento;
+  if(typeof oldClosing==='function'){
+    window.renderFechamento=function(){
+      const r=oldClosing.apply(this,arguments);
+      try{
+        const host=document.getElementById('fechamento');if(!host)return r;
+        host.querySelectorAll(':scope > .lp-v82-closing').forEach(x=>x.remove());
+        const b=balances(),snap=latestSnapshot(),rec=ensure().lastReconciliation;
+        const html=`<section class="card lp-v82-closing" style="margin-top:16px">
+          <div class="panel-head"><div><h3 class="section-title" style="margin:0">Conferência de Caixa e Contas</h3><small class="cell-sub">Resumo das contas para bater o fechamento do mês.</small></div>${snap?`<span class="soft-chip">Planilha ${E(snap.month)}</span>`:''}</div>
+          <div class="lp-v82-summary">
+            ${metric('Dinheiro Loja',M(b.loja),'saldo atual','green')}
+            ${metric('Dinheiro Casa',M(b.casa),'saldo atual','green')}
+            ${metric('Sicredi + Sicoob',M(b.bancos),'bancos','green')}
+            ${metric('Disponível',M(b.disponivel),'sem pré-datados','green')}
+          </div>
+          ${rec?reconcileHtml():'<div class="notice">Importe o Movimento de Caixa para gerar a conferência.</div>'}
+        </section>`;
+        host.insertAdjacentHTML('beforeend',html);
+      }catch(e){console.warn('Fechamento V82:',e)}
+      return r;
+    };
+  }
+
+
+  // ===== V83: fecha os fluxos que ainda podiam cair na conta padrão =====
+  window.quickSell=function(productId){
+    const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+    const input=document.getElementById('sellqty-'+productId);
+    const q=N(input?.value);
+    if(!p)return alert('Produto não encontrado.');
+    if(!Number.isFinite(q)||q<=0)return alert('Informe uma quantidade válida.');
+    if(q>N(p.qty))return alert('Quantidade maior que o estoque disponível.');
+
+    const defaultPay=T(data.settings?.defaultPayment)||'PIX';
+    showModal(`<h2>Venda rápida • ${E(p.name)}</h2>
+      <div class="notice">Quantidade: <b>${q}</b> • Total estimado: <b>${M(N(p.price)*q)}</b>. Escolha como foi recebido e em qual conta entrou.</div>
+      <div class="form">
+        <label class="full">Cliente<input id="lpQuickCustomerV83" placeholder="Consumidor (opcional)"></label>
+        <label>Pagamento<select id="lpQuickPayV83">${['PIX','Dinheiro','Débito','Crédito','Boleto','Transferência','Cheque'].map(x=>`<option ${norm(x)===norm(defaultPay)?'selected':''}>${x}</option>`).join('')}</select></label>
+        <label>Conta<select id="lpQuickAccountV83">${accountOptions(defaultPay,'in')}</select></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" onclick='lpConfirmQuickSellV83(${JSON.stringify(String(productId))},${q})'>Confirmar venda</button>
+      </div>`);
+    const pay=document.getElementById('lpQuickPayV83'),acc=document.getElementById('lpQuickAccountV83');
+    pay?.addEventListener('change',()=>{if(acc)acc.innerHTML=accountOptions(pay.value,'in')});
+  };
+
+  window.lpConfirmQuickSellV83=function(productId,q){
+    const p=(data.products||[]).find(x=>String(x.id)===String(productId));
+    if(!p)return alert('Produto não encontrado.');
+    if(q>N(p.qty))return alert('Estoque insuficiente.');
+
+    const customerName=T(document.getElementById('lpQuickCustomerV83')?.value);
+    let customer=(data.customers||[]).find(c=>norm(c.name)===norm(customerName));
+    if(customerName&&!customer){
+      customer={id:typeof idNow==='function'?idNow():Date.now(),name:customerName,doc:'',phone:'',email:'',createdAt:typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR')};
+      data.customers.push(customer);
+    }
+
+    const payment=T(document.getElementById('lpQuickPayV83')?.value)||'PIX';
+    const account=T(document.getElementById('lpQuickAccountV83')?.value)||defaultAccount(payment,'in');
+
+    setOverride(account);
+    try{
+      const res=createIntegratedSale({
+        customerId:customer?.id||'',
+        items:[{id:p.id,qty:q}],
+        discount:0,
+        payment,
+        financialStatus:'Pago',
+        originType:'Venda rápida'
+      });
+      if(res.error)return alert(res.error);
+      try{if(typeof syncProductChannels==='function')syncProductChannels(p)}catch(e){}
+      try{if(typeof queueExcelSync==='function')queueExcelSync(p,'Venda rápida #'+res.sale.id)}catch(e){}
+      try{if(typeof log==='function')log(`Venda rápida #${res.sale.id} • ${accountDef(account)?.name||account}`)}catch(e){}
+      try{if(typeof save==='function')save()}catch(e){}
+      closeModal();renderAll();
+    }finally{
+      clearOverride();
+    }
+  };
+
+  window.convertQuote=function(id){
+    const q=(data.quotes||[]).find(x=>String(x.id)===String(id));
+    const p=(data.products||[]).find(x=>String(x.id)===String(q?.productId));
+    if(!q||!p)return alert('Produto não encontrado.');
+    if(q.converted)return alert('Este orçamento já foi convertido.');
+
+    const defaultPay=T(data.settings?.defaultPayment)||'PIX';
+    const d=new Date();d.setDate(d.getDate()+(Number(data.settings?.defaultDueDays)||30));
+    const due=d.toISOString().slice(0,10);
+
+    showModal(`<h2>Converter ${E(q.number||'orçamento')} em venda</h2>
+      <div class="notice">Valor: <b>${M(q.total)}</b>. Escolha a situação financeira e, se for pago agora, a conta que recebeu.</div>
+      <div class="form">
+        <label>Pagamento<select id="lpQuotePayV83">${['PIX','Dinheiro','Débito','Crédito','Boleto','Transferência','Cheque'].map(x=>`<option ${norm(x)===norm(defaultPay)?'selected':''}>${x}</option>`).join('')}</select></label>
+        <label>Status<select id="lpQuoteStatusV83"><option>Pago</option><option>Pendente</option></select></label>
+        <label>Conta<select id="lpQuoteAccountV83">${accountOptions(defaultPay,'in')}</select></label>
+        <label>Vencimento<input id="lpQuoteDueV83" type="date" value="${due}"></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" onclick='lpConfirmQuoteSaleV83(${JSON.stringify(String(id))})'>Converter em venda</button>
+      </div>`);
+
+    const pay=document.getElementById('lpQuotePayV83'),acc=document.getElementById('lpQuoteAccountV83'),st=document.getElementById('lpQuoteStatusV83');
+    const refresh=()=>{
+      if(acc)acc.innerHTML=accountOptions(pay?.value||defaultPay,'in',acc.value);
+      const pending=T(st?.value)==='Pendente';
+      if(acc)acc.disabled=pending;
+      const dueEl=document.getElementById('lpQuoteDueV83');if(dueEl)dueEl.disabled=!pending;
+    };
+    pay?.addEventListener('change',refresh);st?.addEventListener('change',refresh);refresh();
+  };
+
+  window.lpConfirmQuoteSaleV83=function(id){
+    const q=(data.quotes||[]).find(x=>String(x.id)===String(id));
+    const p=(data.products||[]).find(x=>String(x.id)===String(q?.productId));
+    if(!q||!p)return alert('Produto não encontrado.');
+    if(q.converted)return alert('Este orçamento já foi convertido.');
+
+    const payment=T(document.getElementById('lpQuotePayV83')?.value)||'PIX';
+    const status=T(document.getElementById('lpQuoteStatusV83')?.value)||'Pago';
+    const due=T(document.getElementById('lpQuoteDueV83')?.value)||'';
+    const account=T(document.getElementById('lpQuoteAccountV83')?.value)||defaultAccount(payment,'in');
+
+    if(status==='Pendente'&&!due)return alert('Informe o vencimento.');
+
+    if(status==='Pago')setOverride(account);
+    try{
+      const res=createIntegratedSale({
+        customerId:q.customerId,
+        items:[{id:p.id,qty:q.qty}],
+        discount:q.discount,
+        payment,
+        financialStatus:status,
+        dueDate:status==='Pendente'?due:'',
+        originType:'Orçamento',
+        originId:q.id,
+        originNumber:q.number
+      });
+      if(res.error)return alert(res.error);
+      q.converted=true;q.saleId=res.sale.id;q.financeId=res.finance.id;q.status='Aprovado';
+      try{if(typeof log==='function')log(`Converteu ${q.number} → venda #${res.sale.id}${status==='Pago'?' • '+(accountDef(account)?.name||account):' • a receber'}`)}catch(e){}
+      try{if(typeof save==='function')save()}catch(e){}
+      closeModal();renderAll();
+    }finally{
+      clearOverride();
+    }
+  };
+
+  window.lpCashAccountsV83={ensure,balances,accountBalance,latestSnapshot,allowedAccounts,accountOptions,defaultAccount};
+  setTimeout(()=>{try{ensure();if(document.getElementById('caixa')?.classList.contains('active'))window.renderCaixa()}catch(e){}},700);
+})();
+</script>
+
+
+<style id="lp-v84-device-push-css">
+.lp-v84-push-state{
+  display:inline-flex;align-items:center;gap:5px;
+  border:1px solid var(--line);border-radius:999px;
+  padding:5px 8px;font-size:9px;font-weight:900;white-space:nowrap
+}
+.lp-v84-push-state.on{color:#16a34a;background:rgba(22,163,74,.10)}
+.lp-v84-push-state.off{color:#d97706;background:rgba(217,119,6,.09)}
+.lp-v84-test-btn{
+  border:1px solid rgba(37,99,235,.30);
+  background:rgba(37,99,235,.08);color:#2563eb;
+  min-height:32px;padding:0 9px;border-radius:9px;
+  font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap
+}
+.lp-v84-test-btn:disabled{opacity:.45;cursor:not-allowed}
+.lp-v84-device-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+@media(max-width:620px){
+  .lp-v84-device-meta{gap:4px}
+  .lp-v84-test-btn{min-height:30px;padding:0 8px}
+}
+</style>
+
+<script id="lp-v84-device-push-js">
+(function(){
+  if(window.__lpDevicePushV84)return;
+  window.__lpDevicePushV84=true;
+
+  const T=v=>String(v??'').trim();
+  const TOKEN_KEY='lpFcmTokenV73';
+  const ONLINE_MS=150000;
+  let ownListener=null;
+  let ownLastTest='';
+
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{
+      if(window.firebase){
+        if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+        return firebase.firestore();
+      }
+    }catch(e){}
+    return null;
+  }
+  function user(){
+    try{return window.lpFirebaseUser||firebase.auth().currentUser||null}catch(e){return null}
+  }
+  function esc84(s){
+    if(typeof window.esc==='function')return window.esc(s);
+    return T(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+  function sessionId(){
+    let id='';
+    try{id=sessionStorage.getItem('lpPresenceSessionV79')||''}catch(e){}
+    if(!id){
+      try{
+        const a=new Uint8Array(10);crypto.getRandomValues(a);
+        id=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');
+      }catch(e){id=Date.now().toString(36)+Math.random().toString(36).slice(2)}
+      try{sessionStorage.setItem('lpPresenceSessionV79',id)}catch(e){}
+    }
+    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
+  }
+  function presenceId(u){
+    const uid=T(u?.uid).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,70);
+    return `presence_${uid}_${sessionId()}`;
+  }
+  async function tokenId(raw){
+    raw=T(raw);if(!raw)return '';
+    try{
+      const b=new TextEncoder().encode(raw);
+      const h=await crypto.subtle.digest('SHA-256',b);
+      return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }catch(e){
+      return raw.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,120);
+    }
+  }
+  function deviceInfo(){
+    const ua=navigator.userAgent||'';
+    let device='Computador';
+    if(/iPhone/i.test(ua))device='iPhone';
+    else if(/iPad/i.test(ua))device='iPad';
+    else if(/Android/i.test(ua))device='Celular Android';
+    else if(/Windows/i.test(ua))device='Computador Windows';
+    else if(/Macintosh|Mac OS X/i.test(ua))device='Mac';
+    else if(/Linux/i.test(ua))device='Computador Linux';
+
+    let browser='Navegador';
+    if(/Edg\//i.test(ua))browser='Edge';
+    else if(/OPR\//i.test(ua))browser='Opera';
+    else if(/CriOS\//i.test(ua))browser='Chrome';
+    else if(/Chrome\//i.test(ua))browser='Chrome';
+    else if(/FxiOS\//i.test(ua))browser='Firefox';
+    else if(/Firefox\//i.test(ua))browser='Firefox';
+    else if(/Safari\//i.test(ua))browser='Safari';
+
+    return {device,browser,mobile:/iPhone|iPad|iPod|Android|Mobile/i.test(ua),ua};
+  }
+  function tsMillis(v){
+    if(!v)return 0;
+    try{if(typeof v.toMillis==='function')return v.toMillis()}catch(e){}
+    const n=Date.parse(v);return Number.isFinite(n)?n:0;
+  }
+  function ago(ms){
+    if(!ms)return 'sem horário';
+    const sec=Math.max(0,Math.floor((Date.now()-ms)/1000));
+    if(sec<60)return 'agora';
+    const min=Math.floor(sec/60);
+    if(min<60)return `há ${min} min`;
+    const h=Math.floor(min/60);
+    if(h<24)return `há ${h} h`;
+    return `há ${Math.floor(h/24)} dia(s)`;
+  }
+
+  async function ownPushInfo(){
+    const raw=T(localStorage.getItem(TOKEN_KEY)||'');
+    const id=await tokenId(raw);
+    const permission=typeof Notification!=='undefined'?Notification.permission:'unsupported';
+    return {
+      raw,id,
+      enabled:!!raw&&permission==='granted',
+      permission,
+      presenceDocId:presenceId(user()),
+      presenceSessionId:sessionId(),
+      ...deviceInfo()
+    };
+  }
+
+  async function linkOwn(){
+    const d=db(),u=user();if(!d||!u)return null;
+    const info=await ownPushInfo();
+    const pRef=d.collection('controlePushDevices').doc(info.presenceDocId);
+
+    await pRef.set({
+      presenceOnly:true,
+      uid:u.uid,email:u.email||'',
+      notificationEnabled:!!info.enabled,
+      notificationPermission:info.permission,
+      notificationTokenId:info.id||'',
+      lastNotificationStatusAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+
+    if(info.id&&info.raw){
+      await d.collection('controlePushDevices').doc(info.id).set({
+        token:info.raw,
+        uid:u.uid,email:u.email||'',
+        enabled:!!info.enabled,
+        notificationEnabled:!!info.enabled,
+        presenceDocId:info.presenceDocId,
+        presenceSessionId:info.presenceSessionId,
+        deviceLabel:info.device,
+        browser:info.browser,
+        mobile:!!info.mobile,
+        userAgent:info.ua,
+        platform:navigator.platform||'',
+        source:'controle-lepneus-v84',
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }
+    return info;
+  }
+  window.lpLinkPushToPresenceV84=linkOwn;
+
+  async function showRemoteTest(testId){
+    const info=await ownPushInfo();
+    const d=db(),u=user();if(!d||!u)return;
+    const ref=d.collection('controlePushDevices').doc(info.presenceDocId);
+
+    try{
+      if(!info.enabled){
+        await ref.set({
+          notificationTestAckId:testId,
+          notificationTestResult:'notifications-disabled',
+          notificationTestAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
+        return;
+      }
+      const reg=await navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./'});
+      await reg.showNotification('Le Pneus • Teste remoto',{
+        body:'As notificações estão funcionando neste dispositivo.',
+        icon:'./icon-192.png',
+        badge:'./icon-192.png',
+        tag:'lepneus-teste-remoto-'+testId,
+        data:{url:'./?open=financeiro'}
+      });
+      await ref.set({
+        notificationTestAckId:testId,
+        notificationTestResult:'ok',
+        notificationTestAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }catch(e){
+      try{
+        await ref.set({
+          notificationTestAckId:testId,
+          notificationTestResult:'error: '+T(e?.message||e),
+          notificationTestAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
+      }catch(_){}
+    }
+  }
+
+  function watchOwn(){
+    const d=db(),u=user();if(!d||!u)return;
+    if(ownListener){try{ownListener()}catch(e){} ownListener=null}
+    const id=presenceId(u);
+    ownListener=d.collection('controlePushDevices').doc(id).onSnapshot(async snap=>{
+      if(!snap.exists)return;
+      const row=snap.data()||{};
+      const testId=T(row.notificationTestId||'');
+      const ack=T(row.notificationTestAckId||'');
+      if(testId&&testId!==ack&&testId!==ownLastTest){
+        ownLastTest=testId;
+        await showRemoteTest(testId);
+      }
+    },e=>console.warn('Teste remoto V84:',e?.message||e));
+  }
+
+  async function loadAllDeviceRows(){
+    const d=db(),u=user();if(!d||!u)return [];
+    const snap=await d.collection('controlePushDevices').where('uid','==',u.uid).get();
+    const all=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+    const presence=all.filter(x=>x.presenceOnly===true);
+    const tokens=all.filter(x=>x.token);
+
+    return presence.map(p=>{
+      let tok=null;
+      if(p.notificationTokenId)tok=tokens.find(x=>x.id===p.notificationTokenId);
+      if(!tok)tok=tokens.find(x=>x.presenceDocId===p.id);
+      if(!tok&&p.sessionId)tok=tokens.find(x=>x.presenceSessionId===p.sessionId);
+      if(!tok)tok=tokens.find(x=>
+        (!p.userAgent||x.userAgent===p.userAgent) &&
+        (!p.platform||x.platform===p.platform)
+      );
+      return {
+        ...p,
+        pushDocId:tok?.id||p.notificationTokenId||'',
+        notificationEnabled:tok?tok.enabled===true:p.notificationEnabled===true,
+        notificationPermission:p.notificationPermission||'unknown'
+      };
+    }).sort((a,b)=>tsMillis(b.lastSeen)-tsMillis(a.lastSeen));
+  }
+
+  window.lpTestDeviceNotificationV84=async function(deviceId,label='dispositivo'){
+    const d=db(),u=user();if(!d||!u)return alert('Firebase não está conectado.');
+    const rows=await loadAllDeviceRows();
+    const row=rows.find(x=>x.id===deviceId);
+    if(!row)return alert('Dispositivo não encontrado.');
+    if(row.notificationEnabled!==true)return alert('As notificações estão desativadas nesse dispositivo.');
+
+    const on=row.online!==false && Date.now()-tsMillis(row.lastSeen)<=ONLINE_MS;
+    if(!on)return alert('Esse teste instantâneo funciona quando o aparelho está online. Os avisos automáticos continuam funcionando com o site fechado.');
+
+    const testId='test-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+    await d.collection('controlePushDevices').doc(deviceId).set({
+      notificationTestId:testId,
+      notificationTestRequestedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    alert(`Teste enviado para ${label}. A notificação deve aparecer em instantes nesse aparelho.`);
+  };
+
+  // Substitui SOMENTE a ação "Desconectar".
+  // Logout normal continua sem mexer nas notificações.
+  window.lpDisconnectDeviceV81=async function(deviceId,label='dispositivo'){
+    const d=db(),u=user();if(!d||!u)return alert('Firebase não está conectado.');
+    if(!confirm(`Desconectar ${label}?\n\nSomente este aparelho perderá o login automático e deixará de receber notificações.`))return;
+
+    try{
+      const rows=await loadAllDeviceRows();
+      const row=rows.find(x=>x.id===deviceId);
+      if(!row)return alert('Dispositivo não encontrado.');
+
+      if(row.pushDocId){
+        await d.collection('controlePushDevices').doc(row.pushDocId).set({
+          enabled:false,
+          notificationEnabled:false,
+          disabledReason:'device-disconnected',
+          disconnectedAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
+      }
+
+      await d.collection('controlePushDevices').doc(deviceId).set({
+        disconnectRequested:true,
+        disconnectAcknowledged:false,
+        disconnectRequestedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        online:false,
+        notificationEnabled:false,
+        pushDisabledByDisconnect:true
+      },{merge:true});
+
+      await window.lpRefreshConnectedDevicesV79?.();
+      alert('Dispositivo desconectado. O login automático e as notificações foram desativados somente nesse aparelho.');
+    }catch(e){
+      console.error(e);
+      alert('Não foi possível desconectar: '+(e?.message||e));
+    }
+  };
+
+  // Nova lista de dispositivos: login + notificação + teste + desconectar.
+  window.lpRefreshConnectedDevicesV79=async function(){
+    const host=document.getElementById('lpConnectedDevicesHostV79');if(!host)return;
+    host.innerHTML='<div class="notice">Atualizando dispositivos conectados...</div>';
+
+    const rows=await loadAllDeviceRows();
+    const now=Date.now();
+    const active=rows.filter(x=>x.online!==false && now-tsMillis(x.lastSeen)<=ONLINE_MS);
+    const mobiles=active.filter(x=>x.mobile);
+    const pcs=active.filter(x=>!x.mobile);
+    const ownId=presenceId(user());
+
+    const list=rows.slice(0,30).map(x=>{
+      const ms=tsMillis(x.lastSeen);
+      const on=x.online!==false && now-ms<=ONLINE_MS;
+      const icon=x.mobile?'📱':'💻';
+      const who=esc84(x.email||x.userLabel||'Administrador');
+      const where=[x.deviceLabel,x.browser].filter(Boolean).map(esc84).join(' • ');
+      const page=x.page?` • tela: ${esc84(x.page)}`:'';
+      const own=x.id===ownId;
+      const pending=x.disconnectRequested===true && x.disconnectAcknowledged!==true;
+      const pushOn=x.notificationEnabled===true;
+      const safeId=JSON.stringify(String(x.id));
+      const labelJs=JSON.stringify(`${x.deviceLabel||'Dispositivo'} • ${x.browser||'Navegador'}`);
+
+      return `<div class="lp-v79-device">
+        <div class="lp-v79-device-main">
+          <b>${icon} ${where||'Dispositivo'} ${own?'<span class="lp-v81-this-device">ESTE APARELHO</span>':''}</b>
+          <small>${who}${page}<br>Última atividade: ${esc84(ago(ms))}${pending?' • desconexão solicitada':''}</small>
+          <div class="lp-v84-device-meta">
+            <span class="lp-v84-push-state ${pushOn?'on':'off'}">${pushOn?'🔔 NOTIFICAÇÕES ATIVADAS':'🔕 NOTIFICAÇÕES DESATIVADAS'}</span>
+          </div>
+        </div>
+        <div class="lp-v81-device-actions">
+          <span class="lp-v79-device-state ${on?'on':'off'}">${pending?'SAINDO':(on?'ONLINE':'OFFLINE')}</span>
+          <button class="lp-v84-test-btn" ${(!on||!pushOn||pending)?'disabled':''} onclick='lpTestDeviceNotificationV84(${safeId},${labelJs})'>Testar 🔔</button>
+          <button class="lp-v81-disconnect-btn" ${pending?'disabled':''} onclick='lpDisconnectDeviceV81(${safeId},${labelJs})'>${pending?'Aguardando':'Desconectar'}</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    host.innerHTML=`
+      <div class="lp-v79-presence-summary">
+        <div><b>${active.length}</b><small>Conectados agora</small></div>
+        <div><b>${mobiles.length}</b><small>Celulares/tablets</small></div>
+        <div><b>${pcs.length}</b><small>Computadores</small></div>
+      </div>
+      <div class="notice" style="margin-top:10px">
+        🔔 <b>Notificação ativada</b> = esse aparelho participa dos avisos automáticos das 08:00 e 13:30.
+        O botão <b>Testar</b> é instantâneo quando o aparelho está online.
+      </div>
+      <div class="actions"><button class="btn ghost small" onclick="lpRefreshConnectedDevicesV79()">Atualizar</button></div>
+      <div class="lp-v79-device-list">${list||'<div class="notice">Nenhum dispositivo encontrado ainda.</div>'}</div>`;
+
+    const count=document.getElementById('lpDevicesCountV79');
+    if(count)count.textContent=String(active.length);
+  };
+
+  // Mantém vínculo e status atualizados.
+  const oldEnable=window.lpEnablePushV73;
+  if(typeof oldEnable==='function'){
+    window.lpEnablePushV73=async function(){
+      const r=await oldEnable.apply(this,arguments);
+      try{await linkOwn()}catch(e){console.warn(e)}
+      return r;
+    };
+  }
+  const oldDisable=window.lpDisablePushV73;
+  if(typeof oldDisable==='function'){
+    window.lpDisablePushV73=async function(){
+      const r=await oldDisable.apply(this,arguments);
+      try{await linkOwn()}catch(e){console.warn(e)}
+      return r;
+    };
+  }
+
+  try{
+    firebase.auth().onAuthStateChanged(async u=>{
+      if(u){
+        try{await linkOwn()}catch(e){}
+        watchOwn();
+      }else{
+        if(ownListener){try{ownListener()}catch(e){} ownListener=null}
+      }
+    });
+  }catch(e){}
+
+  setInterval(()=>{if(user())linkOwn().catch(()=>{})},45000);
+})();
+</script>
+
 </body>
 </html>
