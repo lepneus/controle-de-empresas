@@ -837,8 +837,8 @@ body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
 <div id="login" class="login">
   <div class="login-card">
     <div class="login-logo">LP</div><h2>Le Pneus • Administrador</h2><p>Entre com a mesma conta administrativa usada no Catálogo LePneus</p>
-    <input id="loginUser" type="email" autocomplete="username" placeholder="E-mail" value="">
-    <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha">
+    <input id="loginUser" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="E-mail" value="">
+    <input id="loginPass" type="password" autocomplete="off" placeholder="Senha">
     <button id="loginButton" onclick="doLogin()">Entrar com Firebase</button>
     <div id="loginMessage" class="hint">A senha é validada pelo Firebase e não fica salva neste HTML.</div>
   </div>
@@ -852,7 +852,7 @@ body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
   <header class="topbar">
     <button class="iconbtn menu-toggle" onclick="toggleSidebar()">☰</button>
     <div class="search"><span class="search-icon">⌕</span><input id="globalSearch" placeholder="Pesquisar produtos, clientes, vendas..." oninput="globalSearch()"><kbd>Ctrl K</kbd></div>
-    <div class="top-actions"><button class="iconbtn" title="Alternar tema" onclick="toggleTheme()">◐</button><div class="profile"><div class="avatar">AD</div><div class="profile-copy"><strong>Administrador</strong><small>Administrador</small></div></div><button class="iconbtn logout-btn" onclick="logout()">Sair</button></div>
+    <div class="top-actions"><button class="iconbtn" title="Alternar tema" onclick="toggleTheme()">◐</button><div class="profile"><div class="avatar">AD</div><div class="profile-copy"><strong>Administrador</strong><small>Administrador</small></div></div><button id="lpDevicesBtnV79" class="iconbtn lp-devices-btn-v79" onclick="lpOpenConnectedDevicesV79()" title="Ver celulares e dispositivos conectados">📱 <span id="lpDevicesCountV79">0</span></button><button class="iconbtn lp-switch-user-btn-v79" onclick="lpOpenUserSwitcherV79()">Trocar usuário</button><button class="iconbtn logout-btn" onclick="logout()">Sair</button></div>
   </header>
   <section class="content">
     <div class="page active" id="dashboard"></div>
@@ -964,7 +964,7 @@ async function doLogin(){
     if(!firebase.apps.length) firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
     lpFirebaseApp=firebase.app(); lpDb=firebase.firestore(); lpAuth=firebase.auth();
     await lpAuth.signInWithEmailAndPassword(email,pass);
-    sessionStorage.setItem('logged','firebase');
+    
     if(msg)msg.textContent='Acesso autorizado.';
   }catch(e){
     console.error('Login Firebase:',e);
@@ -973,7 +973,7 @@ async function doLogin(){
 }
 async function logout(){
   try{ if(lpAuth) await lpAuth.signOut(); }catch(e){ console.warn(e); }
-  sessionStorage.removeItem('logged');
+  
   const pass=document.getElementById('loginPass'); if(pass)pass.value='';
   document.getElementById('login')?.classList.remove('hidden');
 }
@@ -1991,11 +1991,11 @@ function initLePneusFirebase(){
       lpFirebaseState.error='';
       const login=document.getElementById('login');
       if(user){
-        sessionStorage.setItem('logged','firebase');
+        
         login?.classList.add('hidden');
         document.querySelectorAll('.profile-copy small').forEach(el=>el.textContent=user.email||'Administrador');
       }else{
-        sessionStorage.removeItem('logged');
+        
         login?.classList.remove('hidden');
       }
       try{
@@ -2032,8 +2032,8 @@ function firebaseLoginModal(){
   showModal(`<h2>Conectar ao Firebase</h2>
     <div class="notice">Use a mesma conta administrativa do Catálogo LePneus. A senha não fica salva neste HTML.</div>
     <div class="form">
-      <label>E-mail<input id="fbEmail" type="email" value="lepneus@outlook.com" autocomplete="username"></label>
-      <label>Senha<input id="fbPassword" type="password" autocomplete="current-password" placeholder="Senha do Firebase"></label>
+      <label>E-mail<input id="fbEmail" type="email" value="lepneus@outlook.com" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+      <label>Senha<input id="fbPassword" type="password" autocomplete="off" placeholder="Senha do Firebase"></label>
     </div>
     <div id="fbLoginMsg" class="muted"></div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="firebaseLogin()">Conectar</button></div>`);
@@ -2046,6 +2046,7 @@ async function firebaseLogin(){
   if(!email||!password) return alert('Informe e-mail e senha.');
   const msg=$('#fbLoginMsg'); if(msg) msg.textContent='Conectando...';
   try{
+    await lpAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
     await lpAuth.signInWithEmailAndPassword(email,password);
     closeModal();
     renderCatalogo();
@@ -10046,12 +10047,12 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       if(login)login.classList.add('hidden');
       if(msg)msg.textContent='Acesso autorizado.';
       if(pass)pass.value='';
-      try{sessionStorage.setItem('logged','firebase')}catch(e){}
+      
       document.querySelectorAll('.profile-copy small').forEach(el=>el.textContent=user.email||'Administrador');
     }else{
       body.classList.remove('lp-auth-ok-v45');
       if(login)login.classList.remove('hidden');
-      try{sessionStorage.removeItem('logged')}catch(e){}
+      
     }
   }
 
@@ -10064,8 +10065,10 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       lpDb=firebase.firestore();
       lpAuth=firebase.auth();
 
-      /* Mantém o login salvo neste navegador/computador. */
-      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      /* V79: sessão somente em memória. Ao atualizar/fechar, exige login novamente. */
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      /* remove qualquer sessão LOCAL deixada pelas versões antigas */
+      if(lpAuth.currentUser) await lpAuth.signOut();
 
       lpAuth.onAuthStateChanged(function(user){
         lpFirebaseUser=user||null;
@@ -10088,7 +10091,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
     }
   }
 
-  /* Sobrescreve o login antigo apenas para garantir persistência LOCAL. */
+  /* V79: login sem persistência automática de sessão. */
   window.doLogin=async function(){
     const email=(document.getElementById('loginUser')?.value||'').trim();
     const pass=document.getElementById('loginPass')?.value||'';
@@ -10111,7 +10114,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
       lpDb=firebase.firestore();
       lpAuth=firebase.auth();
 
-      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
       const cred=await lpAuth.signInWithEmailAndPassword(email,pass);
       lpFirebaseUser=cred.user||null;
       setGate(lpFirebaseUser);
@@ -15866,7 +15869,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     return `<section class="card lp-test-card-v77">
       <div class="panel-head">
         <div><h3 class="section-title" style="margin:0">🧪 Usuário de teste / Sandbox</h3>
-        <small class="cell-sub">Use para testar planilhas e funções sem alterar o sistema oficial.</small></div>
+        <small class="cell-sub">Use para testar planilhas e funções sem alterar o sistema oficial. Também disponível em “Trocar usuário” no topo.</small></div>
         <span class="lp-test-chip-v77">NÃO SALVA</span>
       </div>
       <div class="lp-test-grid-v77">
@@ -15903,6 +15906,360 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     window.renderAll=function(){
       const r=prevRenderAllV77.apply(this,arguments);
       if(isTest())paint();
+      return r;
+    };
+  }
+})();
+</script>
+
+
+<style id="lp-v79-users-presence-css">
+.lp-switch-user-btn-v79,.lp-devices-btn-v79{
+  min-height:38px!important;padding:0 12px!important;border-radius:10px!important;
+  white-space:nowrap;font-weight:800!important
+}
+.lp-devices-btn-v79{display:inline-flex!important;align-items:center!important;gap:5px!important}
+#lpDevicesCountV79{
+  min-width:20px;height:20px;padding:0 5px;border-radius:999px;
+  display:inline-grid;place-items:center;background:#16a34a;color:#fff;
+  font-size:10px;font-weight:900
+}
+.lp-v79-user-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.lp-v79-user-card{border:1px solid var(--line);background:var(--panel2);border-radius:13px;padding:14px}
+.lp-v79-user-card h3{margin:0 0 5px;font-size:14px}
+.lp-v79-user-card p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
+.lp-v79-user-form{display:grid;gap:9px;margin-top:12px}
+.lp-v79-user-form label{display:grid;gap:5px;font-size:10px;font-weight:800;color:var(--muted)}
+.lp-v79-user-form input{min-height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px 10px}
+.lp-v79-device-list{display:grid;gap:8px;margin-top:12px;max-height:54vh;overflow:auto}
+.lp-v79-device{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}
+.lp-v79-device-main{min-width:0}
+.lp-v79-device-main b{display:block;font-size:12px}
+.lp-v79-device-main small{display:block;color:var(--muted);font-size:10px;margin-top:3px;white-space:normal}
+.lp-v79-device-state{flex:0 0 auto;border-radius:999px;padding:5px 8px;font-size:9px;font-weight:900}
+.lp-v79-device-state.on{background:rgba(22,163,74,.14);color:#16a34a}
+.lp-v79-device-state.off{background:rgba(148,163,184,.12);color:var(--muted)}
+.lp-v79-presence-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.lp-v79-presence-summary>div{padding:10px;border:1px solid var(--line);background:var(--panel2);border-radius:11px}
+.lp-v79-presence-summary b{display:block;font-size:18px}.lp-v79-presence-summary small{font-size:9px;color:var(--muted)}
+@media(max-width:900px){
+  .lp-switch-user-btn-v79{font-size:0!important;width:40px!important;padding:0!important}
+  .lp-switch-user-btn-v79:before{content:'↔';font-size:17px}
+  .lp-devices-btn-v79{padding:0 9px!important}
+}
+@media(max-width:800px){
+  .lp-v79-user-grid{grid-template-columns:1fr}
+  .top-actions .lp-devices-btn-v79{display:inline-flex!important}
+  .top-actions .lp-switch-user-btn-v79{display:inline-grid!important;place-items:center}
+  .top-actions .logout-btn{display:none!important}
+}
+</style>
+
+<script id="lp-v79-users-presence">
+(function(){
+  if(window.__lpUsersPresenceV79)return;
+  window.__lpUsersPresenceV79=true;
+
+  const T=v=>String(v??'').trim();
+  const ONLINE_MS=150000; // 2 min e 30 s
+  const HEARTBEAT_MS=45000;
+  let presenceTimer=null;
+  let deviceModalTimer=null;
+  let currentPresenceDoc='';
+  let lastPresenceUser='';
+
+  function isTest(){
+    try{return !!window.lpIsTestModeV77?.()}catch(e){return false}
+  }
+  function db(){
+    try{
+      if(window.lpDb)return window.lpDb;
+      if(window.firebase?.firestore){
+        if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+        return firebase.firestore();
+      }
+    }catch(e){}
+    return null;
+  }
+  function authUser(){
+    try{return window.lpFirebaseUser||firebase.auth().currentUser||null}catch(e){return null}
+  }
+  function sessionId(){
+    let id='';
+    try{id=sessionStorage.getItem('lpPresenceSessionV79')||''}catch(e){}
+    if(!id){
+      try{
+        const a=new Uint8Array(10);crypto.getRandomValues(a);
+        id=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');
+      }catch(e){id=Date.now().toString(36)+Math.random().toString(36).slice(2)}
+      try{sessionStorage.setItem('lpPresenceSessionV79',id)}catch(e){}
+    }
+    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
+  }
+  function deviceInfo(){
+    const ua=navigator.userAgent||'';
+    const mobile=/iPhone|iPad|iPod|Android|Mobile/i.test(ua);
+    let device='Computador';
+    if(/iPhone/i.test(ua))device='iPhone';
+    else if(/iPad/i.test(ua))device='iPad';
+    else if(/Android/i.test(ua))device='Celular Android';
+    else if(/Windows/i.test(ua))device='Computador Windows';
+    else if(/Macintosh|Mac OS X/i.test(ua))device='Mac';
+    else if(/Linux/i.test(ua))device='Computador Linux';
+
+    let browser='Navegador';
+    if(/Edg\//i.test(ua))browser='Edge';
+    else if(/OPR\//i.test(ua))browser='Opera';
+    else if(/CriOS\//i.test(ua))browser='Chrome';
+    else if(/Chrome\//i.test(ua))browser='Chrome';
+    else if(/FxiOS\//i.test(ua))browser='Firefox';
+    else if(/Firefox\//i.test(ua))browser='Firefox';
+    else if(/Safari\//i.test(ua))browser='Safari';
+
+    return {device,browser,mobile,ua};
+  }
+  function activePage(){
+    const el=document.querySelector('.page.active');
+    return el?.id||'';
+  }
+  function presencePath(user){
+    const uid=T(user?.uid).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,70);
+    return `presence_${uid}_${sessionId()}`;
+  }
+  function tsMillis(v){
+    if(!v)return 0;
+    try{if(typeof v.toMillis==='function')return v.toMillis()}catch(e){}
+    const n=Date.parse(v);return Number.isFinite(n)?n:0;
+  }
+  function ago(ms){
+    if(!ms)return 'sem horário';
+    const sec=Math.max(0,Math.floor((Date.now()-ms)/1000));
+    if(sec<60)return 'agora';
+    const min=Math.floor(sec/60);
+    if(min<60)return `há ${min} min`;
+    const h=Math.floor(min/60);
+    if(h<24)return `há ${h} h`;
+    return `há ${Math.floor(h/24)} dia(s)`;
+  }
+  function esc2(s){
+    if(typeof window.esc==='function')return window.esc(s);
+    return T(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+
+  async function heartbeat(force=false){
+    if(isTest())return;
+    const d=db(),u=authUser();
+    if(!d||!u)return;
+
+    const info=deviceInfo();
+    const id=presencePath(u);
+    currentPresenceDoc=id;
+    lastPresenceUser=u.uid||'';
+
+    try{
+      await d.collection('controlePushDevices').doc(id).set({
+        presenceOnly:true,
+        enabled:false,
+        uid:u.uid,
+        email:u.email||'',
+        userLabel:'Administrador',
+        sessionId:sessionId(),
+        deviceLabel:info.device,
+        browser:info.browser,
+        mobile:!!info.mobile,
+        platform:navigator.platform||'',
+        userAgent:info.ua,
+        page:activePage(),
+        mode:'normal',
+        online:true,
+        source:'controle-lepneus-v79',
+        lastSeen:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }catch(e){
+      console.warn('Presença V79:',e?.message||e);
+    }
+  }
+
+  async function markOffline(){
+    const d=db(),u=authUser();
+    if(!d||!u||!currentPresenceDoc)return;
+    try{
+      await d.collection('controlePushDevices').doc(currentPresenceDoc).set({
+        online:false,
+        lastSeen:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }catch(e){}
+  }
+
+  async function loadDevices(){
+    const d=db(),u=authUser();
+    if(!d||!u)return [];
+    try{
+      const snap=await d.collection('controlePushDevices').where('uid','==',u.uid).get();
+      return snap.docs.map(doc=>({id:doc.id,...doc.data()}))
+        .filter(x=>x.presenceOnly===true)
+        .sort((a,b)=>tsMillis(b.lastSeen)-tsMillis(a.lastSeen));
+    }catch(e){
+      console.warn('Lista de dispositivos V79:',e?.message||e);
+      return [];
+    }
+  }
+
+  async function updateCount(){
+    if(isTest()){
+      const el=document.getElementById('lpDevicesCountV79');if(el)el.textContent='—';
+      return;
+    }
+    const rows=await loadDevices();
+    const now=Date.now();
+    const active=rows.filter(x=>x.online!==false && now-tsMillis(x.lastSeen)<=ONLINE_MS);
+    const el=document.getElementById('lpDevicesCountV79');
+    if(el)el.textContent=String(active.length);
+    const btn=document.getElementById('lpDevicesBtnV79');
+    if(btn)btn.title=`${active.length} dispositivo(s) usando o sistema agora`;
+  }
+
+  window.lpRefreshConnectedDevicesV79=async function(){
+    const host=document.getElementById('lpConnectedDevicesHostV79');
+    if(!host)return;
+    host.innerHTML='<div class="notice">Atualizando dispositivos conectados...</div>';
+    const rows=await loadDevices();
+    const now=Date.now();
+    const active=rows.filter(x=>x.online!==false && now-tsMillis(x.lastSeen)<=ONLINE_MS);
+    const mobiles=active.filter(x=>x.mobile);
+    const pcs=active.filter(x=>!x.mobile);
+
+    const list=rows.slice(0,30).map(x=>{
+      const ms=tsMillis(x.lastSeen);
+      const on=x.online!==false && now-ms<=ONLINE_MS;
+      const icon=x.mobile?'📱':'💻';
+      const who=esc2(x.email||x.userLabel||'Administrador');
+      const where=[x.deviceLabel,x.browser].filter(Boolean).map(esc2).join(' • ');
+      const page=x.page?` • tela: ${esc2(x.page)}`:'';
+      return `<div class="lp-v79-device">
+        <div class="lp-v79-device-main">
+          <b>${icon} ${where||'Dispositivo'}</b>
+          <small>${who}${page}<br>Última atividade: ${esc2(ago(ms))}</small>
+        </div>
+        <span class="lp-v79-device-state ${on?'on':'off'}">${on?'ONLINE':'OFFLINE'}</span>
+      </div>`;
+    }).join('');
+
+    host.innerHTML=`
+      <div class="lp-v79-presence-summary">
+        <div><b>${active.length}</b><small>Conectados agora</small></div>
+        <div><b>${mobiles.length}</b><small>Celulares/tablets</small></div>
+        <div><b>${pcs.length}</b><small>Computadores</small></div>
+      </div>
+      <div class="actions"><button class="btn ghost small" onclick="lpRefreshConnectedDevicesV79()">Atualizar</button></div>
+      <div class="lp-v79-device-list">${list||'<div class="notice">Nenhum dispositivo encontrado ainda.</div>'}</div>`;
+    updateCount();
+  };
+
+  window.lpOpenConnectedDevicesV79=function(){
+    if(isTest())return alert('No Modo Teste a presença real fica pausada para não alterar o Firebase.');
+    showModal(`<h2>📱 Celulares e dispositivos conectados</h2>
+      <div class="notice">Mostra quem está usando o Controle agora. Um aparelho fica como online enquanto envia atividade recente ao Firebase.</div>
+      <div id="lpConnectedDevicesHostV79"><div class="notice">Carregando...</div></div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button></div>`);
+    lpRefreshConnectedDevicesV79();
+    if(deviceModalTimer)clearInterval(deviceModalTimer);
+    deviceModalTimer=setInterval(()=>{
+      if(!document.getElementById('lpConnectedDevicesHostV79')){clearInterval(deviceModalTimer);deviceModalTimer=null;return}
+      lpRefreshConnectedDevicesV79();
+    },20000);
+  };
+
+  window.lpOpenUserSwitcherV79=function(){
+    const u=authUser();
+    if(isTest()){
+      return showModal(`<h2>↔ Trocar usuário</h2>
+        <div class="notice"><b>Modo Teste está ativo.</b><br>Tudo feito nesta sessão é temporário e será descartado ao sair.</div>
+        <div class="lp-v79-user-grid">
+          <div class="lp-v79-user-card"><h3>🧪 TESTE</h3><p>Sandbox temporária, sem salvar no sistema oficial.</p><div class="actions" style="margin-top:12px"><button class="btn primary" onclick="closeModal();lpExitTestModeV77()">Sair do teste e voltar</button></div></div>
+          <div class="lp-v79-user-card"><h3>👤 Administrador</h3><p>Ao sair do teste a página recarrega e o login administrativo será solicitado novamente.</p></div>
+        </div>`);
+    }
+
+    showModal(`<h2>↔ Trocar usuário</h2>
+      <div class="notice">Conta atual: <b>${esc2(u?.email||'Administrador')}</b>. O sistema não mantém login automático e não grava a senha.</div>
+      <div class="lp-v79-user-grid">
+        <div class="lp-v79-user-card">
+          <h3>👤 Administrador</h3>
+          <p>Use outra conta administrativa do Firebase.</p>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn ghost" onclick="lpSwitchFirebaseAccountV79()">Trocar conta administrativa</button>
+          </div>
+        </div>
+        <div class="lp-v79-user-card">
+          <h3>🧪 Modo Teste</h3>
+          <p>Importe planilhas e teste vendas, caixa, serviços e fechamento sem alterar os dados oficiais.</p>
+          <div class="lp-v79-user-form">
+            <label>Usuário<input id="lpTestUserV77" value="teste" autocomplete="off"></label>
+            <label>Senha<input id="lpTestPassV77" type="password" autocomplete="off" placeholder="Senha do teste" onkeydown="if(event.key==='Enter')lpEnterTestModeV77()"></label>
+            <button class="btn primary" onclick="lpEnterTestModeV77()">Entrar no modo teste</button>
+          </div>
+        </div>
+      </div>`);
+  };
+
+  window.lpSwitchFirebaseAccountV79=async function(){
+    if(!confirm('Sair da conta atual e voltar para a tela de login?'))return;
+    await markOffline();
+    try{
+      const a=window.lpAuth||firebase.auth();
+      await a.signOut();
+    }catch(e){}
+    try{
+      const p=document.getElementById('loginPass');if(p)p.value='';
+      const em=document.getElementById('loginUser');if(em)em.value='';
+    }catch(e){}
+    closeModal();
+    try{setGate(null)}catch(e){}
+  };
+
+  // Garante que o logout também remove a presença imediatamente.
+  const originalLogoutV79=window.logout;
+  window.logout=async function(){
+    await markOffline();
+    try{
+      const p=document.getElementById('loginPass');if(p)p.value='';
+    }catch(e){}
+    return originalLogoutV79?.apply(this,arguments);
+  };
+
+  // Depois do login, começa a marcar este navegador como ativo.
+  function startPresence(){
+    if(presenceTimer)clearInterval(presenceTimer);
+    heartbeat(true).then(updateCount);
+    presenceTimer=setInterval(()=>{heartbeat();updateCount()},HEARTBEAT_MS);
+  }
+
+  try{
+    if(window.firebase?.auth){
+      firebase.auth().onAuthStateChanged(user=>{
+        if(user){
+          startPresence();
+          setTimeout(updateCount,1200);
+        }else{
+          if(presenceTimer){clearInterval(presenceTimer);presenceTimer=null}
+          const el=document.getElementById('lpDevicesCountV79');if(el)el.textContent='0';
+        }
+      });
+    }
+  }catch(e){console.warn(e)}
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){heartbeat(true);updateCount()}
+  });
+  window.addEventListener('pagehide',()=>{markOffline()});
+
+  // Atualiza a presença ao trocar de tela sem alterar a navegação original.
+  const originalOpenPageV79=window.openPage;
+  if(typeof originalOpenPageV79==='function'){
+    window.openPage=function(){
+      const r=originalOpenPageV79.apply(this,arguments);
+      setTimeout(()=>heartbeat(true),100);
       return r;
     };
   }
