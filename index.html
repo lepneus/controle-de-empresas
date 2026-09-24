@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0f172a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
 <title>Le Pneus - Controle de Mercadorias</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -805,6 +810,7 @@ tbody tr:hover{background:#fbfcff!important}
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
 
 
 <style id="lp-required-firebase-login-v45-css">
@@ -14620,6 +14626,563 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 
   window.addEventListener('load',()=>setTimeout(()=>{relabel();try{if(document.querySelector('.page.active')?.id==='clientes')window.renderClientes()}catch(e){}},1900));
   relabel();
+})();
+</script>
+
+
+<style id="lp-v72-css">
+.lp-v72-filterbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.lp-v72-filterbar label{display:grid;gap:5px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.lp-v72-filterbar input,.lp-v72-filterbar select{min-height:40px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:8px 10px;min-width:180px}
+.lp-v72-filterbar input{min-width:260px}
+.lp-v72-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.lp-v72-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.lp-v72-kpi span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
+.lp-v72-kpi b{display:block;margin-top:6px;font-size:20px}
+.lp-v72-tag90{display:inline-flex;padding:5px 8px;border-radius:999px;background:rgba(239,68,68,.12);color:#ef4444;font-size:9px;font-weight:900}
+.lp-v72-annual-note{padding:12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.55}
+.lp-v72-annual-actions{display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:10px;align-items:end;margin-top:12px}
+.lp-v72-annual-actions label{display:grid;gap:6px;font-size:11px;font-weight:800;color:var(--muted)}
+.lp-v72-annual-actions input{width:100%;min-height:42px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:8px 10px}
+@media(max-width:900px){.lp-v72-kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.lp-v72-kpis{grid-template-columns:1fr}.lp-v72-filterbar>*{width:100%}.lp-v72-filterbar input,.lp-v72-filterbar select{width:100%;min-width:0}.lp-v72-annual-actions{grid-template-columns:1fr}}
+</style>
+
+<script id="lp-v72-clientes-fechamento-planilhas">
+(function(){
+  if(window.__lpV72)return;
+  window.__lpV72=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const DAY=86400000;
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const fmtDate=iso=>{const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(T(iso)||'-')};
+  const validIso=v=>{const m=T(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!m)return '';const y=+m[1],mo=+m[2],d=+m[3];if(y<2000||y>2100||mo<1||mo>12||d<1||d>31)return '';const dt=new Date(y,mo-1,d);return dt.getFullYear()===y&&dt.getMonth()===mo-1&&dt.getDate()===d?`${m[1]}-${m[2]}-${m[3]}`:''};
+  const daysOver=iso=>{const s=validIso(iso);if(!s)return null;const [y,m,d]=s.split('-').map(Number),a=new Date(y,m-1,d).getTime(),t=new Date(),b=new Date(t.getFullYear(),t.getMonth(),t.getDate()).getTime();return Math.floor((b-a)/DAY)};
+  const saveNow=()=>{try{if(typeof save==='function')save();else localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){console.warn(e)}};
+
+  function activeReceivables(){
+    return (data.finance||[]).filter(f=>T(f.type)==='Receita'&&!/pago|recebido|cancelado/i.test(T(f.status))&&N(f.value)>0);
+  }
+  function debtorGroups(){
+    const map=new Map();
+    activeReceivables().forEach(f=>{
+      const name=T(f.customerName||f.desc);const k=norm(name);if(!k)return;
+      let g=map.get(k);
+      if(!g){g={name,total:0,count:0,oldest:'',newest:'',maxDays:0,categories:new Set()};map.set(k,g)}
+      g.total+=N(f.value);g.count++;if(f.category)g.categories.add(f.category);
+      const due=validIso(f.dueDate);if(due){if(!g.oldest||due<g.oldest)g.oldest=due;if(!g.newest||due>g.newest)g.newest=due;const d=daysOver(due);if(d!==null)g.maxDays=Math.max(g.maxDays,d)}
+    });
+    return [...map.values()];
+  }
+  function findDebtGroup(name,groups){const k=norm(name);return groups.find(g=>norm(g.name)===k)||null}
+  function customerOrder(c){
+    const raw=T(c?.createdAt||c?.created||'');
+    let ms=Date.parse(raw);
+    if(Number.isFinite(ms))return ms;
+    const id=Number(c?.id);return Number.isFinite(id)?id:0;
+  }
+  function customerSalesInfo(c){
+    const sales=(data.sales||[]).filter(s=>s.status!=='Cancelada'&&(String(s.customerId)===String(c.id)||norm(s.customer)===norm(c.name)));
+    const spent=sales.reduce((a,s)=>a+N(s.total),0);
+    let lastMs=NaN;
+    sales.forEach(s=>{
+      const raw=s.date||s.createdAt||'';
+      let ms=Date.parse(raw);
+      if(!Number.isFinite(ms)&&typeof parseBRDateTime==='function'){const d=parseBRDateTime(raw);if(d&&!isNaN(d))ms=d.getTime()}
+      if(Number.isFinite(ms)&&(!Number.isFinite(lastMs)||ms>lastMs))lastMs=ms;
+    });
+    return {count:sales.length,spent,lastMs};
+  }
+
+  window.lpClientSearchV72=window.lpClientSearchV72||'';
+  window.lpClientSortV72=window.lpClientSortV72||'alpha';
+  window.lpClientFinancialV72=window.lpClientFinancialV72||'all';
+  window.lpDebtorSortV72=window.lpDebtorSortV72||'oldest';
+  window.lpDebtorAgeV72=window.lpDebtorAgeV72||'all';
+
+  window.lpSetClientSearchV72=v=>{window.lpClientSearchV72=v;window.renderClientes()};
+  window.lpSetClientSortV72=v=>{window.lpClientSortV72=v;window.renderClientes()};
+  window.lpSetClientFinancialV72=v=>{window.lpClientFinancialV72=v;window.renderClientes()};
+  window.lpSetDebtorSortV72=v=>{window.lpDebtorSortV72=v;window.renderClientes()};
+  window.lpSetDebtorAgeV72=v=>{window.lpDebtorAgeV72=v;window.renderClientes()};
+
+  window.lpChargeDebtorV72=function(name){
+    const k=norm(name),c=(data.customers||[]).find(x=>norm(x.name)===k||norm(x.name).includes(k)||k.includes(norm(x.name)));
+    let phone=T(c?.phone).replace(/\D/g,'');
+    if(!phone)return alert('Este cliente ainda não tem telefone/WhatsApp cadastrado em Clientes.');
+    if(phone.length<=11)phone='55'+phone;
+    const g=findDebtGroup(name,debtorGroups());if(!g)return;
+    const first=T(name).split(/\s+/)[0];
+    const msg=`Olá, ${first}! Tudo bem? Consta para nós um valor em aberto de ${M(g.total)}. Pode verificar para mim, por favor? Le Pneus.`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank','noopener');
+  };
+
+  window.renderClientes=function(){
+    try{if(typeof ensureData==='function')ensureData()}catch(e){}
+    const groups=debtorGroups(),q=norm(window.lpClientSearchV72);
+
+    let rows=(data.customers||[]).map(c=>{
+      const sales=customerSalesInfo(c),debt=findDebtGroup(c.name,groups);
+      return {c,sales,debt,createdOrder:customerOrder(c)};
+    });
+
+    if(q)rows=rows.filter(x=>norm(x.c.name).includes(q)||norm(x.c.phone).includes(q)||norm(x.c.doc).includes(q));
+
+    const fin=window.lpClientFinancialV72;
+    if(fin==='owing')rows=rows.filter(x=>!!x.debt);
+    else if(fin==='90')rows=rows.filter(x=>x.debt&&x.debt.maxDays>=90);
+    else if(fin==='under90')rows=rows.filter(x=>x.debt&&x.debt.maxDays<90);
+    else if(fin==='clear')rows=rows.filter(x=>!x.debt);
+
+    if(window.lpClientSortV72==='recent')rows.sort((a,b)=>b.createdOrder-a.createdOrder||T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
+    else if(window.lpClientSortV72==='old')rows.sort((a,b)=>a.createdOrder-b.createdOrder||T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
+    else rows.sort((a,b)=>T(a.c.name).localeCompare(T(b.c.name),'pt-BR',{sensitivity:'base'}));
+
+    let debtRows=[...groups];
+    if(window.lpDebtorAgeV72==='90')debtRows=debtRows.filter(g=>g.maxDays>=90);
+    else if(window.lpDebtorAgeV72==='under90')debtRows=debtRows.filter(g=>g.maxDays<90);
+    if(q)debtRows=debtRows.filter(g=>norm(g.name).includes(q));
+    if(window.lpDebtorSortV72==='alpha')debtRows.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}));
+    else if(window.lpDebtorSortV72==='recent')debtRows.sort((a,b)=>(b.oldest||'').localeCompare(a.oldest||'')||a.name.localeCompare(b.name,'pt-BR'));
+    else debtRows.sort((a,b)=>(a.oldest||'9999').localeCompare(b.oldest||'9999')||b.maxDays-a.maxDays);
+
+    const totalOpen=groups.reduce((s,g)=>s+g.total,0),over90=groups.filter(g=>g.maxDays>=90).length;
+    const body=rows.map(x=>{
+      const c=x.c,d=x.debt,last=x.sales.lastMs;
+      const lastText=Number.isFinite(last)?Math.max(0,Math.floor((Date.now()-last)/DAY))+' dia(s)':'Nunca comprou';
+      const status=d?(d.maxDays>=90?`<span class="lp-v72-tag90">90+ dias • ${d.maxDays}</span>`:`<span class="badge warn">Em aberto • ${d.maxDays} dia(s)</span>`):'<span class="badge ok">Sem pendência</span>';
+      return `<tr><td><b>${E(c.name)}</b></td><td>${E(c.phone||'-')}</td><td>${x.sales.count}</td><td>${M(x.sales.spent)}</td><td>${lastText}</td><td>${status}</td><td><button class="btn ghost small" onclick="customerModalV2(${c.id})">Editar</button></td></tr>`;
+    }).join('');
+
+    const debtBody=debtRows.slice(0,200).map(g=>{
+      const c=(data.customers||[]).find(x=>norm(x.name)===norm(g.name)),phone=T(c?.phone);
+      const state=g.maxDays>=90?`<span class="lp-v72-tag90">90+ dias • ${g.maxDays}</span>`:g.maxDays>0?`<span class="badge warn">Atrasado • ${g.maxDays} dia(s)</span>`:'<span class="badge ok">Em aberto</span>';
+      return `<tr><td><b>${E(g.name)}</b><small class="cell-sub">${E([...g.categories].join(' • '))}</small></td><td>${M(g.total)}</td><td>${g.count}</td><td>${fmtDate(g.oldest)}</td><td>${state}</td><td>${phone?E(phone):'<span class="cell-sub">Sem telefone</span>'}</td><td><button class="btn ghost small" onclick='lpChargeDebtorV72(${JSON.stringify(g.name)})' ${phone?'':'disabled'}>WhatsApp</button></td></tr>`;
+    }).join('');
+
+    const host=document.getElementById('clientes');if(!host)return;
+    host.innerHTML=
+      heading('Clientes','Cadastro e contas a receber ficam organizados aqui.',`<button class="btn primary" onclick="customerModalV2()">+ Novo cliente</button>`)+
+      `<div class="lp-v72-kpis">
+        <div class="lp-v72-kpi"><span>Clientes cadastrados</span><b>${(data.customers||[]).length}</b></div>
+        <div class="lp-v72-kpi"><span>Com valor em aberto</span><b>${groups.length}</b></div>
+        <div class="lp-v72-kpi"><span>90+ dias sem pagar</span><b>${over90}</b></div>
+        <div class="lp-v72-kpi"><span>Total em aberto</span><b>${M(totalOpen)}</b></div>
+      </div>
+      <section class="card">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Clientes cadastrados</h3><small class="cell-sub">Os filtros podem ser usados juntos.</small></div><span class="soft-chip">${rows.length} resultado(s)</span></div>
+        <div class="lp-v72-filterbar" style="margin-bottom:12px">
+          <label>Buscar<input value="${E(window.lpClientSearchV72)}" placeholder="Nome, telefone ou CPF/CNPJ" oninput="lpSetClientSearchV72(this.value)"></label>
+          <label>Ordenar<select onchange="lpSetClientSortV72(this.value)">
+            <option value="alpha" ${window.lpClientSortV72==='alpha'?'selected':''}>Ordem alfabética</option>
+            <option value="recent" ${window.lpClientSortV72==='recent'?'selected':''}>Mais recentes</option>
+            <option value="old" ${window.lpClientSortV72==='old'?'selected':''}>Mais antigos</option>
+          </select></label>
+          <label>Situação financeira<select onchange="lpSetClientFinancialV72(this.value)">
+            <option value="all" ${fin==='all'?'selected':''}>Todos</option>
+            <option value="owing" ${fin==='owing'?'selected':''}>Com valor em aberto</option>
+            <option value="90" ${fin==='90'?'selected':''}>90+ dias sem pagar</option>
+            <option value="under90" ${fin==='under90'?'selected':''}>Menos de 90 dias sem pagar</option>
+            <option value="clear" ${fin==='clear'?'selected':''}>Sem pendência</option>
+          </select></label>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Compras</th><th>Total gasto</th><th>Última compra</th><th>Situação</th><th>Ação</th></tr></thead><tbody>${body||'<tr><td colspan="7" class="empty">Nenhum cliente encontrado com estes filtros.</td></tr>'}</tbody></table></div>
+      </section>
+      <section class="card" style="margin-top:16px">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Clientes com valores em aberto</h3><small class="cell-sub">Sem cartão separado de avisos: use o filtro de 90+ dias quando quiser ver quem precisa de atenção.</small></div><span class="soft-chip">${debtRows.length} resultado(s)</span></div>
+        <div class="lp-v72-filterbar" style="margin-bottom:12px">
+          <label>Ordenar<select onchange="lpSetDebtorSortV72(this.value)">
+            <option value="oldest" ${window.lpDebtorSortV72==='oldest'?'selected':''}>Dívidas mais antigas</option>
+            <option value="recent" ${window.lpDebtorSortV72==='recent'?'selected':''}>Dívidas mais recentes</option>
+            <option value="alpha" ${window.lpDebtorSortV72==='alpha'?'selected':''}>Ordem alfabética</option>
+          </select></label>
+          <label>Tempo sem pagar<select onchange="lpSetDebtorAgeV72(this.value)">
+            <option value="all" ${window.lpDebtorAgeV72==='all'?'selected':''}>Todos</option>
+            <option value="90" ${window.lpDebtorAgeV72==='90'?'selected':''}>90+ dias sem pagar</option>
+            <option value="under90" ${window.lpDebtorAgeV72==='under90'?'selected':''}>Menos de 90 dias</option>
+          </select></label>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Em aberto</th><th>Contas</th><th>Vencimento mais antigo</th><th>Situação</th><th>Telefone</th><th>Ação</th></tr></thead><tbody>${debtBody||'<tr><td colspan="7" class="empty">Nenhum cliente encontrado com estes filtros.</td></tr>'}</tbody></table></div>
+      </section>`;
+  };
+
+  // Remove somente a interface da Planilha de Peças da página Conexão Planilhas.
+  const oldPlanilhasV72=window.renderPlanilhas;
+  window.renderPlanilhas=function(){
+    const r=typeof oldPlanilhasV72==='function'?oldPlanilhasV72.apply(this,arguments):undefined;
+    const host=document.getElementById('planilhas');if(!host)return r;
+
+    [...host.querySelectorAll('.settings-grid .card,.lp-sheet-reserved')].forEach(card=>{
+      if(/planilha de pe[cç]as|componentes de caminh[aã]o/i.test(card.textContent||''))card.remove();
+    });
+    [...host.querySelectorAll('.notice')].forEach(n=>{
+      if(/planilha de pe[cç]as configurada|campo de pe[cç]as|estrutura.*pe[cç]as/i.test(n.textContent||''))n.remove();
+    });
+    [...host.querySelectorAll('.cards .card,.cards .metric')].forEach(card=>{
+      const txt=norm(card.textContent||'');
+      if(txt.startsWith('pecas')||txt.startsWith('campo pecas'))card.remove();
+      if(txt.startsWith('planilhas ativas')){
+        const value=card.querySelector('.value');if(value)value.textContent='3';
+        const small=card.querySelector('.delta');if(small)small.textContent='Carro • Moto • Acessórios';
+      }
+      if(txt.startsWith('selecionadas')){
+        const count=['carro','moto','acessorios'].filter(t=>data.spreadsheetConnections?.[t]).length;
+        const value=card.querySelector('.value');if(value)value.textContent=String(count);
+        const small=card.querySelector('.delta');if(small)small.textContent='Carro • Moto • Acessórios';
+      }
+    });
+    const h=host.querySelector('.heading p,.heading small');if(h&&/pe[cç]as/i.test(h.textContent||''))h.textContent='Carro, Moto e Acessórios em fontes separadas';
+    return r;
+  };
+
+  // ===== BALANÇO ANUAL DIRETAMENTE CONECTADO AO FECHAMENTO =====
+  function rowNumber(v){
+    if(v===null||v===undefined||T(v)==='')return null;
+    if(typeof v==='number')return Number.isFinite(v)?v:null;
+    let s=T(v).replace(/R\$\s*/gi,'').replace(/\s/g,'');
+    if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+    else if(s.includes(','))s=s.replace(',','.');
+    s=s.replace(/[^0-9.-]/g,'');const n=Number(s);return Number.isFinite(n)?n:null;
+  }
+  function metricFrom(rows,aliases){
+    for(const a of aliases){
+      for(let i=rows.length-1;i>=0;i--){if(norm(rows[i].label)===norm(a))return N(rows[i].value)}
+    }
+    return null;
+  }
+  const monthNums=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function annualImportPanel(){
+    const annual=(data.monthlyClosings||[]).filter(x=>x.annualBalanceV72);
+    const last=annual.map(x=>T(x.importedAt)).filter(Boolean).sort().pop()||'';
+    return `<section class="card lp-v72-annual">
+      <div class="panel-head"><div><h3 class="section-title" style="margin:0">Balanço Anual conectado ao Fechamento Mensal</h3>
+      <small class="cell-sub">Escolha o Balanço Anual LEPNEUS e pronto: os meses preenchidos entram diretamente no histórico de Fechamento Mensal abaixo.</small></div><span class="soft-chip">${annual.length} mês(es) da planilha</span></div>
+      <div class="lp-v72-annual-actions">
+        <label>Importar Balanço Anual LEPNEUS<input id="lpAnnualFileV72" type="file" accept=".xlsx,.xls" onchange="lpImportAnnualBalanceV72()"></label>
+        <button class="btn primary" onclick="lpImportAnnualBalanceV72()">Importar / Atualizar</button>
+      </div>
+      <div class="lp-v72-annual-note" style="margin-top:12px"><b>Automático após escolher o arquivo:</b> lê as abas de ano, identifica os meses preenchidos e traz vendas, compras, pagamentos, recebimentos, custos, serviços, despesas fixas, despesas variáveis, despesa total, lucro e as demais linhas numéricas. Se o mesmo mês já existir, ele é atualizado em vez de duplicado.${last?`<br><b>Última importação:</b> ${E(last)}`:''}</div>
+    </section>`;
+  }
+
+  window.lpImportAnnualBalanceV72=async function(){
+    const input=document.getElementById('lpAnnualFileV72'),file=input?.files?.[0];
+    if(!file)return alert('Escolha a planilha Balanço Anual LEPNEUS.');
+    if(typeof XLSX==='undefined')return alert('O leitor de Excel ainda não carregou. Atualize a página e tente novamente.');
+    try{
+      const ab=await file.arrayBuffer(),wb=XLSX.read(ab,{type:'array',cellDates:true});
+      const years=wb.SheetNames.filter(n=>/^20\d{2}$/.test(T(n)));
+      if(!years.length)throw new Error('Não encontrei abas de ano como 2021, 2022, 2023...');
+      const imported=[],now=new Date().toLocaleString('pt-BR');
+
+      years.forEach(sn=>{
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+        for(let mi=0;mi<12;mi++){
+          const detailsRows=[];
+          rows.forEach(row=>{
+            const label=T(row?.[0]);if(!label)return;
+            const helper=norm(label)==='despesa variavel'&&Array.from({length:12},(_,j)=>Number(row?.[j+1])===j+1).every(Boolean);
+            if(helper)return;
+            const value=rowNumber(row?.[mi+1]);if(value===null)return;
+            detailsRows.push({label,value});
+          });
+          const metrics={
+            car:metricFrom(detailsRows,['Carro']),
+            moto:metricFrom(detailsRows,['Moto']),
+            accessories:metricFrom(detailsRows,['Acessorios','Acessórios']),
+            purchases:metricFrom(detailsRows,['Compras']),
+            payments:metricFrom(detailsRows,['Pagamento']),
+            receipts:metricFrom(detailsRows,['Recebimento']),
+            cashSales:metricFrom(detailsRows,['Venda a Vista']),
+            cardSales:metricFrom(detailsRows,['Cartão','Cartao']),
+            termSales:metricFrom(detailsRows,['Prazo']),
+            grossSales:metricFrom(detailsRows,['Vl Bruto Venda']),
+            cost:metricFrom(detailsRows,['Custo Total']),
+            grossProfit:metricFrom(detailsRows,['Lucro Estimado Brut']),
+            services:metricFrom(detailsRows,['Prestação Serviços','Prestacao Servicos']),
+            totalGross:metricFrom(detailsRows,['Total Lucro Bruto']),
+            fixedExpense:metricFrom(detailsRows,['Despesa Fixa']),
+            variableExpense:metricFrom(detailsRows,['Despesa Variavel','Despesa Variável']),
+            totalExpense:metricFrom(detailsRows,['Despesa Total']),
+            profitFixed:metricFrom(detailsRows,['Lucro - Fixa']),
+            profitTotal:metricFrom(detailsRows,['Lucro - Total'])
+          };
+          const present=['grossSales','services','purchases','payments','receipts','totalExpense','profitTotal'].some(k=>metrics[k]!==null&&metrics[k]!==0);
+          if(!present)continue;
+
+          const month=`${sn}-${monthNums[mi]}`;
+          const payMap={};
+          if(metrics.cashSales!==null)payMap['À vista']=N(metrics.cashSales);
+          if(metrics.cardSales!==null)payMap['Cartão']=N(metrics.cardSales);
+          if(metrics.termSales!==null)payMap['A prazo']=N(metrics.termSales);
+
+          imported.push({
+            id:'FM-'+month,month,label:`${monthNames[mi]}/${sn}`,closedAt:`Importado do Balanço Anual • ${now}`,
+            imported:true,automatic:false,annualBalanceV72:true,sourceFile:file.name,importedAt:now,
+            summary:{
+              salesCount:'—',itemsSold:0,revenue:N(metrics.grossSales),productCost:N(metrics.cost),
+              profit:N(metrics.totalGross!==null?metrics.totalGross:metrics.grossProfit),
+              serviceCount:'—',serviceRevenue:N(metrics.services),purchaseCount:'—',purchaseTotal:N(metrics.purchases),
+              financeRevenue:N(metrics.receipts),financeExpense:N(metrics.totalExpense),cashIn:0,cashOut:0,cashBalance:0,
+              netResult:N(metrics.profitTotal),payments:payMap
+            },
+            details:{sales:[],services:[],purchases:[],finance:[],cash:[],mercadoLivre:[],annualBalance:detailsRows},
+            annualMetrics:metrics
+          });
+        }
+      });
+
+      if(!imported.length)throw new Error('Não encontrei nenhum mês preenchido.');
+      data.monthlyClosings=Array.isArray(data.monthlyClosings)?data.monthlyClosings:[];
+      imported.forEach(c=>{
+        const i=data.monthlyClosings.findIndex(x=>x.month===c.month);
+        if(i>=0)data.monthlyClosings[i]=c;else data.monthlyClosings.push(c);
+      });
+      data.monthlyClosings.sort((a,b)=>T(b.month).localeCompare(T(a.month)));
+
+      // Compatibilidade com as versões anteriores do importador.
+      data.lpAnnualBalanceV70=imported.map(c=>({id:'annual-v72-'+c.month,month:c.month,year:Number(c.month.slice(0,4)),label:c.label,metrics:c.annualMetrics,detailsRows:c.details.annualBalance,sourceFile:file.name,manualBalanceV70:true,importedAt:now}));
+
+      saveNow();
+      window.renderFechamento();
+      alert(`Balanço Anual importado e conectado ao Fechamento Mensal.\n${imported.length} mês(es) preenchido(s) foram atualizados no histórico.`);
+    }catch(e){console.error(e);alert('Não foi possível importar o Balanço Anual: '+(e?.message||e))}
+  };
+
+  const oldClosingDetailV72=window.closingDetail;
+  window.closingDetail=function(month){
+    const c=(data.monthlyClosings||[]).find(x=>x.month===month);
+    if(!c||!c.annualBalanceV72)return typeof oldClosingDetailV72==='function'?oldClosingDetailV72.apply(this,arguments):undefined;
+    const rows=(c.details?.annualBalance||[]).map(r=>`<tr><td>${E(r.label)}</td><td style="text-align:right"><b>${M(r.value)}</b></td></tr>`).join('');
+    const s=c.summary||{};
+    const html=`<h2>Fechamento • ${E(c.label)}</h2>
+      <div class="notice"><b>Origem:</b> ${E(c.sourceFile||'Balanço Anual LEPNEUS')}<br>Este mês foi importado diretamente da planilha anual e está conectado ao histórico de Fechamento Mensal.</div>
+      <div class="cards" style="margin-top:14px">
+        ${typeof metric==='function'?metric('Venda bruta',M(s.revenue),'Balanço Anual','green'):''}
+        ${typeof metric==='function'?metric('Lucro bruto',M(s.profit),'Balanço Anual',s.profit>=0?'green':'red'):''}
+        ${typeof metric==='function'?metric('Despesa total',M(s.financeExpense),'Balanço Anual','red'):''}
+        ${typeof metric==='function'?metric('Lucro total',M(s.netResult),'Balanço Anual',s.netResult>=0?'green':'red'):''}
+      </div>
+      <div class="table-wrap" style="margin-top:14px;max-height:60vh"><table><thead><tr><th>Descrição</th><th>Valor</th></tr></thead><tbody>${rows||'<tr><td colspan="2" class="empty">Sem dados.</td></tr>'}</tbody></table></div>
+      <div class="modal-actions"><button class="btn primary" onclick="closeModal()">Fechar</button></div>`;
+    if(typeof showModal==='function')showModal(html);
+  };
+
+  const oldFechamentoV72=window.renderFechamento;
+  window.renderFechamento=function(){
+    const r=typeof oldFechamentoV72==='function'?oldFechamentoV72.apply(this,arguments):undefined;
+    const host=document.getElementById('fechamento');if(!host)return r;
+    host.querySelectorAll(':scope > .lp-v70-annual,:scope > .lp-annual-v68,:scope > .lp-v72-annual').forEach(x=>x.remove());
+    const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',annualImportPanel());else host.insertAdjacentHTML('afterbegin',annualImportPanel());
+    [...host.querySelectorAll('.card')].forEach(card=>{
+      if(/importar fechamento do per[ií]odo/i.test(card.textContent||'')){
+        const title=card.querySelector('.section-title');if(title)title.textContent='Fechamento gerado pelo sistema';
+        const small=card.querySelector('.cell-sub');if(small)small.textContent='Use esta parte apenas para meses novos gerados pelos dados do próprio sistema.';
+      }
+    });
+    return r;
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{
+    try{if(document.querySelector('.page.active')?.id==='clientes')window.renderClientes()}catch(e){}
+    try{if(document.querySelector('.page.active')?.id==='planilhas')window.renderPlanilhas()}catch(e){}
+    try{if(document.querySelector('.page.active')?.id==='fechamento')window.renderFechamento()}catch(e){}
+  },2100));
+})();
+</script>
+
+
+
+<style id="lp-v73-push-css">
+.lp-push-v73{margin-bottom:16px}
+.lp-push-v73 .lp-push-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.lp-push-v73 .lp-push-copy{min-width:240px;flex:1}
+.lp-push-v73 .lp-push-copy h3{margin:0;font-size:15px}
+.lp-push-v73 .lp-push-copy p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+.lp-push-v73 .lp-push-actions{display:flex;gap:8px;flex-wrap:wrap}
+.lp-push-v73 .lp-push-status{display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:850;background:var(--panel2)}
+.lp-push-v73 .lp-push-status.ok{color:#16a34a}
+.lp-push-v73 .lp-push-status.warn{color:#d97706}
+.lp-push-v73 .lp-push-status.err{color:#dc2626}
+.lp-push-v73 details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.lp-push-v73 summary{cursor:pointer;font-size:11px;font-weight:800;color:var(--muted)}
+.lp-push-v73 .lp-vapid-row{display:grid;grid-template-columns:minmax(240px,1fr) auto;gap:8px;margin-top:10px}
+.lp-push-v73 .lp-vapid-row input{width:100%;min-height:40px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:8px 10px}
+@media(max-width:650px){.lp-push-v73 .lp-vapid-row{grid-template-columns:1fr}.lp-push-v73 .lp-push-actions>*{flex:1}}
+</style>
+
+<script id="lp-v73-push-js">
+(function(){
+  if(window.__lpPushV73)return;
+  window.__lpPushV73=true;
+
+  const T=v=>String(v??'').trim();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const KEY='lpFcmVapidKeyV73';
+  const TOKEN_KEY='lpFcmTokenV73';
+
+  function vapid(){return T(localStorage.getItem(KEY)||'')}
+  function token(){return T(localStorage.getItem(TOKEN_KEY)||'')}
+  function supported(){
+    return !!(window.isSecureContext&&'serviceWorker' in navigator&&'Notification' in window&&window.firebase&&firebase.messaging);
+  }
+  function permission(){return typeof Notification!=='undefined'?Notification.permission:'unsupported'}
+
+  async function tokenId(raw){
+    try{
+      const b=new TextEncoder().encode(raw);
+      const h=await crypto.subtle.digest('SHA-256',b);
+      return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }catch(e){
+      return raw.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,120);
+    }
+  }
+  async function sw(){
+    return navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./'});
+  }
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    try{if(window.firebase){if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);return firebase.firestore()}}catch(e){}
+    return null;
+  }
+  function authUser(){
+    try{if(window.lpFirebaseUser)return window.lpFirebaseUser}catch(e){}
+    try{return firebase.auth().currentUser}catch(e){return null}
+  }
+  async function saveDevice(rawToken,enabled=true){
+    const d=db(),u=authUser();if(!d||!u)throw new Error('Entre no Firebase antes de ativar as notificações.');
+    const id=await tokenId(rawToken);
+    await d.collection('controlePushDevices').doc(id).set({
+      token:rawToken,uid:u.uid,email:u.email||'',enabled:!!enabled,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      userAgent:navigator.userAgent||'',platform:navigator.platform||'',
+      source:'controle-lepneus-v73'
+    },{merge:true});
+    return id;
+  }
+
+  window.lpSaveVapidV73=function(){
+    const el=document.getElementById('lpVapidKeyV73'),v=T(el?.value);
+    if(!v)return alert('Cole a chave pública Web Push (VAPID) do Firebase.');
+    localStorage.setItem(KEY,v);
+    alert('Chave Web Push salva neste navegador. Agora clique em Ativar neste celular.');
+    try{window.renderFinanceiro()}catch(e){}
+  };
+
+  window.lpEnablePushV73=async function(){
+    if(!supported())return alert('Este navegador não oferece suporte às notificações Web Push ou o site não está em HTTPS.');
+    try{
+      const p=await Notification.requestPermission();
+      if(p!=='granted')throw new Error('Permissão de notificações não concedida.');
+      const reg=await sw();
+      const messaging=firebase.messaging();
+      const opts={serviceWorkerRegistration:reg};
+      if(vapid())opts.vapidKey=vapid();
+      const raw=await messaging.getToken(opts);
+      if(!raw)throw new Error('O Firebase não retornou um token de notificação. Configure a chave Web Push (VAPID).');
+      localStorage.setItem(TOKEN_KEY,raw);
+      await saveDevice(raw,true);
+      alert('Notificações ativadas neste celular/computador.');
+      try{window.renderFinanceiro()}catch(e){}
+    }catch(e){
+      console.error('Push V73:',e);
+      alert('Não foi possível ativar as notificações: '+(e?.message||e)+'\n\nSe aparecer erro de Web Push/VAPID, abra "Configuração inicial" e cole a chave pública do Firebase.');
+    }
+  };
+
+  window.lpDisablePushV73=async function(){
+    try{
+      const raw=token();
+      if(raw){
+        try{await saveDevice(raw,false)}catch(e){}
+        try{if(window.firebase?.messaging)await firebase.messaging().deleteToken()}catch(e){}
+      }
+      localStorage.removeItem(TOKEN_KEY);
+      alert('Notificações desativadas neste dispositivo.');
+      try{window.renderFinanceiro()}catch(e){}
+    }catch(e){alert('Não foi possível desativar: '+(e?.message||e))}
+  };
+
+  window.lpTestPushV73=async function(){
+    if(permission()!=='granted')return alert('Primeiro clique em Ativar neste celular.');
+    try{
+      const reg=await sw();
+      await reg.showNotification('Le Pneus • Teste',{
+        body:'Notificação funcionando neste dispositivo.',
+        icon:'./icon-192.png',
+        badge:'./icon-192.png',
+        tag:'lepneus-teste',
+        data:{url:'./?open=financeiro'}
+      });
+    }catch(e){alert('Não consegui mostrar a notificação de teste: '+(e?.message||e))}
+  };
+
+  function status(){
+    if(!supported())return {text:'Não suportado neste navegador',cls:'err'};
+    if(permission()==='denied')return {text:'Bloqueado pelo navegador',cls:'err'};
+    if(permission()==='granted'&&token())return {text:'Ativado neste dispositivo',cls:'ok'};
+    if(permission()==='granted')return {text:'Permissão concedida • falta registrar',cls:'warn'};
+    return {text:'Desativado',cls:'warn'};
+  }
+  function card(){
+    const s=status(),hasKey=!!vapid();
+    return `<section class="card lp-push-v73">
+      <div class="lp-push-row">
+        <div class="lp-push-copy"><h3>Notificações no celular</h3><p>Receba aviso das Contas a Pagar 3 dias antes do vencimento e no dia. O aviso pode chegar mesmo com o site fechado depois que a configuração do Firebase estiver concluída.</p></div>
+        <span class="lp-push-status ${s.cls}">${E(s.text)}</span>
+        <div class="lp-push-actions">
+          <button class="btn primary" onclick="lpEnablePushV73()">Ativar neste celular</button>
+          <button class="btn ghost" onclick="lpTestPushV73()">Testar notificação</button>
+          ${token()?'<button class="btn ghost" onclick="lpDisablePushV73()">Desativar</button>':''}
+        </div>
+      </div>
+      <details ${hasKey?'':'open'}><summary>Configuração inicial do Firebase Web Push ${hasKey?'• chave salva':'• falta a chave pública'}</summary>
+        <div class="lp-vapid-row"><input id="lpVapidKeyV73" value="${E(vapid())}" placeholder="Cole aqui a chave pública VAPID do Firebase"><button class="btn ghost" onclick="lpSaveVapidV73()">Salvar chave</button></div>
+        <small class="cell-sub">Essa chave é pública. Depois que ela for colocada direto no HTML em uma próxima versão, não será necessário preencher novamente em cada aparelho.</small>
+      </details>
+    </section>`;
+  }
+
+  const prevFinance=window.renderFinanceiro;
+  window.renderFinanceiro=function(){
+    const r=typeof prevFinance==='function'?prevFinance.apply(this,arguments):undefined;
+    const host=document.getElementById('financeiro');
+    if(host){
+      host.querySelectorAll(':scope > .lp-push-v73').forEach(x=>x.remove());
+      const h=host.querySelector('.heading');
+      if(h)h.insertAdjacentHTML('afterend',card());else host.insertAdjacentHTML('afterbegin',card());
+    }
+    return r;
+  };
+
+  async function init(){
+    if(!supported())return;
+    try{
+      const reg=await sw();
+      const messaging=firebase.messaging();
+      messaging.onMessage(async payload=>{
+        const title=payload?.data?.title||payload?.notification?.title||'Le Pneus';
+        const body=payload?.data?.body||payload?.notification?.body||'Nova notificação.';
+        await reg.showNotification(title,{body,icon:'./icon-192.png',badge:'./icon-192.png',tag:payload?.data?.tag||'lepneus-contas',data:{url:payload?.data?.url||'./?open=financeiro'}});
+      });
+    }catch(e){console.warn('FCM V73 init:',e)}
+  }
+
+  window.addEventListener('load',()=>setTimeout(async()=>{
+    await init();
+    const q=new URLSearchParams(location.search);
+    if(q.get('open')==='financeiro'){
+      try{if(typeof openPage==='function')openPage('financeiro')}catch(e){}
+      try{history.replaceState({},'',location.pathname+location.hash)}catch(e){}
+    }
+  },2600));
 })();
 </script>
 
