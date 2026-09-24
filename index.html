@@ -15027,7 +15027,8 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   const KEY='lpFcmVapidKeyV73';
   const TOKEN_KEY='lpFcmTokenV73';
 
-  function vapid(){return T(localStorage.getItem(KEY)||'')}
+  const DEFAULT_VAPID='BI1ijCQUcdcHHiYVa5o1Jkpykg0KfZRXRvnRUJNCn2l63BgqvVMzLIL-uVD6ukZ-c_MNaFebCqi9Zhk8qZ_6RTg';
+  function vapid(){return T(localStorage.getItem(KEY)||DEFAULT_VAPID||'')}
   function token(){return T(localStorage.getItem(TOKEN_KEY)||'')}
   function supported(){
     return !!(window.isSecureContext&&'serviceWorker' in navigator&&'Notification' in window&&window.firebase&&firebase.messaging);
@@ -15143,9 +15144,9 @@ window.__LP_PERSISTENCE_VERSION__='v60';
           ${token()?'<button class="btn ghost" onclick="lpDisablePushV73()">Desativar</button>':''}
         </div>
       </div>
-      <details ${hasKey?'':'open'}><summary>Configuração inicial do Firebase Web Push ${hasKey?'• chave salva':'• falta a chave pública'}</summary>
+      <details ${hasKey?'':'open'}><summary>Configuração inicial do Firebase Web Push • chave pública configurada</summary>
         <div class="lp-vapid-row"><input id="lpVapidKeyV73" value="${E(vapid())}" placeholder="Cole aqui a chave pública VAPID do Firebase"><button class="btn ghost" onclick="lpSaveVapidV73()">Salvar chave</button></div>
-        <small class="cell-sub">Essa chave é pública. Depois que ela for colocada direto no HTML em uma próxima versão, não será necessário preencher novamente em cada aparelho.</small>
+        <small class="cell-sub">A chave pública Web Push já está configurada neste HTML. Você só precisa clicar em Ativar neste celular em cada aparelho.</small>
       </details>
     </section>`;
   }
