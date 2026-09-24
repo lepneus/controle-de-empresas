@@ -836,11 +836,11 @@ body.lp-auth-required-v45.lp-auth-ok-v45 #login.hidden{
 <body class="lp-auth-required-v45">
 <div id="login" class="login">
   <div class="login-card">
-    <div class="login-logo">LP</div><h2>Le Pneus • Administrador</h2><p>Entre com a mesma conta administrativa usada no Catálogo LePneus</p>
-    <input id="loginUser" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="E-mail" value="">
-    <input id="loginPass" type="password" autocomplete="off" placeholder="Senha">
-    <button id="loginButton" onclick="doLogin()">Entrar com Firebase</button>
-    <div id="loginMessage" class="hint">A senha é validada pelo Firebase e não fica salva neste HTML.</div>
+    <div class="login-logo">LP</div><h2>Le Pneus • Acesso</h2><p>Digite seu usuário e sua senha</p>
+    <input id="loginUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Usuário" value="">
+    <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha" onkeydown="if(event.key==='Enter')doLogin()">
+    <button id="loginButton" onclick="doLogin()">Entrar</button>
+    <div id="loginMessage" class="hint">O acesso é validado pelo Firebase. A senha não fica salva no HTML.</div>
   </div>
 </div>
 <div class="app">
@@ -16157,15 +16157,19 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }
   function sessionId(){
     let id='';
-    try{id=sessionStorage.getItem('lpPresenceSessionV79')||''}catch(e){}
+    try{
+      const legacy=sessionStorage.getItem('lpPresenceSessionV79')||'';
+      if(legacy)window.__lpLegacyPresenceSessionV86=legacy;
+    }catch(e){}
+    try{id=localStorage.getItem('lpStableDeviceV86')||''}catch(e){}
     if(!id){
       try{
-        const a=new Uint8Array(10);crypto.getRandomValues(a);
+        const a=new Uint8Array(12);crypto.getRandomValues(a);
         id=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');
       }catch(e){id=Date.now().toString(36)+Math.random().toString(36).slice(2)}
-      try{sessionStorage.setItem('lpPresenceSessionV79',id)}catch(e){}
+      try{localStorage.setItem('lpStableDeviceV86',id)}catch(e){}
     }
-    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
+    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,48);
   }
   function deviceInfo(){
     const ua=navigator.userAgent||'';
@@ -16330,8 +16334,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         enabled:false,
         uid:u.uid,
         email:u.email||'',
-        userLabel:'Administrador',
+        userLabel:window.lpUserLabelV86?window.lpUserLabelV86(u):(u.email||'Usuário'),
         sessionId:sessionId(),
+        stableDeviceId:sessionId(),
+        presenceSchema:'v86',
         deviceLabel:info.device,
         browser:info.browser,
         mobile:!!info.mobile,
@@ -16424,14 +16430,14 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const own=x.id===currentPresenceDoc;
       const pending=x.disconnectRequested===true && x.disconnectAcknowledged!==true;
       const safeId=JSON.stringify(String(x.id));
-      const labelJs=JSON.stringify(`${x.deviceLabel||'Dispositivo'} • ${x.browser||'Navegador'}`);
+      const labelJs=JSON.stringify(`${x.userLabel||x.email||'Usuário'} • ${x.deviceLabel||'Dispositivo'} • ${x.browser||'Navegador'}`);
       return `<div class="lp-v79-device">
         <div class="lp-v79-device-main">
           <b>${icon} ${where||'Dispositivo'} ${own?'<span class="lp-v81-this-device">ESTE APARELHO</span>':''}</b>
           <small>${who}${page}<br>Última atividade: ${esc2(ago(ms))}${pending?' • desconexão solicitada':''}</small>
         </div>
         <div class="lp-v81-device-actions">
-          <span class="lp-v79-device-state ${on?'on':'off'}">${pending?'SAINDO':(on?'ONLINE':'OFFLINE')}</span>
+          <span class="lp-v79-device-state ${on?'on':'off'}">${pending?'SAINDO':(on?'SITE ABERTO':'SITE FECHADO')}</span>
           <button class="lp-v81-disconnect-btn" ${pending?'disabled':''} onclick='lpDisconnectDeviceV81(${safeId},${labelJs})'>${pending?'Aguardando':'Desconectar'}</button>
         </div>
       </div>`;
@@ -16439,7 +16445,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 
     host.innerHTML=`
       <div class="lp-v79-presence-summary">
-        <div><b>${active.length}</b><small>Conectados agora</small></div>
+        <div><b>${active.length}</b><small>Site aberto agora</small></div>
         <div><b>${mobiles.length}</b><small>Celulares/tablets</small></div>
         <div><b>${pcs.length}</b><small>Computadores</small></div>
       </div>
@@ -17352,15 +17358,19 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }
   function sessionId(){
     let id='';
-    try{id=sessionStorage.getItem('lpPresenceSessionV79')||''}catch(e){}
+    try{
+      const legacy=sessionStorage.getItem('lpPresenceSessionV79')||'';
+      if(legacy)window.__lpLegacyPresenceSessionV86=legacy;
+    }catch(e){}
+    try{id=localStorage.getItem('lpStableDeviceV86')||''}catch(e){}
     if(!id){
       try{
-        const a=new Uint8Array(10);crypto.getRandomValues(a);
+        const a=new Uint8Array(12);crypto.getRandomValues(a);
         id=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');
       }catch(e){id=Date.now().toString(36)+Math.random().toString(36).slice(2)}
-      try{sessionStorage.setItem('lpPresenceSessionV79',id)}catch(e){}
+      try{localStorage.setItem('lpStableDeviceV86',id)}catch(e){}
     }
-    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
+    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,48);
   }
   function presenceId(u){
     const uid=T(u?.uid).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,70);
@@ -17435,9 +17445,12 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     await pRef.set({
       presenceOnly:true,
       uid:u.uid,email:u.email||'',
+      userLabel:window.lpUserLabelV86?window.lpUserLabelV86(u):(u.email||'Usuário'),
       notificationEnabled:!!info.enabled,
       notificationPermission:info.permission,
       notificationTokenId:info.id||'',
+      stableDeviceId:info.presenceSessionId,
+      presenceSchema:'v86',
       lastNotificationStatusAt:firebase.firestore.FieldValue.serverTimestamp()
     },{merge:true});
 
@@ -17445,10 +17458,12 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       await d.collection('controlePushDevices').doc(info.id).set({
         token:info.raw,
         uid:u.uid,email:u.email||'',
+        userLabel:window.lpUserLabelV86?window.lpUserLabelV86(u):(u.email||'Usuário'),
         enabled:!!info.enabled,
         notificationEnabled:!!info.enabled,
         presenceDocId:info.presenceDocId,
         presenceSessionId:info.presenceSessionId,
+        stableDeviceId:info.presenceSessionId,
         deviceLabel:info.device,
         browser:info.browser,
         mobile:!!info.mobile,
@@ -17516,19 +17531,59 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     },e=>console.warn('Teste remoto V84:',e?.message||e));
   }
 
+  function fingerprintV86(x){
+    return [
+      T(x.uid),T(x.deviceLabel),T(x.browser),T(x.platform),T(x.userAgent)
+    ].join('|').toLowerCase();
+  }
+
   async function loadAllDeviceRows(){
     const d=db(),u=user();if(!d||!u)return [];
-    const snap=await d.collection('controlePushDevices').where('uid','==',u.uid).get();
+    let snap;
+    try{
+      // Primeiro tenta mostrar todos os usuários/dispositivos da empresa.
+      snap=await d.collection('controlePushDevices').get();
+    }catch(e){
+      // Se as regras do Firestore forem mais restritas, mantém compatibilidade.
+      snap=await d.collection('controlePushDevices').where('uid','==',u.uid).get();
+    }
+
     const all=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
     const presence=all.filter(x=>x.presenceOnly===true);
     const tokens=all.filter(x=>x.token);
 
-    return presence.map(p=>{
+    const stable=presence.filter(x=>T(x.stableDeviceId));
+    const stableKeys=new Set(stable.map(x=>`${T(x.uid)}|${T(x.stableDeviceId)}`));
+    const stableFingerprints=new Set(stable.map(fingerprintV86));
+
+    // Registros antigos: mantém só o mais novo por usuário + aparelho.
+    const legacyNewest=new Map();
+    presence.filter(x=>!T(x.stableDeviceId)).forEach(x=>{
+      const fp=fingerprintV86(x);
+      if(stableFingerprints.has(fp))return;
+      const old=legacyNewest.get(fp);
+      if(!old||tsMillis(x.lastSeen)>tsMillis(old.lastSeen))legacyNewest.set(fp,x);
+    });
+
+    // Se, por algum motivo, houver mais de um registro estável do mesmo usuário/aparelho,
+    // mostra somente o mais recente.
+    const stableNewest=new Map();
+    stable.forEach(x=>{
+      const key=`${T(x.uid)}|${T(x.stableDeviceId)}`;
+      const old=stableNewest.get(key);
+      if(!old||tsMillis(x.lastSeen)>tsMillis(old.lastSeen))stableNewest.set(key,x);
+    });
+
+    const visible=[...stableNewest.values(),...legacyNewest.values()];
+
+    return visible.map(p=>{
       let tok=null;
       if(p.notificationTokenId)tok=tokens.find(x=>x.id===p.notificationTokenId);
       if(!tok)tok=tokens.find(x=>x.presenceDocId===p.id);
-      if(!tok&&p.sessionId)tok=tokens.find(x=>x.presenceSessionId===p.sessionId);
+      if(!tok&&p.stableDeviceId)tok=tokens.find(x=>x.stableDeviceId===p.stableDeviceId&&x.uid===p.uid);
+      if(!tok&&p.sessionId)tok=tokens.find(x=>x.presenceSessionId===p.sessionId&&x.uid===p.uid);
       if(!tok)tok=tokens.find(x=>
+        x.uid===p.uid &&
         (!p.userAgent||x.userAgent===p.userAgent) &&
         (!p.platform||x.platform===p.platform)
       );
@@ -17540,6 +17595,30 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       };
     }).sort((a,b)=>tsMillis(b.lastSeen)-tsMillis(a.lastSeen));
   }
+
+  async function cleanupLegacyPresenceV86(){
+    const d=db(),u=user();if(!d||!u)return;
+    try{
+      const snap=await d.collection('controlePushDevices').where('uid','==',u.uid).get();
+      const rows=snap.docs.map(doc=>({id:doc.id,ref:doc.ref,...doc.data()}));
+      const stable=rows.filter(x=>x.presenceOnly===true&&T(x.stableDeviceId));
+      const stableFp=new Set(stable.map(fingerprintV86));
+      const jobs=[];
+
+      rows.forEach(x=>{
+        if(x.presenceOnly!==true||T(x.stableDeviceId))return;
+        const fp=fingerprintV86(x);
+        const age=Date.now()-tsMillis(x.lastSeen);
+        // Apaga imediatamente legado que já possui substituto estável.
+        // Também limpa presença legada offline com mais de 7 dias.
+        if(stableFp.has(fp)||(x.online===false&&age>7*24*60*60*1000)){
+          jobs.push(x.ref.delete());
+        }
+      });
+      if(jobs.length)await Promise.all(jobs);
+    }catch(e){console.warn('Limpeza V86:',e?.message||e)}
+  }
+  window.lpCleanupLegacyPresenceV86=cleanupLegacyPresenceV86;
 
   window.lpTestDeviceNotificationV84=async function(deviceId,label='dispositivo'){
     const d=db(),u=user();if(!d||!u)return alert('Firebase não está conectado.');
@@ -17612,7 +17691,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const ms=tsMillis(x.lastSeen);
       const on=x.online!==false && now-ms<=ONLINE_MS;
       const icon=x.mobile?'📱':'💻';
-      const who=esc84(x.email||x.userLabel||'Administrador');
+      const who=esc84(x.userLabel||x.email||'Usuário');
       const where=[x.deviceLabel,x.browser].filter(Boolean).map(esc84).join(' • ');
       const page=x.page?` • tela: ${esc84(x.page)}`:'';
       const own=x.id===ownId;
@@ -17631,7 +17710,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         </div>
         <div class="lp-v81-device-actions">
           <span class="lp-v79-device-state ${on?'on':'off'}">${pending?'SAINDO':(on?'ONLINE':'OFFLINE')}</span>
-          <button class="lp-v84-test-btn" ${(!on||!pushOn||pending)?'disabled':''} onclick='lpTestDeviceNotificationV84(${safeId},${labelJs})'>Testar 🔔</button>
+          <button class="lp-v84-test-btn" ${(!on||!pushOn||pending)?'disabled':''} title="${!pushOn?'Ative as notificações neste aparelho':(!on?'O teste instantâneo exige o site aberto; os avisos automáticos continuam funcionando com o site fechado.':'Enviar teste agora')}" onclick='lpTestDeviceNotificationV84(${safeId},${labelJs})'>Testar 🔔</button>
           <button class="lp-v81-disconnect-btn" ${pending?'disabled':''} onclick='lpDisconnectDeviceV81(${safeId},${labelJs})'>${pending?'Aguardando':'Desconectar'}</button>
         </div>
       </div>`;
@@ -17644,8 +17723,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <div><b>${pcs.length}</b><small>Computadores</small></div>
       </div>
       <div class="notice" style="margin-top:10px">
-        🔔 <b>Notificação ativada</b> = esse aparelho participa dos avisos automáticos das 08:00 e 13:30.
-        O botão <b>Testar</b> é instantâneo quando o aparelho está online.
+        🔔 <b>Notificação ativada</b> = esse aparelho continua recebendo os avisos automáticos das 08:00 e 13:30 mesmo com o site fechado.
+        <b>Site fechado</b> significa apenas que ninguém está usando o sistema naquele aparelho agora.
+        O botão <b>Testar</b> instantâneo precisa do site aberto porque esse teste usa a conexão ao vivo; isso não afeta os avisos automáticos.
       </div>
       <div class="actions"><button class="btn ghost small" onclick="lpRefreshConnectedDevicesV79()">Atualizar</button></div>
       <div class="lp-v79-device-list">${list||'<div class="notice">Nenhum dispositivo encontrado ainda.</div>'}</div>`;
@@ -17684,6 +17764,161 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }catch(e){}
 
   setInterval(()=>{if(user())linkOwn().catch(()=>{})},45000);
+})();
+</script>
+
+
+<script id="lp-v87-user-auth-js">
+(function(){
+  if(window.__lpUserAuthV86)return;
+  window.__lpUserAuthV86=true;
+
+  const INTERNAL_DOMAIN='controle.wwtom.com.br';
+  const T=v=>String(v??'').trim();
+
+  function normalizeUsername(v){
+    return T(v)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g,'')
+      .slice(0,50);
+  }
+
+  window.lpUsernameToEmailV86=function(value){
+    const v=T(value).toLowerCase();
+    if(v.includes('@'))return v; // mantém compatibilidade com a conta administrativa antiga.
+    const user=normalizeUsername(v);
+    return user?`${user}@${INTERNAL_DOMAIN}`:'';
+  };
+
+  window.lpUserLabelV86=function(userOrEmail){
+    const email=typeof userOrEmail==='string'?userOrEmail:T(userOrEmail?.email);
+    let name=(email.split('@')[0]||'Usuário').replace(/[._-]+/g,' ').trim();
+    if(!name)return 'Usuário';
+    return name.replace(/\b\w/g,c=>c.toUpperCase());
+  };
+
+  window.doLogin=async function(){
+    const username=T(document.getElementById('loginUser')?.value);
+    const pass=document.getElementById('loginPass')?.value||'';
+    const msg=document.getElementById('loginMessage');
+    const btn=document.getElementById('loginButton');
+
+    if(!username||!pass){
+      if(msg)msg.textContent='Digite o usuário e a senha.';
+      return;
+    }
+
+    const email=window.lpUsernameToEmailV86(username);
+    if(!email){
+      if(msg)msg.textContent='Usuário inválido.';
+      return;
+    }
+
+    try{
+      if(btn){btn.disabled=true;btn.textContent='Entrando...'}
+      if(msg)msg.textContent='Validando acesso...';
+      if(!window.firebase)throw new Error('Firebase não carregou.');
+
+      if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);
+      lpFirebaseApp=firebase.app();
+      lpDb=firebase.firestore();
+      lpAuth=firebase.auth();
+
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      await lpAuth.signInWithEmailAndPassword(email,pass);
+
+      try{
+        const u=lpAuth.currentUser;
+        if(u&&lpDb){
+          await lpDb.collection('controleUsuarios').doc(u.uid).set({
+            uid:u.uid,
+            email:u.email||email,
+            userLabel:window.lpUserLabelV86(u),
+            username:normalizeUsername(username.includes('@')?username.split('@')[0]:username),
+            lastLoginAt:firebase.firestore.FieldValue.serverTimestamp()
+          },{merge:true});
+        }
+      }catch(e){console.warn('Registro de usuário V86:',e?.message||e)}
+
+      try{if(window.lpClearOwnDisconnectAfterLoginV81)await window.lpClearOwnDisconnectAfterLoginV81(lpAuth.currentUser)}catch(e){}
+      try{if(window.lpLinkPushToPresenceV84)await window.lpLinkPushToPresenceV84()}catch(e){}
+      try{if(window.lpCleanupLegacyPresenceV86)await window.lpCleanupLegacyPresenceV86()}catch(e){}
+
+      if(msg)msg.textContent='Acesso autorizado.';
+    }catch(e){
+      console.error('Login Firebase V86:',e);
+      if(msg)msg.textContent='Usuário ou senha incorretos.';
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='Entrar'}
+    }
+  };
+
+  window.firebaseLoginModal=function(){
+    if(!lpFirebaseState.ready) initLePneusFirebase();
+    if(lpFirebaseUser){
+      const label=window.lpUserLabelV86(lpFirebaseUser);
+      showModal(`<h2>Firebase conectado</h2>
+        <div class="notice"><b>Usuário:</b> ${esc(label)}<br>
+        <small class="cell-sub">${esc(lpFirebaseUser.email||'')}</small><br>
+        O Controle está conectado ao Firebase.</div>
+        <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button><button class="btn primary" onclick="firebaseLogout()">Desconectar</button></div>`);
+      return;
+    }
+    showModal(`<h2>Conectar ao Firebase</h2>
+      <div class="notice">Digite seu usuário e senha. A senha é validada pelo Firebase e não fica salva no HTML.</div>
+      <div class="form">
+        <label>Usuário<input id="fbEmail" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Usuário"></label>
+        <label>Senha<input id="fbPassword" type="password" autocomplete="current-password" placeholder="Senha"></label>
+      </div>
+      <div id="fbLoginMsg" class="muted"></div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="firebaseLogin()">Conectar</button></div>`);
+  };
+
+  window.firebaseLogin=async function(){
+    if(!lpAuth&&!initLePneusFirebase())return alert('Firebase não carregou.');
+    const username=T(document.getElementById('fbEmail')?.value);
+    const password=document.getElementById('fbPassword')?.value||'';
+    if(!username||!password)return alert('Informe usuário e senha.');
+
+    const email=window.lpUsernameToEmailV86(username);
+    const msg=document.getElementById('fbLoginMsg');
+    if(msg)msg.textContent='Conectando...';
+
+    try{
+      await lpAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      await lpAuth.signInWithEmailAndPassword(email,password);
+      try{if(window.lpClearOwnDisconnectAfterLoginV81)await window.lpClearOwnDisconnectAfterLoginV81(lpAuth.currentUser)}catch(e){}
+      try{if(window.lpLinkPushToPresenceV84)await window.lpLinkPushToPresenceV84()}catch(e){}
+      try{if(window.lpCleanupLegacyPresenceV86)await window.lpCleanupLegacyPresenceV86()}catch(e){}
+      closeModal();
+      renderCatalogo();
+    }catch(e){
+      console.error(e);
+      if(msg)msg.textContent='Usuário ou senha incorretos.';
+    }
+  };
+
+  // Atualiza nome amigável no topo e grava identidade atual no Firestore.
+  try{
+    firebase.auth().onAuthStateChanged(async u=>{
+      if(!u)return;
+      const label=window.lpUserLabelV86(u);
+      document.querySelectorAll('.profile-copy small').forEach(el=>el.textContent=label);
+      try{
+        if(window.lpDb){
+          await window.lpDb.collection('controleUsuarios').doc(u.uid).set({
+            uid:u.uid,email:u.email||'',userLabel:label,
+            lastSeenAt:firebase.firestore.FieldValue.serverTimestamp()
+          },{merge:true});
+        }
+      }catch(e){}
+      setTimeout(()=>{
+        window.lpLinkPushToPresenceV84?.().catch?.(()=>{});
+        window.lpCleanupLegacyPresenceV86?.().catch?.(()=>{});
+      },800);
+    });
+  }catch(e){}
 })();
 </script>
 
