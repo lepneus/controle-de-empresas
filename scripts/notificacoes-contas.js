@@ -22,9 +22,7 @@ try {
   fail("O secret FIREBASE_SERVICE_ACCOUNT não contém um JSON válido.");
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -38,9 +36,7 @@ function datePartsInTZ(date = new Date()) {
   }).formatToParts(date);
 
   const o = {};
-  for (const p of parts) {
-    if (p.type !== "literal") o[p.type] = p.value;
-  }
+  for (const p of parts) if (p.type !== "literal") o[p.type] = p.value;
   return { y: Number(o.year), m: Number(o.month), d: Number(o.day) };
 }
 
@@ -73,6 +69,78 @@ function money(v) {
   });
 }
 
+function norm(v) {
+  return String(v || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function cents(v) {
+  const n = Number(v || 0);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+function totalRemaining(rows) {
+  return rows.reduce((sum, x) => sum + cents(x.remaining), 0) / 100;
+}
+
+function isSupplierBoleto(x) {
+  const category = norm(x.category);
+  const sheet = norm(x.sourceSheet);
+  return (
+    sheet === "fornecedores" ||
+    category.includes("fornecedor") ||
+    category.includes("boleto")
+  );
+}
+
+function rowKey(x) {
+  if (x.sourceKey) return String(x.sourceKey);
+  return [
+    x.sourceSheet,
+    x.row,
+    x.name,
+    x.dueDate,
+    cents(x.value),
+    cents(x.remaining),
+  ].join("|");
+}
+
+function dedupeRows(rows) {
+  const map = new Map();
+  for (const x of rows) {
+    const key = rowKey(x);
+    const old = map.get(key);
+    if (!old || cents(x.remaining) > cents(old.remaining)) map.set(key, x);
+  }
+  return [...map.values()];
+}
+
+function logDueRows(label, rows) {
+  console.log(`--- ${label}: ${rows.length} boleto(s) ---`);
+  for (const x of rows) {
+    console.log(
+      `${x.dueDate} | ${x.name || "Sem nome"} | restante ${money(
+        cents(x.remaining) / 100
+      )} | ${x.sourceSheet || "?"} linha ${x.row || "?"}`
+    );
+  }
+  console.log(`TOTAL ${label}: ${money(totalRemaining(rows))}`);
+}
+
+async function loadSyncHeartbeat() {
+  const snap = await db.doc("controleSyncStatus/pagar").get();
+  return snap.exists ? snap.data() || {} : null;
+}
+
+function heartbeatAgeMinutes(status) {
+  const epoch = Number(status?.checkedAtEpoch || 0);
+  if (!Number.isFinite(epoch) || epoch <= 0) return Infinity;
+  return Date.now() / 1000 / 60 - epoch / 60;
+}
+
 async function loadOpenPayables() {
   const metaSnap = await db.doc("controleFinanceiroV2Meta/pagar").get();
 
@@ -86,10 +154,16 @@ async function loadOpenPayables() {
   const syncId = String(meta.syncId || "");
   const out = [];
 
+  console.log(
+    "Fonte pagar:",
+    meta.sourceFile || "?",
+    "| atualização:",
+    meta.updatedAtText || "?"
+  );
+
   for (let i = 0; i < count; i++) {
     const id = `pagar_${String(i).padStart(3, "0")}`;
     const snap = await db.doc(`controleFinanceiroV2/${id}`).get();
-
     if (!snap.exists) continue;
 
     const d = snap.data() || {};
@@ -103,9 +177,14 @@ async function loadOpenPayables() {
     }
   }
 
-  return out.filter(
-    (x) => Number(x.remaining || 0) > 0 && validIso(x.dueDate)
+  const valid = out.filter(
+    (x) =>
+      cents(x.remaining) > 0 &&
+      validIso(x.dueDate) &&
+      isSupplierBoleto(x)
   );
+
+  return dedupeRows(valid);
 }
 
 async function loadDevices() {
@@ -124,7 +203,6 @@ async function disableBadTokens(batch, responses) {
 
   responses.forEach((r, i) => {
     if (r.success) return;
-
     const code = String(r.error?.code || "");
     console.log("Falha de token:", code);
 
@@ -159,18 +237,8 @@ async function sendToDevices(devices, { title, body, tag, kind }) {
 
     const result = await messaging.sendEachForMulticast({
       tokens: batch.map((x) => x.token),
-      data: {
-        title,
-        body,
-        tag,
-        url: SITE_URL,
-        kind,
-      },
-      webpush: {
-        headers: {
-          TTL: "86400",
-        },
-      },
+      data: { title, body, tag, url: SITE_URL, kind },
+      webpush: { headers: { TTL: "86400" } },
     });
 
     console.log(
@@ -181,10 +249,35 @@ async function sendToDevices(devices, { title, body, tag, kind }) {
   }
 }
 
+async function ensureFreshPayables(devices) {
+  const status = await loadSyncHeartbeat();
+  const age = heartbeatAgeMinutes(status);
+
+  console.log(
+    "Planilha de contas conferida em:",
+    status?.checkedAtText || "heartbeat não encontrado",
+    "| idade:",
+    Number.isFinite(age) ? `${age.toFixed(1)} min` : "indefinida"
+  );
+
+  if (age <= 15) return true;
+
+  await sendToDevices(devices, {
+    title: "Le Pneus • valores não conferidos",
+    body:
+      "O sincronizador não confirmou a planilha de contas recentemente. Para evitar um total errado, o valor dos boletos não foi enviado.",
+    tag: `lepneus-pagar-sem-conferencia-${todayIso()}`,
+    kind: "payablesStale",
+  });
+
+  return false;
+}
+
 async function sendTest(devices) {
   await sendToDevices(devices, {
     title: "Le Pneus • Teste de notificação",
-    body: "Teste concluído. Os avisos automáticos estão conectados ao GitHub Actions.",
+    body:
+      "Teste concluído. Os avisos automáticos estão conectados ao GitHub Actions.",
     tag: `lepneus-teste-${Date.now()}`,
     kind: "test",
   });
@@ -195,35 +288,31 @@ async function sendMorning(rows, devices) {
   const today = rows.filter((x) => daysUntil(x.dueDate) === 0);
 
   if (due3.length) {
-    const total = due3.reduce(
-      (sum, x) => sum + Number(x.remaining || 0),
-      0
-    );
+    const total = totalRemaining(due3);
+    logDueRows("VENCEM EM 3 DIAS", due3);
 
     await sendToDevices(devices, {
-      title: `Le Pneus • ${due3.length} conta(s) vencem em 3 dias`,
+      title: `Le Pneus • ${due3.length} boleto(s) vencem em 3 dias`,
       body: `Total ${money(total)}. Abra Contas a Pagar para conferir.`,
       tag: `lepneus-3dias-${todayIso()}`,
       kind: "due3",
     });
   } else {
-    console.log("08:00: nenhuma conta vencendo em 3 dias.");
+    console.log("08:00: nenhum boleto vencendo em 3 dias.");
   }
 
   if (today.length) {
-    const total = today.reduce(
-      (sum, x) => sum + Number(x.remaining || 0),
-      0
-    );
+    const total = totalRemaining(today);
+    logDueRows("VENCEM HOJE 08:00", today);
 
     await sendToDevices(devices, {
-      title: `Le Pneus • ${today.length} conta(s) vencem hoje`,
-      body: `Total ${money(total)}. Aviso das 08:00: confira as notas que precisam ser pagas hoje.`,
+      title: `Le Pneus • ${today.length} boleto(s) vencem hoje`,
+      body: `Total ${money(total)}. Aviso das 08:00: confira os boletos de hoje.`,
       tag: `lepneus-hoje-0800-${todayIso()}`,
       kind: "today0800",
     });
   } else {
-    console.log("08:00: nenhuma conta vencendo hoje.");
+    console.log("08:00: nenhum boleto vencendo hoje.");
   }
 }
 
@@ -231,18 +320,18 @@ async function sendAfternoon(rows, devices) {
   const today = rows.filter((x) => daysUntil(x.dueDate) === 0);
 
   if (!today.length) {
-    console.log("13:30: nenhuma conta vencendo hoje.");
+    console.log("13:30: nenhum boleto vencendo hoje.");
     return;
   }
 
-  const total = today.reduce(
-    (sum, x) => sum + Number(x.remaining || 0),
-    0
-  );
+  const total = totalRemaining(today);
+  logDueRows("VENCEM HOJE 13:30", today);
 
   await sendToDevices(devices, {
-    title: "Le Pneus • Lembrete de contas a pagar",
-    body: `${today.length} conta(s) vencem hoje, total ${money(total)}. Lembrete das 13:30 para conferir se já foram pagas.`,
+    title: "Le Pneus • Lembrete de boletos",
+    body: `${today.length} boleto(s) vencem hoje, total ${money(
+      total
+    )}. Confira se já foram pagos.`,
     tag: `lepneus-hoje-1330-${todayIso()}`,
     kind: "today1330",
   });
@@ -260,8 +349,16 @@ async function main() {
     return;
   }
 
+  const fresh = await ensureFreshPayables(devices);
+  if (!fresh) {
+    console.log(
+      "Total não enviado: a planilha não foi confirmada recentemente."
+    );
+    return;
+  }
+
   const rows = await loadOpenPayables();
-  console.log("Contas pendentes carregadas:", rows.length);
+  console.log("Boletos pendentes carregados e deduplicados:", rows.length);
 
   if (MODE === "morning") {
     await sendMorning(rows, devices);
