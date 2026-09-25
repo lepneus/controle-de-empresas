@@ -888,13 +888,13 @@ body:not(.lp-v88-firebase-ok) .lp-user-login-v88{display:none!important}
     <h2>Quem está usando?</h2>
     <p>O Firebase já está conectado. Agora entre com seu usuário do sistema.</p>
     <label>Usuário
-      <input id="lpUserNameV88" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Pedro ou Otávio">
+      <input id="lpUserNameV88" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Pedro ou Otavio">
     </label>
     <label>Senha
       <input id="lpUserPassV88" type="password" autocomplete="current-password" placeholder="Senha" onkeydown="if(event.key==='Enter')lpInternalLoginV88()">
     </label>
     <button class="btn primary" onclick="lpInternalLoginV88()">Entrar no sistema</button>
-    <div id="lpUserMsgV88" class="lp-user-msg-v88">Identificação interna para saber quem está usando cada aparelho.</div>
+    <div id="lpUserMsgV88" class="lp-user-msg-v88">O usuário fica salvo neste aparelho. A senha não é salva.</div>
     <button class="lp-user-firebase-out-v88" onclick="lpBackToFirebaseV88()">Trocar conta Firebase</button>
   </div>
 </div>
@@ -11401,6 +11401,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   }
 
   async function loadCloud(){
+    try{if(window.lpIsTestModeV77?.())return}catch(e){}
     if(loading)return;
     const user=getUser(), db=getDb();
     if(!user||!db)return;
@@ -11439,6 +11440,14 @@ window.__LP_SALES_FIX_VERSION__='v47';
         return {key,cloud,hashes};
       }));
 
+      try{
+        if(window.lpIsTestModeV77?.()){
+          loading=false;showLoading(false);
+          status('Dados: MODO TESTE • leitura oficial pausada','wait');
+          return;
+        }
+      }catch(e){}
+
       arrayResults.forEach(({key,cloud,hashes})=>{
         lastHashes[key]=hashes;
         if(cloud.length)cloudHasAny=true;
@@ -11449,6 +11458,14 @@ window.__LP_SALES_FIX_VERSION__='v47';
         const snap=await root.collection('state').doc(key).get();
         return {key,snap};
       }));
+
+      try{
+        if(window.lpIsTestModeV77?.()){
+          loading=false;showLoading(false);
+          status('Dados: MODO TESTE • leitura oficial pausada','wait');
+          return;
+        }
+      }catch(e){}
 
       objectResults.forEach(({key,snap})=>{
         if(snap.exists){
@@ -11506,6 +11523,12 @@ window.__LP_SALES_FIX_VERSION__='v47';
   }
 
   async function syncCloud(force=false){
+    try{
+      if(window.lpIsTestModeV77?.()){
+        status('Dados: MODO TESTE • gravação bloqueada','wait');
+        return;
+      }
+    }catch(e){}
     if(!loaded)return;
     const currentFingerprint=persistentFingerprint();
     if(!force && currentFingerprint===lastPersistFingerprint){
@@ -11615,6 +11638,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
     if(!user||!db)return;
     listenerBound=true;
     rootRef(db,user.uid).onSnapshot(snap=>{
+      try{if(window.lpIsTestModeV77?.())return}catch(e){}
       if(!loaded||syncing||!snap.exists)return;
       const cloudTime=Number((snap.data()||{}).clientSavedAt||0);
       if(cloudTime>lastCloudSavedAt+1500){
@@ -11687,6 +11711,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
   function ingestAll(){
     try{
+      try{if(window.lpIsTestModeV77?.())return}catch(e){}
       if(typeof data==='undefined'||!data)return;
       ensurePending();
 
@@ -12496,6 +12521,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   }
 
   function applyStock(){
+    try{if(window.lpIsTestModeV77?.())return}catch(e){}
     if(typeof data==='undefined'||!data)return;
     data.products=Array.isArray(data.products)?data.products:[];
     const oldAuto=currentAutoMap();
@@ -12569,6 +12595,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   }
 
   function rebuildPending(){
+    try{if(window.lpIsTestModeV77?.())return}catch(e){}
     if(typeof data==='undefined'||!data)return;
     data.pendingImportDifferences=Array.isArray(data.pendingImportDifferences)
       ? data.pendingImportDifferences : [];
@@ -13690,6 +13717,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   function autoStatus(due){const x=daysOverdue(due);return x!==null&&x>0?'Vencido':'Pendente'}
 
   function applyCloud(){
+    try{if(window.lpIsTestModeV77?.())return}catch(e){}
     ensure();
     const recv=sourceItems('receber');
     const pay=sourceItems('pagar');
@@ -15776,7 +15804,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       bar.id='lpTestBannerV77';
       document.body.appendChild(bar);
     }
-    bar.innerHTML=`<span>🧪 MODO TESTE • tudo é temporário • Firebase, localStorage e envios externos bloqueados</span>
+    bar.innerHTML=`<span>🧪 MODO TESTE • tudo é temporário • leitura/gravação oficial pausada</span>
       <button onclick="lpExitTestModeV77()">Sair sem salvar</button>`;
 
     const profile=document.querySelector('.profile-copy');
@@ -15864,6 +15892,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 
       // A partir daqui toda alteração trabalha apenas nessa cópia em memória.
       data=sandbox;
+      window.__LP_TEST_SANDBOX_V91__=sandbox;
       try{if(typeof ensureData==='function')ensureData()}catch(e){}
       paint();
       try{if(typeof closeModal==='function')closeModal()}catch(e){}
@@ -15893,6 +15922,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     // Não copiamos a sandbox de volta. Restauramos as proteções e recarregamos
     // a página; os dados oficiais são lidos novamente do local/Firebase.
     window.__LP_TEST_MODE_V77__=false;
+    window.__LP_TEST_SANDBOX_V91__=null;
     restoreRuntimeGuards();
 
     try{if(originals.save)window.save=originals.save}catch(e){}
@@ -15913,7 +15943,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
           <span class="lp-test-chip-v77">TESTE ATIVO</span>
         </div>
         <div class="lp-test-note-v77">
-          <b>Proteções ativas:</b> gravação do Firebase bloqueada, localStorage oficial bloqueado,
+          <b>Proteções ativas:</b> leitura e gravação oficial do Firebase pausadas, localStorage oficial bloqueado,
           POST/webhooks bloqueados e WhatsApp externo bloqueado. Importações e lançamentos alteram somente
           a cópia em memória. Atualizar a página ou sair do teste descarta tudo.
         </div>
@@ -17066,8 +17096,30 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       });
 
       saveCompat();
+
+      // Confere imediatamente o que a tela deve mostrar depois da importação.
+      const applied=balances();
+      const ids=['loja','casa','sicredi','sicoob','chequeVista','chequePre'];
+      const mismatch=ids.filter(id=>Math.abs(N(applied[id])-N(accounts[id]))>.01);
+      window.__lpLastCashImportCheckV91={
+        month,day:summary.day,planilha:{...accounts},aplicado:{...applied},
+        ok:mismatch.length===0,mismatch:[...mismatch],
+        testMode:!!window.lpIsTestModeV77?.()
+      };
+
       window.renderCaixa();
-      alert(`Movimento de Caixa ${month} importado.\n\nResumo do dia ${summary.day}:\nDinheiro Loja: ${M(accounts.loja)}\nDinheiro Casa: ${M(accounts.casa)}\nSicredi: ${M(accounts.sicredi)}\nSicoob: ${M(accounts.sicoob)}\nCheque à vista: ${M(accounts.chequeVista)}\nPré-datados: ${M(accounts.chequePre)}\n\nTotal disponível: ${M(summary.totalDisponivel)}.`);
+
+      if(mismatch.length){
+        console.warn('Conferência pós-importação V91:',window.__lpLastCashImportCheckV91);
+        alert('A planilha foi lida, mas a conferência interna encontrou diferença em: '+mismatch.join(', ')+'.\nA importação não foi considerada concluída.');
+        return;
+      }
+
+      const testTxt=window.lpIsTestModeV77?.()
+        ? '\n\n🧪 MODO TESTE: estes valores foram aplicados somente na memória para você testar. Ao sair do teste, serão descartados.'
+        : '\n\n✅ MODO NORMAL: estes valores foram aplicados e enviados ao fluxo normal de salvamento.';
+
+      alert(`Movimento de Caixa ${month} importado e conferido.\n\nResumo do dia ${summary.day}:\nDinheiro Loja: ${M(accounts.loja)}\nDinheiro Casa: ${M(accounts.casa)}\nSicredi: ${M(accounts.sicredi)}\nSicoob: ${M(accounts.sicoob)}\nCheque à vista: ${M(accounts.chequeVista)}\nPré-datados: ${M(accounts.chequePre)}\n\nTotal disponível: ${M(summary.totalDisponivel)}${testTxt}`);
     }catch(e){
       console.error(e);
       alert('Não foi possível importar o Movimento de Caixa: '+(e?.message||e));
@@ -17172,6 +17224,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     const host=document.getElementById('caixa');if(!host)return;
     host.innerHTML=
       heading('Caixa e Contas','Dinheiro físico, bancos, cheques e recebimentos interligados ao Financeiro.',actions)+
+      `${window.lpIsTestModeV77?.()?'<div class="notice" style="margin-bottom:14px"><b>🧪 MODO TESTE:</b> a planilha altera os valores desta tela normalmente, mas somente na memória. Firebase e dados oficiais ficam pausados.</div>':''}`+
       `<section class="card lp-v82-import">
         <div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar Movimento de Caixa</h3><small class="cell-sub">Lê o movimento diário e também os saldos de Loja, Casa, Sicredi, Sicoob e cheques.</small></div>${snap?`<span class="soft-chip">Base: ${E(snap.snapshotDate||snap.month)}</span>`:''}</div>
         <div class="lp-v82-import-grid">
@@ -17816,7 +17869,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 
   const USERS={
     pedro:{id:'pedro',name:'Pedro',hash:'8192fa365d0e1e1907475fd063637021d7a98b69d28bafa66ebaab97864a6bb7'},
-    otavio:{id:'otavio',name:'Otávio',hash:'b2c97f3d2d44fbc0b8a5bebb6927e9724f6f40c59ed9a5820aa95b7a2490fc01'}
+    otavio:{id:'otavio',name:'Otavio',hash:'b2c97f3d2d44fbc0b8a5bebb6927e9724f6f40c59ed9a5820aa95b7a2490fc01'}
   };
 
   const T=v=>String(v??'').trim();
@@ -17830,7 +17883,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }
   function current(){
     try{
-      const raw=sessionStorage.getItem('lpInternalUserV88');
+      const raw=localStorage.getItem('lpInternalUserV90');
       if(!raw)return null;
       const u=JSON.parse(raw);
       return USERS[u.id]?{id:USERS[u.id].id,name:USERS[u.id].name}:null;
@@ -17839,8 +17892,12 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   function setCurrent(u){
     window.lpCurrentOperatorV88=u||null;
     try{
-      if(u)sessionStorage.setItem('lpInternalUserV88',JSON.stringify(u));
-      else sessionStorage.removeItem('lpInternalUserV88');
+      if(u){
+        localStorage.setItem('lpInternalUserV90',JSON.stringify(u));
+        localStorage.setItem('lpInternalLastUserV90',u.id);
+      }else{
+        localStorage.removeItem('lpInternalUserV90');
+      }
     }catch(e){}
     document.body.classList.toggle('lp-v88-user-ok',!!u);
     document.querySelectorAll('.profile-copy small').forEach(el=>{
@@ -17983,7 +18040,16 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         await writeIdentity(u);
         try{if(window.lpLinkPushToPresenceV84)await window.lpLinkPushToPresenceV84()}catch(e){}
       }else{
-        setTimeout(()=>document.getElementById('lpUserNameV88')?.focus(),100);
+        setTimeout(()=>{
+          const el=document.getElementById('lpUserNameV88');
+          if(el){
+            try{
+              const last=localStorage.getItem('lpInternalLastUserV90')||'';
+              if(last&&!el.value)el.value=last;
+            }catch(e){}
+            el.focus();
+          }
+        },100);
       }
     });
   }catch(e){}
