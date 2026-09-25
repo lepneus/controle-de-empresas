@@ -9714,7 +9714,8 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
   }
   window.lpExcelAutoSyncStatus=state;
   window.addEventListener('load',()=>setTimeout(start,1800));
-  setInterval(()=>{if(!state.started)start(); if(currentPage()==='planilhas')renderStatus()},5000);
+  // V97: polling antigo removido. A sincronização V60 usa listeners em tempo real.
+  // (mantido sem timer para evitar processamento desnecessário a cada 5 segundos)
 })();
 </script>
 
@@ -11855,7 +11856,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   window.lpIngestCloudStockMovementsV51=ingestAll;
   window.lpCloudStockMovementsV51=state;
   window.addEventListener('load',()=>setTimeout(start,2200));
-  setInterval(()=>{if(!state.started)start();else ingestAll()},5000);
+  // V97: polling antigo de movimentos removido. A V60 usa controleMovimentosV2 em tempo real.
 })();
 </script>
 
@@ -12540,33 +12541,61 @@ window.__LP_SALES_FIX_VERSION__='v47';
     return m;
   }
 
-  function sourceItems(type){
+  function sourceBundle(type){
     const meta=state.meta[type];
-    if(!meta)return [];
+    if(!meta)return {ready:false,items:[],docs:[],syncId:'',chunkCount:0};
     const syncId=T(meta.syncId);
     const chunkCount=Math.max(0,N(meta.chunkCount));
     const docs=[...state.chunks.values()]
       .filter(d=>norm(d.sourceType)===type && T(d.syncId)===syncId && N(d.chunkIndex)<chunkCount)
       .sort((a,b)=>N(a.chunkIndex)-N(b.chunkIndex));
-    const out=[];
-    docs.forEach(d=>{
-      if(Array.isArray(d.items))out.push(...d.items);
-    });
-    return out;
+    const ready=chunkCount===0 || docs.length===chunkCount;
+    const items=[];
+    if(ready)docs.forEach(d=>{if(Array.isArray(d.items))items.push(...d.items)});
+    return {ready,items,docs,syncId,chunkCount};
+  }
+
+  let stockApplyTimer=null;
+  let lastStockAppliedSignature='';
+  function scheduleStockApply(){
+    clearTimeout(stockApplyTimer);
+    stockApplyTimer=setTimeout(applyStock,180);
   }
 
   function applyStock(){
     try{if(window.lpIsTestModeV77?.())return}catch(e){}
     if(typeof data==='undefined'||!data)return;
     data.products=Array.isArray(data.products)?data.products:[];
+    const bundles=Object.fromEntries(TYPES.map(type=>[type,sourceBundle(type)]));
+    const readyTypes=TYPES.filter(type=>bundles[type].ready);
+    if(!readyTypes.length){
+      const got=TYPES.filter(t=>state.meta[t]).length;
+      badge(`Estoque: recebendo lote • ${got}/3 fontes`,'wait');
+      return;
+    }
+
+    // Só aplica uma fonte quando TODOS os chunks do syncId atual chegaram.
+    // Enquanto um lote ainda está chegando, mantém os produtos da versão anterior.
+    const signature=TYPES.map(type=>{
+      const b=bundles[type],m=state.meta[type]||{};
+      return `${type}:${b.ready?'1':'0'}:${b.syncId}:${T(m.updatedAtText)}:${b.docs.length}/${b.chunkCount}:${b.ready?b.items.length:'wait'}`;
+    }).join('|');
+    if(signature===lastStockAppliedSignature)return;
+
     const oldAuto=currentAutoMap();
     const manual=data.products.filter(p=>!p?.excelManaged);
     const next=[];
 
     for(const type of TYPES){
-      const rows=sourceItems(type);
-      for(const x of rows){
+      const b=bundles[type];
+      if(!b.ready){
+        // preserva exatamente a última versão já aplicada desta fonte
+        data.products.filter(p=>p?.excelManaged&&norm(p.sourceType)===type).forEach(p=>next.push(p));
+        continue;
+      }
+      for(const x of b.items){
         const key=T(x.syncKey);
+        if(!key)continue;
         const old=oldAuto.get(type+'|'+key);
         next.push({
           ...(old||{}),
@@ -12609,15 +12638,16 @@ window.__LP_SALES_FIX_VERSION__='v47';
     }
 
     data.products=[...manual,...next];
+    lastStockAppliedSignature=signature;
     rebuildPending();
     rerenderActive();
 
-    const got=TYPES.filter(t=>state.meta[t]).length;
+    const got=TYPES.filter(t=>bundles[t].ready).length;
     if(got===3){
       const units=TYPES.reduce((a,t)=>a+N(state.meta[t]?.totalQty),0);
       badge(`Estoque: conectado • 3/3 fontes • ${units.toLocaleString('pt-BR')} un.`,'ok');
     }else{
-      badge(`Estoque: recebendo fontes • ${got}/3`,'wait');
+      badge(`Estoque: aplicando somente lotes completos • ${got}/3`,'wait');
     }
   }
 
@@ -12700,7 +12730,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
         if(ch.type==='removed')state.chunks.delete(ch.doc.id);
         else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()});
       });
-      applyStock();
+      scheduleStockApply();
     },e=>{
       state.error=e?.message||String(e);
       badge('Estoque: erro de leitura','err');
@@ -12709,7 +12739,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
     d.collection('controleEstoqueV2Meta').onSnapshot(s=>{
       s.forEach(doc=>state.meta[doc.id]=doc.data()||{});
-      applyStock();
+      scheduleStockApply();
     },e=>{
       state.error=e?.message||String(e);
       badge('Estoque: erro de meta','err');
@@ -13741,51 +13771,100 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   function daysOverdue(iso){const a=dateMs(iso);if(!Number.isFinite(a))return null;const d=new Date(),b=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();return Math.floor((b-a)/DAY)}
   function fmtDate(iso){const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(T(iso)||'-')}
 
-  function sourceItems(type){
-    const meta=state.meta[type];if(!meta)return [];
-    const syncId=T(meta.syncId),count=Math.max(0,N(meta.chunkCount));
-    const docs=[...state.chunks.values()].filter(x=>T(x.sourceType)===type&&T(x.syncId)===syncId&&N(x.chunkIndex)<count).sort((a,b)=>N(a.chunkIndex)-N(b.chunkIndex));
-    const out=[];
-    docs.forEach(d=>{try{const a=JSON.parse(T(d.json)||'[]');if(Array.isArray(a))out.push(...a)}catch(e){console.warn('Finance V64 JSON:',e)}});
-    return out;
+  function sourceBundle(type){
+    const meta=state.meta[type];if(!meta)return {ready:false,items:[],docs:[],syncId:'',chunkCount:0};
+    const syncId=T(meta.syncId),chunkCount=Math.max(0,N(meta.chunkCount));
+    const docs=[...state.chunks.values()]
+      .filter(x=>T(x.sourceType)===type&&T(x.syncId)===syncId&&N(x.chunkIndex)<chunkCount)
+      .sort((a,b)=>N(a.chunkIndex)-N(b.chunkIndex));
+    const ready=chunkCount===0||docs.length===chunkCount;
+    const items=[];
+    if(ready)docs.forEach(d=>{try{const a=JSON.parse(T(d.json)||'[]');if(Array.isArray(a))items.push(...a)}catch(e){console.warn('Finance V97 JSON:',e)}});
+    return {ready,items,docs,syncId,chunkCount};
   }
   function autoStatus(due){const x=daysOverdue(due);return x!==null&&x>0?'Vencido':'Pendente'}
+  function sourceText(f){return norm(`${T(f?.sourceFile)} ${T(f?.sourceSheet)} ${T(f?.notes)}`)}
+  function isLegacyAuthoritativeRow(f,type){
+    if(f?.cloudManagedFinance)return false;
+    const s=sourceText(f);
+    if(type==='receber')return s.includes('devedores lepneus');
+    if(type==='pagar')return s.includes('dividas lepneus');
+    return false;
+  }
+  function uniqueBySource(rows){
+    const map=new Map();
+    rows.forEach((x,i)=>{
+      const key=T(x.sourceKey)||`${norm(x.name||x.customerName||x.desc)}|${T(x.dueDate)}|${norm(x.sourceSheet)}|${N(x.remaining||x.value).toFixed(2)}|${i}`;
+      if(!map.has(key))map.set(key,x);
+    });
+    return [...map.values()];
+  }
+
+  let financeApplyTimer=null;
+  let lastFinanceAppliedSignature='';
+  function scheduleFinanceApply(){
+    clearTimeout(financeApplyTimer);
+    financeApplyTimer=setTimeout(applyCloud,180);
+  }
 
   function applyCloud(){
     try{if(window.lpIsTestModeV77?.())return}catch(e){}
     ensure();
-    const recv=sourceItems('receber');
-    const pay=sourceItems('pagar');
+    const recBundle=sourceBundle('receber');
+    const payBundle=sourceBundle('pagar');
+    if(!recBundle.ready&&!payBundle.ready)return;
 
-    // V68: Balanço Anual e Movimento de Caixa deixaram de ser automáticos.
-    // Remove somente dados antigos que vieram do sincronizador V64; importações manuais permanecem.
+    const signature=[recBundle,payBundle].map((b,i)=>{
+      const type=TYPES[i],m=state.meta[type]||{};
+      return `${type}:${b.ready?'1':'0'}:${b.syncId}:${T(m.updatedAtText)}:${b.docs.length}/${b.chunkCount}:${b.ready?b.items.length:'wait'}`;
+    }).join('|');
+    if(signature===lastFinanceAppliedSignature)return;
+
+    // Balanço Anual e Movimento de Caixa continuam manuais.
     data.lpHistoricalClosings=data.lpHistoricalClosings.filter(x=>!x.autoSyncFinance);
     data.lpDailyFinancial=data.lpDailyFinancial.filter(x=>!x.autoSyncFinance);
 
-    const recItems=recv.filter(x=>T(x.kind)!=='loss').map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
-    const lossItems=recv.filter(x=>T(x.kind)==='loss').map(x=>({...x,autoSyncFinance:true}));
-    const payItems=pay
-      .filter(x=>!T(x.paidDate))
-      .map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
-    data.lpFinanceReview.receivables=[...data.lpFinanceReview.receivables.filter(x=>!x.autoSyncFinance),...recItems];
-    data.lpFinanceReview.losses=[...data.lpFinanceReview.losses.filter(x=>!x.autoSyncFinance),...lossItems];
-    data.lpFinanceReview.payables=[...data.lpFinanceReview.payables.filter(x=>!x.autoSyncFinance),...payItems];
+    const recv=recBundle.ready?recBundle.items:[];
+    const pay=payBundle.ready?payBundle.items:[];
+    const recItems=recBundle.ready?uniqueBySource(recv.filter(x=>T(x.kind)!=='loss')).map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'})):[];
+    const lossItems=recBundle.ready?uniqueBySource(recv.filter(x=>T(x.kind)==='loss')).map(x=>({...x,autoSyncFinance:true})):[];
+    const payItems=payBundle.ready?uniqueBySource(pay.filter(x=>!T(x.paidDate)&&N(x.remaining)>0)).map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'})):[];
 
-    // As planilhas financeiras sincronizadas são a fonte autoritativa destes lançamentos.
-    // Não altera lançamentos manuais do sistema.
-    const manual=data.finance.filter(x=>!x.cloudManagedFinance);
+    if(recBundle.ready){
+      data.lpFinanceReview.receivables=[...data.lpFinanceReview.receivables.filter(x=>!x.autoSyncFinance),...recItems];
+      data.lpFinanceReview.losses=[...data.lpFinanceReview.losses.filter(x=>!x.autoSyncFinance),...lossItems];
+    }
+    if(payBundle.ready){
+      data.lpFinanceReview.payables=[...data.lpFinanceReview.payables.filter(x=>!x.autoSyncFinance),...payItems];
+    }
+
+    // Mantém lançamentos realmente manuais. Quando a planilha automática atual está pronta,
+    // remove cópias antigas importadas da MESMA fonte para não somar a mesma dívida duas vezes.
+    const manual=data.finance.filter(x=>{
+      if(x?.cloudManagedFinance)return false;
+      if(recBundle.ready&&isLegacyAuthoritativeRow(x,'receber'))return false;
+      if(payBundle.ready&&isLegacyAuthoritativeRow(x,'pagar'))return false;
+      return true;
+    });
+    const previousCloud=data.finance.filter(x=>x?.cloudManagedFinance);
     const cloud=[];
-    recItems.forEach(r=>{
+
+    // Se um dos dois lotes ainda não terminou de chegar, preserva a última versão aplicada dele.
+    if(!recBundle.ready)previousCloud.filter(x=>T(x.type)==='Receita').forEach(x=>cloud.push(x));
+    if(!payBundle.ready)previousCloud.filter(x=>T(x.type)==='Despesa').forEach(x=>cloud.push(x));
+
+    if(recBundle.ready)recItems.forEach(r=>{
       if(N(r.remaining)<=0)return;
       cloud.push({id:'finrec_'+T(r.sourceKey),type:'Receita',category:r.category||'A prazo',desc:r.customerName||'Cliente',customerName:r.customerName||'',value:N(r.remaining),date:r.purchaseDate||'',dueDate:r.dueDate||'',payment:r.category==='Cheque'?'Cheque':'A prazo',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.receber?.sourceFile||'Devedores LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.receber?.sourceFile||'',sourceSheet:r.sourceSheet||'',lastPaymentDate:r.lastPaymentDate||'',cloudManagedFinance:true});
     });
-    payItems.forEach(r=>{
-      if(N(r.remaining)<=0)return;
+    if(payBundle.ready)payItems.forEach(r=>{
+      if(N(r.remaining)<=0||T(r.paidDate))return;
       cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',paidDate:r.paidDate||'',paymentAmount:N(r.paymentAmount||0),cloudManagedFinance:true});
     });
     data.finance=[...manual,...cloud];
 
     TYPES.forEach(t=>{if(state.meta[t])data.lpFinancialCloudMeta[t]={...state.meta[t]}});
+    lastFinanceAppliedSignature=signature;
     rerender();
   }
 
@@ -13854,8 +13933,8 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     if(state.started)return;const d=db();if(!d){setTimeout(start,900);return}const user=window.firebase?.auth?.().currentUser;if(!user){setTimeout(start,900);return}
     state.started=true;
     // V68: lê somente os dois tipos realmente automáticos, economizando leituras do Firestore.
-    d.collection('controleFinanceiroV2').where('sourceType','in',['receber','pagar']).onSnapshot(s=>{s.docChanges().forEach(ch=>{if(ch.type==='removed')state.chunks.delete(ch.doc.id);else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()})});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2:',e);rerender()});
-    d.collection('controleFinanceiroV2Meta').where('sourceType','in',['receber','pagar']).onSnapshot(s=>{s.forEach(doc=>state.meta[doc.id]=doc.data()||{});applyCloud()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2Meta:',e);rerender()});
+    d.collection('controleFinanceiroV2').where('sourceType','in',['receber','pagar']).onSnapshot(s=>{s.docChanges().forEach(ch=>{if(ch.type==='removed')state.chunks.delete(ch.doc.id);else state.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()})});scheduleFinanceApply()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2:',e);rerender()});
+    d.collection('controleFinanceiroV2Meta').where('sourceType','in',['receber','pagar']).onSnapshot(s=>{s.forEach(doc=>state.meta[doc.id]=doc.data()||{});scheduleFinanceApply()},e=>{state.error=e?.message||String(e);console.error('controleFinanceiroV2Meta:',e);rerender()});
   }
 
   window.lpFinanceSyncV64State=state;
@@ -14558,12 +14637,27 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return !!f?.cloudManagedFinance||s.includes('dividas lepneus');
   }
   function payables(){
-    return data.finance.filter(f=>
+    let rows=data.finance.filter(f=>
       T(f.type)==='Despesa' &&
       !/pago|recebido|cancelado/i.test(T(f.status)) &&
       !T(f.paidDate) &&
+      N(f.value)>0 &&
       isDebtSource(f)
-    ).sort((a,b)=>(T(a.dueDate)||'9999').localeCompare(T(b.dueDate)||'9999'));
+    );
+    const cloud=rows.filter(f=>f?.cloudManagedFinance===true);
+    if(cloud.length){
+      // A planilha Dívidas LEPNEUS sincronizada é a fonte oficial desta tela.
+      // Cópias antigas importadas ficam fora da soma para não duplicar valores.
+      rows=cloud;
+    }
+    const unique=new Map();
+    rows.forEach((f,i)=>{
+      const sk=T(f.sourceKey);
+      const key=sk?`src:${sk}`:`row:${norm(f.desc)}|${T(f.dueDate)}|${norm(f.sourceSheet)}|${N(f.value).toFixed(2)}|${T(f.id)||i}`;
+      const old=unique.get(key);
+      if(!old||(!old.cloudManagedFinance&&f.cloudManagedFinance))unique.set(key,f);
+    });
+    return [...unique.values()].sort((a,b)=>(T(a.dueDate)||'9999').localeCompare(T(b.dueDate)||'9999'));
   }
   function payState(f){
     const over=daysOver(f.dueDate),until=daysUntil(f.dueDate);
@@ -14795,7 +14889,25 @@ window.__LP_PERSISTENCE_VERSION__='v60';
   const saveNow=()=>{try{if(typeof save==='function')save();else localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){console.warn(e)}};
 
   function activeReceivables(){
-    return (data.finance||[]).filter(f=>T(f.type)==='Receita'&&!/pago|recebido|cancelado/i.test(T(f.status))&&N(f.value)>0);
+    let rows=(data.finance||[]).filter(f=>T(f.type)==='Receita'&&!/pago|recebido|cancelado/i.test(T(f.status))&&N(f.value)>0);
+    const cloud=rows.filter(f=>f?.cloudManagedFinance===true);
+    if(cloud.length){
+      // Devedores LEPNEUS sincronizado é a fonte oficial. Mantém contas realmente manuais,
+      // mas elimina importações antigas da mesma planilha que causavam soma duplicada.
+      rows=rows.filter(f=>{
+        if(f?.cloudManagedFinance===true)return true;
+        const src=norm(`${T(f.sourceFile)} ${T(f.sourceSheet)} ${T(f.notes)}`);
+        return !src.includes('devedores lepneus');
+      });
+    }
+    const unique=new Map();
+    rows.forEach((f,i)=>{
+      const sk=T(f.sourceKey);
+      const key=sk?`src:${sk}`:`row:${norm(f.customerName||f.desc)}|${T(f.dueDate)}|${norm(f.sourceSheet)}|${N(f.value).toFixed(2)}|${T(f.id)||i}`;
+      const old=unique.get(key);
+      if(!old||(!old.cloudManagedFinance&&f.cloudManagedFinance))unique.set(key,f);
+    });
+    return [...unique.values()];
   }
   function debtorGroups(){
     const map=new Map();
@@ -19057,5 +19169,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 })();
 </script>
 
+
+<!-- LE PNEUS V97 • 2026-09-25
+     Correções: lotes completos antes de aplicar sync, debounce de render, remoção de polling legado,
+     deduplicação de Devedores/Dívidas e exclusão de cópias antigas da soma. -->
 </body>
 </html>
