@@ -181,6 +181,7 @@ async function loadOpenPayables() {
     (x) =>
       cents(x.remaining) > 0 &&
       validIso(x.dueDate) &&
+      !String(x.paidDate || "").trim() &&
       isSupplierBoleto(x)
   );
 
@@ -358,7 +359,7 @@ async function main() {
   }
 
   const rows = await loadOpenPayables();
-  console.log("Boletos pendentes carregados e deduplicados:", rows.length);
+  console.log("Boletos realmente pendentes (sem Data Pagamento):", rows.length);
 
   if (MODE === "morning") {
     await sendMorning(rows, devices);
