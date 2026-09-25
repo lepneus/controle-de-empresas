@@ -18384,7 +18384,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 
-<script id="lp-v96-sales-cards-pdf-js">
+<script id="lp-v97-sales-cards-pdf-js">
 (function(){
   if(window.__lpV96)return;
   window.__lpV96=true;
@@ -18513,7 +18513,13 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       </div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpSaveNewCardV96()">Salvar</button></div>`);
     const p=document.getElementById('lpCardNewPayV96'),d=document.getElementById('lpCardNewDateV96'),e=document.getElementById('lpCardNewExpectedV96');
-    const refresh=()=>{if(e)e.value=addDays(d?.value||today(),cardDays(p?.value||'Crédito'))};
+    const refresh=()=>{
+      const pv=T(p?.value)||'Crédito';
+      const days=norm(pv).includes('debito')
+        ? Math.max(1,N(data.settings.cardDebitDaysV96)||1)
+        : Math.max(1,N(data.settings.cardCreditDaysV96)||30);
+      if(e)e.value=addDays(d?.value||today(),days);
+    };
     p?.addEventListener('change',refresh);d?.addEventListener('change',refresh);
   };
 
@@ -18649,7 +18655,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <div class="panel-head"><div><h3 class="section-title" style="margin:0">Configuração da previsão</h3><small class="cell-sub">Apenas para calcular a data prevista automaticamente; você pode editar cada lançamento.</small></div></div>
         <div class="lp-v96-card-settings">
           <label>Débito cai em quantos dias<input id="lpCardDebitDaysV96" type="number" min="0" value="${N(data.settings.cardDebitDaysV96)}"></label>
-          <label>Crédito cai em quantos dias<input id="lpCardCreditDaysV96" type="number" min="0" value="${N(data.settings.cardCreditDaysV96)}"></label>
+          <label>Crédito: intervalo entre parcelas (dias)<input id="lpCardCreditDaysV96" type="number" min="1" value="${N(data.settings.cardCreditDaysV96)}"></label>
           <label>Banco padrão<select id="lpCardBankV96"><option value="sicredi" ${data.settings.cardDefaultBankV96==='sicredi'?'selected':''}>Sicredi Le Pneus</option><option value="sicoob" ${data.settings.cardDefaultBankV96==='sicoob'?'selected':''}>Sicoob Le Pneus</option></select></label>
           <button class="btn ghost" onclick="lpSaveCardSettingsV96()">Salvar configuração</button>
         </div>
@@ -18736,14 +18742,33 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 
     const pay=document.getElementById('dipayment'),status=document.getElementById('dipaymentstatus'),acc=document.getElementById('diaccountV96'),count=document.getElementById('diinstallments'),due=document.getElementById('difirstdue'),purchaseEl=document.getElementById('dipurchasedate'),hint=document.getElementById('diHintV96');
     const refresh=()=>{
-      const pv=T(pay?.value)||'PIX',st=T(status?.value)||'Pago',n=Math.max(1,N(count?.value)||1);
+      const pv=T(pay?.value)||'PIX',st=T(status?.value)||'Pago';
+      const isDebit=norm(pv).includes('debito');
+      const isCredit=norm(pv).includes('credito')||norm(pv).includes('cartao');
+
       if(acc)acc.innerHTML=accountOptions(pv,acc.value);
-      if(isCardPayment(pv)){
+
+      if(isDebit){
         if(status)status.value='Pago';
+        if(count){count.value='1';count.min='1';count.max='1';count.disabled=true}
         if(acc){acc.innerHTML=accountOptions(pv,'cartoes');acc.disabled=true}
-        if(due)due.value=addDays(purchaseEl?.value||today(),cardDays(pv));
-        if(hint)hint.innerHTML=`Cartão: a venda fica paga pelo cliente e o valor vai para <b>Controle de Cartões</b>. ${n>1?`${n} parcelas serão previstas mensalmente.`:'A previsão de crédito é editável.'}`;
+        if(due)due.value=addDays(purchaseEl?.value||today(),Math.max(1,N(data.settings.cardDebitDaysV96)||1));
+        if(hint)hint.innerHTML='Débito: sempre <b>1x</b>. Previsão padrão de crédito em <b>1 dia</b>.';
+      }else if(isCredit){
+        if(status)status.value='Pago';
+        if(count){
+          count.disabled=false;count.min='1';count.max='10';
+          if(N(count.value)<1)count.value='1';
+          if(N(count.value)>10)count.value='10';
+        }
+        const n=Math.max(1,Math.min(10,N(count?.value)||1));
+        if(acc){acc.innerHTML=accountOptions(pv,'cartoes');acc.disabled=true}
+        const step=Math.max(1,N(data.settings.cardCreditDaysV96)||30);
+        if(due)due.value=addDays(purchaseEl?.value||today(),step);
+        if(hint)hint.innerHTML=`Crédito em <b>${n}x</b>: previsão em ${Array.from({length:n},(_,i)=>`${step*(i+1)} dias`).join(', ')}.`;
       }else{
+        if(count){count.disabled=false;count.min='1';count.max='60'}
+        const n=Math.max(1,N(count?.value)||1);
         if(acc)acc.disabled=st!=='Pago';
         if(n>1&&st==='Pago'&&status){status.value='Pendente'}
         if(hint)hint.textContent=n>1?'Venda parcelada: cria contas a receber mensais.':'Pagamento à vista: entra na conta escolhida.';
@@ -18775,7 +18800,11 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const payment=T(document.getElementById('dipayment')?.value)||'PIX';
       let payStatus=T(document.getElementById('dipaymentstatus')?.value)||'Pago';
       const purchaseDate=T(document.getElementById('dipurchasedate')?.value)||today();
-      const count=Math.max(1,Math.min(60,Math.floor(N(document.getElementById('diinstallments')?.value)||1)));
+      let count=Math.max(1,Math.min(60,Math.floor(N(document.getElementById('diinstallments')?.value)||1)));
+      const debitCard=norm(payment).includes('debito');
+      const creditCard=norm(payment).includes('credito')||norm(payment).includes('cartao');
+      if(debitCard)count=1;
+      if(creditCard)count=Math.max(1,Math.min(10,count));
       const firstDue=T(document.getElementById('difirstdue')?.value)||addDays(purchaseDate,30);
       const alertDays=Math.max(0,Math.min(60,N(document.getElementById('dialertdays')?.value)));
       const name=T(document.getElementById('dicustomer')?.value);
@@ -18819,7 +18848,12 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       for(let i=1;i<=count;i++){
         const value=i===count?Math.round((total-allocated)*100)/100:base;
         allocated=Math.round((allocated+value)*100)/100;
-        const due=addMonths(firstDue,i-1);
+        const cardStep=Math.max(1,N(data.settings.cardCreditDaysV96)||30);
+        const due=isCardPayment(payment)
+          ? (debitCard
+              ? addDays(purchaseDate,Math.max(1,N(data.settings.cardDebitDaysV96)||1))
+              : addDays(purchaseDate,cardStep*i))
+          : addMonths(firstDue,i-1);
         const status=payStatus==='Pago'?'Pago':'Pendente';
 
         if(status==='Pago')window.__lpNextAccountV82=isCardPayment(payment)?'cartoes':account;
@@ -18839,7 +18873,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
           const c=(data.cash||[]).find(x=>T(x.id)===T(f.cashId));
           const r=c?ensureCardFromCash(c):null;
           if(r){
-            r.expectedDate=count>1?addMonths(firstDue,i-1):firstDue;
+            r.expectedDate=debitCard
+              ? addDays(purchaseDate,Math.max(1,N(data.settings.cardDebitDaysV96)||1))
+              : addDays(purchaseDate,cardStep*i);
             r.description=count>1?`Venda #${sale.id} • parcela ${i}/${count}`:`Venda #${sale.id}`;
             r.originNumber=count>1?`VEN-${sale.id}-${i}/${count}`:`VEN-${sale.id}`;
             r.destinationAccount=T(data.settings.cardDefaultBankV96)||'sicredi';
