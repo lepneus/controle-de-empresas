@@ -16966,25 +16966,96 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }
   function summaryFromSheet(wb,day){
     const rows=sheetRows(wb,String(day));if(!rows.length)return null;
+
+    // V92: somente os campos do RESUMO DO CAIXA da LE PNEUS.
+    // Não usamos os aliases genéricos CASA/LOJA porque eles também existem
+    // no bloco FLUXO DINHEIRO e podem conter lançamentos de abas futuras.
+    // CONTA SICREDI GERAL e outras empresas são ignoradas. Zero Furo é tratado separadamente.
     const a={
-      loja:findNextValue(rows,['DINHEIRO EM LOJA','LOJA']),
-      casa:findNextValue(rows,['DINHEIRO EM CASA','CASA']),
+      loja:findNextValue(rows,['DINHEIRO EM LOJA']),
+      casa:findNextValue(rows,['DINHEIRO EM CASA']),
       sicredi:findNextValue(rows,['SICREDI E RAMOS','SICREDI LE PNEUS']),
       sicoob:findNextValue(rows,['SICOOB E RAMOS','SICOOB LE PNEUS']),
       chequeVista:findNextValue(rows,['CHEQUE A VISTA','CHEQUES A VISTA']),
       chequePre:findNextValue(rows,['CHEQUE PRÉ DATADO','CHEQUE PRE DATADO','CHEQUES PRÉ DATADOS','CHEQUES PRE DATADOS']),
       cartoes:0
     };
+
     const dinheiro=findNextValue(rows,['DINHEIRO']);
     const totalDisponivel=findNextValue(rows,['TOTAL CAIXA DISPONIVEL','TOTAL CAIXA DISPONÍVEL']);
     const totalPredatado=findNextValue(rows,['TOTAL CAIXA PREDATADO','TOTAL CAIXA PRÉ DATADO','TOTAL CAIXA PRE DATADO']);
-    const valid=Object.values(a).some(v=>v!==null&&v!==0)||N(totalDisponivel)!==0;
-    if(!valid)return null;
+
+    // V93: Zero Furo é lido, mas fica FORA do caixa e dos totais da Le Pneus.
+    // Conta Sicredi Geral e demais empresas continuam ignoradas.
+    const zeroFuro=findNextValue(rows,['ZEROFURO','ZERO FURO']);
+
+    // Uma aba diária só é aceita como resumo real quando os campos próprios
+    // da LE PNEUS estão preenchidos. Anotações no bloco da direita não validam a aba.
+    const core=['loja','casa','sicredi','sicoob','chequeVista','chequePre'];
+    const hasCore=core.some(k=>a[k]!==null);
+    if(!hasCore)return null;
+
     Object.keys(a).forEach(k=>{if(a[k]===null)a[k]=0});
-    return {day,accounts:a,dinheiro:N(dinheiro),totalDisponivel:N(totalDisponivel),totalPredatado:N(totalPredatado)};
+
+    const calcDinheiro=N(a.loja)+N(a.casa);
+    const calcDisponivel=calcDinheiro+N(a.sicredi)+N(a.sicoob)+N(a.chequeVista);
+    const calcPredatado=calcDisponivel+N(a.chequePre);
+
+    return {
+      day,
+      accounts:a,
+      dinheiro:N(dinheiro),
+      totalDisponivel:N(totalDisponivel),
+      totalPredatado:N(totalPredatado),
+      calcDinheiro,
+      calcDisponivel,
+      calcPredatado,
+      zeroFuro:N(zeroFuro),
+      lePneusOnlyV92:true,
+      zeroFuroSeparateV93:true
+    };
   }
+
+  function lastMovementDayFromMC(wb){
+    const ws=wb.Sheets['MC']||wb.Sheets[wb.SheetNames.find(n=>norm(n)==='mc')];
+    if(!ws)return 0;
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+    let last=0;
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]||[];
+      const day=Number(row[0]);
+      if(!Number.isInteger(day)||day<1||day>31)continue;
+
+      // B:H = vendas/serviços/pagamentos/recebimentos.
+      // A última linha com movimento real define a aba diária que deve ser lida.
+      const hasMovement=row.slice(1,8).some(v=>{
+        const n=Number(v);
+        return Number.isFinite(n)&&Math.abs(n)>.000001;
+      });
+      if(hasMovement)last=Math.max(last,day);
+    }
+    return last;
+  }
+
   function latestWorkbookSummary(wb){
-    for(let d=31;d>=1;d--){const s=summaryFromSheet(wb,d);if(s)return s}
+    const last=lastMovementDayFromMC(wb);
+    if(last){
+      const exact=summaryFromSheet(wb,last);
+      if(exact)return exact;
+
+      // Se a aba do último movimento estiver incompleta, procura somente para trás.
+      for(let d=last-1;d>=1;d--){
+        const s=summaryFromSheet(wb,d);
+        if(s)return s;
+      }
+      return null;
+    }
+
+    // Compatibilidade com planilhas antigas sem MC preenchida.
+    for(let d=31;d>=1;d--){
+      const s=summaryFromSheet(wb,d);
+      if(s && (N(s.totalDisponivel)!==0 || N(s.dinheiro)!==0))return s;
+    }
     return null;
   }
   function guessMonth(name){
@@ -17052,7 +17123,23 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       }
 
       const summary=latestWorkbookSummary(wb);
-      if(!summary)throw new Error('Não encontrei o RESUMO DO CAIXA nas abas diárias.');
+      if(!summary)throw new Error('Não encontrei um RESUMO DO CAIXA válido da Le Pneus nas abas diárias.');
+
+      // Confere a matemática do próprio resumo antes de importar.
+      // Isso também impede usar por engano CONTA SICREDI GERAL ou valores de outras empresas.
+      const moneyTolerance=.02;
+      const checkDinheiro=Math.abs(N(summary.dinheiro)-N(summary.calcDinheiro));
+      const checkDisponivel=Math.abs(N(summary.totalDisponivel)-N(summary.calcDisponivel));
+      const checkPredatado=Math.abs(N(summary.totalPredatado)-N(summary.calcPredatado));
+
+      if(checkDinheiro>moneyTolerance || checkDisponivel>moneyTolerance || checkPredatado>moneyTolerance){
+        throw new Error(
+          `O resumo do dia ${summary.day} não fechou somente com os valores da Le Pneus. `+
+          `Dinheiro: ${M(summary.dinheiro)} x ${M(summary.calcDinheiro)}; `+
+          `Disponível: ${M(summary.totalDisponivel)} x ${M(summary.calcDisponivel)}; `+
+          `Predatado: ${M(summary.totalPredatado)} x ${M(summary.calcPredatado)}.`
+        );
+      }
 
       const previous=currentBalancesBeforeImport();
       const importedAtIso=new Date().toISOString();
@@ -17071,6 +17158,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       state.snapshots.push({
         month,snapshotDate,day:summary.day,sourceFile:file.name,importedAtIso,
         accounts,
+        zeroFuro:N(summary.zeroFuro),
         dinheiroPlanilha:summary.dinheiro,
         totalDisponivelPlanilha:summary.totalDisponivel,
         totalPredatadoPlanilha:summary.totalPredatado
@@ -17078,7 +17166,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       state.snapshots=state.snapshots.sort((a,b)=>T(b.month).localeCompare(T(a.month))).slice(0,36);
       state.months[month]={
         month,sourceFile:file.name,importedAtIso,daily,
-        summaryDay:summary.day,totalDisponivel:summary.totalDisponivel,totalPredatado:summary.totalPredatado
+        summaryDay:summary.day,
+        totalDisponivel:summary.totalDisponivel,
+        totalPredatado:summary.totalPredatado,
+        zeroFuro:N(summary.zeroFuro)
       };
 
       data.cash=data.cash.filter(x=>!(x.cashMovementImportV82&&x.sourceMonth===month) && !(x.cashMovementImportV68&&x.sourceMonth===month));
@@ -17119,12 +17210,189 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         ? '\n\n🧪 MODO TESTE: estes valores foram aplicados somente na memória para você testar. Ao sair do teste, serão descartados.'
         : '\n\n✅ MODO NORMAL: estes valores foram aplicados e enviados ao fluxo normal de salvamento.';
 
-      alert(`Movimento de Caixa ${month} importado e conferido.\n\nResumo do dia ${summary.day}:\nDinheiro Loja: ${M(accounts.loja)}\nDinheiro Casa: ${M(accounts.casa)}\nSicredi: ${M(accounts.sicredi)}\nSicoob: ${M(accounts.sicoob)}\nCheque à vista: ${M(accounts.chequeVista)}\nPré-datados: ${M(accounts.chequePre)}\n\nTotal disponível: ${M(summary.totalDisponivel)}${testTxt}`);
+      alert(`Movimento de Caixa ${month} importado e conferido.\n\n✅ CAIXA LE PNEUS\nDinheiro Loja: ${M(accounts.loja)}\nDinheiro Casa: ${M(accounts.casa)}\nSicredi Le Pneus: ${M(accounts.sicredi)}\nSicoob Le Pneus: ${M(accounts.sicoob)}\nCheque à vista: ${M(accounts.chequeVista)}\nPré-datados: ${M(accounts.chequePre)}\n\nTotal disponível Le Pneus: ${M(summary.totalDisponivel)}\nTotal Le Pneus c/ pré-datados: ${M(summary.totalPredatado)}\n\n🛞 ZERO FURO (SEPARADO): ${M(summary.zeroFuro)}\nNão entra em nenhum total da Le Pneus.\n\nConta Sicredi Geral e demais empresas foram ignoradas.${testTxt}`);
     }catch(e){
       console.error(e);
       alert('Não foi possível importar o Movimento de Caixa: '+(e?.message||e));
     }
   };
+
+  function zeroFuroBalanceV93(snap=latestSnapshot()){
+    let total=N(snap?.zeroFuro);
+    const after=snap?.importedAtIso?Date.parse(snap.importedAtIso):0;
+
+    (data.cash||[]).forEach(c=>{
+      if(T(c.accountId)!=='zerofuro')return;
+      if(c.cashMovementImportV82||c.cashMovementImportV68||c.accountReconciledV82)return;
+      const created=cashCreatedMs(c);
+      if(after&&created&&created<=after)return;
+
+      const v=N(c.value);
+      if(c.type==='Entrada')total+=v;
+      else if(c.type==='Saída')total-=v;
+      else if(c.accountDelta!==undefined)total+=N(c.accountDelta);
+    });
+
+    return total;
+  }
+  window.lpZeroFuroBalanceV93=zeroFuroBalanceV93;
+
+  function zeroFuroRowsV93(){
+    return (data.cash||[])
+      .filter(c=>T(c.accountId)==='zerofuro')
+      .slice(0,30);
+  }
+
+  window.lpMoveZeroFuroV93=function(){
+    const current=zeroFuroBalanceV93();
+    showModal(`<h2>Movimentar Zero Furo</h2>
+      <div class="notice">
+        <b>Área separada da Le Pneus.</b><br>
+        Este valor não entra no Caixa Le Pneus, não participa das vendas/serviços da Le Pneus e não altera os totais principais.
+      </div>
+      <div class="form">
+        <label>Movimento
+          <select id="lpZeroTypeV93">
+            <option value="Entrada">Entrada</option>
+            <option value="Saída">Saída</option>
+          </select>
+        </label>
+        <label>Valor
+          <input id="lpZeroValueV93" type="number" min="0" step="0.01" placeholder="0,00">
+        </label>
+        <label class="full">Observação
+          <input id="lpZeroNoteV93" placeholder="Ex.: ajuste / recebimento Zero Furo">
+        </label>
+      </div>
+      <div class="lp-v82-mini">Saldo atual: <b>${M(current)}</b></div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" onclick="lpConfirmMoveZeroFuroV93()">Salvar movimento</button>
+      </div>`);
+  };
+
+  window.lpConfirmMoveZeroFuroV93=function(){
+    const type=T(document.getElementById('lpZeroTypeV93')?.value);
+    const value=N(document.getElementById('lpZeroValueV93')?.value);
+    const note=T(document.getElementById('lpZeroNoteV93')?.value);
+    if(!['Entrada','Saída'].includes(type))return;
+    if(value<=0)return alert('Informe um valor maior que zero.');
+
+    const current=zeroFuroBalanceV93();
+    if(type==='Saída' && value>current && !confirm('A saída é maior que o saldo atual do Zero Furo. Continuar?'))return;
+
+    const iso=new Date().toISOString();
+    const date=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+
+    data.cash.unshift({
+      id:'ZF-'+Date.now(),
+      type,
+      desc:note||`Movimento Zero Furo • ${type}`,
+      value,
+      payment:'Zero Furo',
+      date,
+      createdAtIso:iso,
+      originType:'Zero Furo',
+      accountId:'zerofuro',
+      accountName:'Zero Furo',
+      companyArea:'zerofuro',
+      zeroFuroSeparateV93:true,
+      accountSchema:'v93'
+    });
+
+    try{if(typeof log==='function')log(`Zero Furo • ${type} ${M(value)}`)}catch(e){}
+    saveCompat();
+    closeModal();
+    window.renderCaixa();
+  };
+
+  window.lpAdjustZeroFuroV93=function(){
+    const current=zeroFuroBalanceV93();
+    showModal(`<h2>Ajustar saldo do Zero Furo</h2>
+      <div class="notice">Ajuste separado. Não afeta nenhum saldo ou total da Le Pneus.</div>
+      <div class="form">
+        <label>Novo saldo
+          <input id="lpZeroAdjustV93" type="number" step="0.01" value="${current.toFixed(2)}">
+        </label>
+        <label class="full">Motivo
+          <input id="lpZeroAdjustNoteV93" placeholder="Ex.: conferência da planilha">
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" onclick="lpConfirmAdjustZeroFuroV93()">Aplicar</button>
+      </div>`);
+  };
+
+  window.lpConfirmAdjustZeroFuroV93=function(){
+    const desired=N(document.getElementById('lpZeroAdjustV93')?.value);
+    const note=T(document.getElementById('lpZeroAdjustNoteV93')?.value);
+    const current=zeroFuroBalanceV93();
+    const diff=desired-current;
+    if(Math.abs(diff)<.005)return alert('O Zero Furo já está nesse saldo.');
+
+    const iso=new Date().toISOString();
+    const date=typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
+
+    data.cash.unshift({
+      id:'ZF-AJ-'+Date.now(),
+      type:diff>0?'Entrada':'Saída',
+      desc:'Ajuste Zero Furo • '+(note||'Conferência'),
+      value:Math.abs(diff),
+      payment:'Ajuste Zero Furo',
+      date,
+      createdAtIso:iso,
+      originType:'Zero Furo',
+      accountId:'zerofuro',
+      accountName:'Zero Furo',
+      companyArea:'zerofuro',
+      zeroFuroSeparateV93:true,
+      accountSchema:'v93'
+    });
+
+    saveCompat();
+    closeModal();
+    window.renderCaixa();
+  };
+
+  function renderZeroFuroV93(){
+    const saldo=zeroFuroBalanceV93();
+    const snap=latestSnapshot();
+    const rows=zeroFuroRowsV93().map(c=>`<tr>
+      <td>${E(c.date||'-')}</td>
+      <td>${typeof statusBadge==='function'?statusBadge(c.type):E(c.type)}</td>
+      <td>${E(c.desc||'-')}</td>
+      <td><b>${M(c.value)}</b></td>
+    </tr>`).join('');
+
+    return `<section class="card lp-v93-zero-furo" style="margin-top:18px">
+      <div class="panel-head">
+        <div>
+          <h3 class="section-title" style="margin:0">Zero Furo</h3>
+          <small class="cell-sub">Área separada. Não entra no Caixa Le Pneus e não participa dos totais, vendas, serviços ou pagamentos da Le Pneus.</small>
+        </div>
+        <span class="soft-chip">Separado</span>
+      </div>
+
+      <div class="lp-v82-summary" style="margin-top:12px">
+        ${metric('Saldo Zero Furo',M(saldo),'fora dos totais da Le Pneus',saldo>=0?'green':'red')}
+        ${metric('Base da planilha',M(N(snap?.zeroFuro)),'última importação','green')}
+      </div>
+
+      <div class="actions" style="margin-top:12px;flex-wrap:wrap">
+        <button class="btn ghost" onclick="lpMoveZeroFuroV93()">+ Movimento Zero Furo</button>
+        <button class="btn ghost" onclick="lpAdjustZeroFuroV93()">Ajustar saldo</button>
+      </div>
+
+      <div class="table-wrap" style="margin-top:14px">
+        <table>
+          <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="4" class="empty">Nenhuma movimentação manual do Zero Furo.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+  window.lpRenderZeroFuroV93=renderZeroFuroV93;
 
   function accountCard(a,b){
     return `<div class="lp-v82-account ${a.kind}">
@@ -17202,7 +17470,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     ensure();
     const b=balances(),snap=latestSnapshot();
     const month=new Date().toISOString().slice(0,7);
-    const latestCash=(data.cash||[]).filter(c=>!c.cashMovementImportV82).slice(0,120);
+    const latestCash=(data.cash||[])
+      .filter(c=>!c.cashMovementImportV82 && T(c.accountId)!=='zerofuro')
+      .slice(0,120);
     const rows=latestCash.map(c=>{
       const acc=accountDef(c.accountId);
       return `<tr>
@@ -17223,10 +17493,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 
     const host=document.getElementById('caixa');if(!host)return;
     host.innerHTML=
-      heading('Caixa e Contas','Dinheiro físico, bancos, cheques e recebimentos interligados ao Financeiro.',actions)+
+      heading('Caixa Le Pneus','Somente dinheiro e contas da Le Pneus. Zero Furo fica separado abaixo.',actions)+
       `${window.lpIsTestModeV77?.()?'<div class="notice" style="margin-bottom:14px"><b>🧪 MODO TESTE:</b> a planilha altera os valores desta tela normalmente, mas somente na memória. Firebase e dados oficiais ficam pausados.</div>':''}`+
       `<section class="card lp-v82-import">
-        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar Movimento de Caixa</h3><small class="cell-sub">Lê o movimento diário e também os saldos de Loja, Casa, Sicredi, Sicoob e cheques.</small></div>${snap?`<span class="soft-chip">Base: ${E(snap.snapshotDate||snap.month)}</span>`:''}</div>
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Importar Movimento de Caixa</h3><small class="cell-sub">Caixa principal: somente Le Pneus. Zero Furo é importado para uma área separada. Conta Sicredi Geral e outras empresas não entram.</small></div>${snap?`<span class="soft-chip">Base: ${E(snap.snapshotDate||snap.month)}</span>`:''}</div>
         <div class="lp-v82-import-grid">
           <label>Planilha Movimento de Caixa<input id="lpCashFileV82" type="file" accept=".xlsx,.xls" onchange="lpGuessCashMonthV82()"></label>
           <label>Mês da planilha<input id="lpCashMonthV82" type="month" value="${E(snap?.month||month)}"></label>
@@ -17249,8 +17519,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         ${reconcileHtml()}
       </section>
 
+      ${renderZeroFuroV93()}
+
       <section class="card table-wrap" style="margin-top:16px">
-        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Movimentações por conta</h3><small class="cell-sub">Vendas, serviços, baixas, despesas e transferências feitas dentro do sistema.</small></div></div>
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Movimentações Le Pneus</h3><small class="cell-sub">Somente vendas, serviços, baixas, despesas e transferências da Le Pneus.</small></div></div>
         <table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Conta</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">Nenhuma movimentação nova por conta.</td></tr>'}</tbody></table>
       </section>`;
   };
@@ -17264,7 +17536,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         host.querySelectorAll(':scope > .lp-v82-closing').forEach(x=>x.remove());
         const b=balances(),snap=latestSnapshot(),rec=ensure().lastReconciliation;
         const html=`<section class="card lp-v82-closing" style="margin-top:16px">
-          <div class="panel-head"><div><h3 class="section-title" style="margin:0">Conferência de Caixa e Contas</h3><small class="cell-sub">Resumo das contas para bater o fechamento do mês.</small></div>${snap?`<span class="soft-chip">Planilha ${E(snap.month)}</span>`:''}</div>
+          <div class="panel-head"><div><h3 class="section-title" style="margin:0">Conferência do Caixa Le Pneus</h3><small class="cell-sub">Somente contas da Le Pneus. Zero Furo permanece separado.</small></div>${snap?`<span class="soft-chip">Planilha ${E(snap.month)}</span>`:''}</div>
           <div class="lp-v82-summary">
             ${metric('Dinheiro Loja',M(b.loja),'saldo atual','green')}
             ${metric('Dinheiro Casa',M(b.casa),'saldo atual','green')}
@@ -17272,6 +17544,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
             ${metric('Disponível',M(b.disponivel),'sem pré-datados','green')}
           </div>
           ${rec?reconcileHtml():'<div class="notice">Importe o Movimento de Caixa para gerar a conferência.</div>'}
+          <div class="notice" style="margin-top:12px"><b>Zero Furo separado:</b> ${M(zeroFuroBalanceV93())}. Este valor não entra no fechamento da Le Pneus.</div>
         </section>`;
         host.insertAdjacentHTML('beforeend',html);
       }catch(e){console.warn('Fechamento V82:',e)}
