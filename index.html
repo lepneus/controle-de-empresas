@@ -13729,7 +13729,9 @@ window.__LP_PERSISTENCE_VERSION__='v60';
 
     const recItems=recv.filter(x=>T(x.kind)!=='loss').map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
     const lossItems=recv.filter(x=>T(x.kind)==='loss').map(x=>({...x,autoSyncFinance:true}));
-    const payItems=pay.map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
+    const payItems=pay
+      .filter(x=>!T(x.paidDate))
+      .map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'}));
     data.lpFinanceReview.receivables=[...data.lpFinanceReview.receivables.filter(x=>!x.autoSyncFinance),...recItems];
     data.lpFinanceReview.losses=[...data.lpFinanceReview.losses.filter(x=>!x.autoSyncFinance),...lossItems];
     data.lpFinanceReview.payables=[...data.lpFinanceReview.payables.filter(x=>!x.autoSyncFinance),...payItems];
@@ -13744,7 +13746,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     });
     payItems.forEach(r=>{
       if(N(r.remaining)<=0)return;
-      cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',cloudManagedFinance:true});
+      cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',paidDate:r.paidDate||'',paymentAmount:N(r.paymentAmount||0),cloudManagedFinance:true});
     });
     data.finance=[...manual,...cloud];
 
@@ -14521,8 +14523,12 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return !!f?.cloudManagedFinance||s.includes('dividas lepneus');
   }
   function payables(){
-    return data.finance.filter(f=>T(f.type)==='Despesa'&&!/pago|recebido|cancelado/i.test(T(f.status))&&isDebtSource(f))
-      .sort((a,b)=>(T(a.dueDate)||'9999').localeCompare(T(b.dueDate)||'9999'));
+    return data.finance.filter(f=>
+      T(f.type)==='Despesa' &&
+      !/pago|recebido|cancelado/i.test(T(f.status)) &&
+      !T(f.paidDate) &&
+      isDebtSource(f)
+    ).sort((a,b)=>(T(a.dueDate)||'9999').localeCompare(T(b.dueDate)||'9999'));
   }
   function payState(f){
     const over=daysOver(f.dueDate),until=daysUntil(f.dueDate);
@@ -14556,7 +14562,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     </tr>`}).join('');
     const host=document.getElementById('financeiro');if(!host)return;
     host.innerHTML=
-      heading('Contas a pagar','Somente dívidas pendentes sincronizadas da planilha Dívidas LEPNEUS.')+
+      heading('Contas a pagar','Somente dívidas realmente pendentes da planilha Dívidas LEPNEUS. Linhas com Data Pagamento não aparecem.')+
       `<div class="lp-v70-kpis">
         <div class="lp-v70-kpi"><span>Total em aberto</span><b>${M(total)}</b></div>
         <div class="lp-v70-kpi"><span>Vence hoje</span><b>${today.length}</b></div>
