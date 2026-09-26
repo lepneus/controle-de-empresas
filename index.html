@@ -6164,6 +6164,15 @@ tbody tr:hover{background:#f8fafc!important}
     if(mode==='existing')window.osFillPhone?.();
   };
 
+  // Compatibilidade: algumas camadas antigas chamam osFillPhone().
+  // Mantém o telefone do cliente sincronizado sem gerar ReferenceError.
+  window.osFillPhone=function(){
+    const id=document.getElementById('oscustomer')?.value;
+    const c=(data.customers||[]).find(x=>String(x.id)===String(id));
+    const el=document.getElementById('osphone');
+    if(el)el.value=c?.phone||'';
+  };
+
   const originalOsModal=window.osModal;
   window.osModal=function(){
     const today=new Date();
@@ -13859,7 +13868,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     });
     if(payBundle.ready)payItems.forEach(r=>{
       if(N(r.remaining)<=0||T(r.paidDate))return;
-      cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',paidDate:r.paidDate||'',paymentAmount:N(r.paymentAmount||0),cloudManagedFinance:true});
+      cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),originalValue:N(r.value),remaining:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',paidDate:r.paidDate||'',paymentAmount:N(r.paymentAmount||0),cloudManagedFinance:true});
     });
     data.finance=[...manual,...cloud];
 
@@ -14636,12 +14645,25 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     const s=norm(f?.sourceFile||'')+' '+norm(f?.notes||'');
     return !!f?.cloudManagedFinance||s.includes('dividas lepneus');
   }
+  function payableOpenAmount(f){
+    if(T(f?.paidDate))return 0;
+    const remaining=N(f?.remaining);
+    const original=N(f?.originalValue);
+    const paid=N(f?.paymentAmount);
+    if(original>0&&paid>0){
+      const calculated=Math.max(0,original-paid);
+      if(remaining>0)return Math.min(remaining,calculated);
+      return calculated;
+    }
+    if(remaining>0)return remaining;
+    return Math.max(0,N(f?.value));
+  }
   function payables(){
     let rows=data.finance.filter(f=>
       T(f.type)==='Despesa' &&
       !/pago|recebido|cancelado/i.test(T(f.status)) &&
       !T(f.paidDate) &&
-      N(f.value)>0 &&
+      payableOpenAmount(f)>0 &&
       isDebtSource(f)
     );
     const cloud=rows.filter(f=>f?.cloudManagedFinance===true);
@@ -14673,20 +14695,20 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return `<div class="lp-v70-alerts">${alertRows.slice(0,30).map(f=>{
       const st=payState(f);
       return `<div class="lp-v70-alert lp-v70-pay-alert ${st.kind}">
-        <div><b>${E(f.desc||'Fornecedor')}</b><small>${M(f.value)} • vencimento ${fmtDate(f.dueDate)} • ${E(f.sourceSheet||'Dívidas LEPNEUS')}</small></div>
+        <div><b>${E(f.desc||'Fornecedor')}</b><small>${M(payableOpenAmount(f))} • vencimento ${fmtDate(f.dueDate)} • ${E(f.sourceSheet||'Dívidas LEPNEUS')}</small></div>
         <span class="lp-v70-status ${st.cls}">${E(st.text)}</span>
       </div>`;
     }).join('')}</div>`;
   }
   window.renderFinanceiro=function(){
     ensure();
-    const rows=payables(),total=rows.reduce((s,x)=>s+N(x.value),0);
+    const rows=payables(),total=rows.reduce((s,x)=>s+payableOpenAmount(x),0);
     const overdue=rows.filter(x=>payState(x).kind==='overdue');
     const today=rows.filter(x=>payState(x).kind==='today');
     const soon=rows.filter(x=>payState(x).kind==='soon');
     const body=rows.map(f=>{const st=payState(f);return `<tr>
       <td><b>${E(f.desc||'Fornecedor')}</b><small class="cell-sub">${E(f.category||'Conta')}</small></td>
-      <td>${fmtDate(f.dueDate)}</td><td><b>${M(f.value)}</b></td><td><span class="lp-v70-status ${st.cls}">${E(st.text)}</span></td>
+      <td>${fmtDate(f.dueDate)}</td><td><b>${M(payableOpenAmount(f))}</b></td><td><span class="lp-v70-status ${st.cls}">${E(st.text)}</span></td>
       <td>${E(f.sourceSheet||'Dívidas LEPNEUS')}</td><td><span class="cell-sub">Baixa pela planilha Dívidas LEPNEUS</span></td>
     </tr>`}).join('');
     const host=document.getElementById('financeiro');if(!host)return;
@@ -19170,8 +19192,312 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 </script>
 
 
-<!-- LE PNEUS V97 • 2026-09-25
-     Correções: lotes completos antes de aplicar sync, debounce de render, remoção de polling legado,
-     deduplicação de Devedores/Dívidas e exclusão de cópias antigas da soma. -->
+<style id="lp-v100-health-closing-css">
+.lp-v100-version{display:inline-flex;align-items:center;gap:6px;margin-top:7px;padding:4px 7px;border:1px solid rgba(255,255,255,.12);border-radius:999px;color:#aab6c7;font-size:8.5px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}
+.lp-v100-version::before{content:"";width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.12)}
+.lp-v100-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.lp-v100-health-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;min-width:0;box-shadow:var(--shadow)}
+.lp-v100-health-card .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lp-v100-health-card .name{font-size:11px;font-weight:850;color:var(--muted);text-transform:uppercase;letter-spacing:.045em}
+.lp-v100-health-card b{display:block;margin-top:8px;font-size:17px;line-height:1.15;color:var(--text)}
+.lp-v100-health-card small{display:block;margin-top:6px;font-size:9.5px;line-height:1.4;color:var(--muted)}
+.lp-v100-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;background:#94a3b8;box-shadow:0 0 0 4px rgba(148,163,184,.12)}
+.lp-v100-dot.ok{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.11)}
+.lp-v100-dot.warn{background:#d97706;box-shadow:0 0 0 4px rgba(217,119,6,.11)}
+.lp-v100-dot.err{background:#dc2626;box-shadow:0 0 0 4px rgba(220,38,38,.11)}
+.lp-v100-status{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);font-size:9px;font-weight:850;white-space:nowrap}
+.lp-v100-status.ok{color:#15803d}.lp-v100-status.warn{color:#b45309}.lp-v100-status.err{color:#b91c1c}
+.lp-v100-health-summary{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-top:14px}
+.lp-v100-health-actions{display:flex;gap:8px;flex-wrap:wrap}
+.lp-v100-reconcile-table td:last-child,.lp-v100-reconcile-table th:last-child{text-align:right}
+.lp-v100-money-ok{color:#15803d;font-weight:850}.lp-v100-money-bad{color:#b91c1c;font-weight:850}
+.lp-v100-diagnostic{display:grid;gap:8px}
+.lp-v100-diagnostic-row{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}
+.lp-v100-diagnostic-row div{min-width:0}.lp-v100-diagnostic-row b{display:block;font-size:11px}.lp-v100-diagnostic-row small{display:block;margin-top:3px;font-size:9.5px;color:var(--muted);line-height:1.4}
+.lp-v100-guided{margin-bottom:16px}
+.lp-v100-guided-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.lp-v100-guided-controls{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.lp-v100-guided-controls label{display:grid;gap:5px;font-size:9px;font-weight:850;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.lp-v100-guided-controls input{min-height:38px}
+.lp-v100-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:13px}
+.lp-v100-check{border:1px solid var(--line);border-radius:12px;padding:11px;background:var(--panel2);min-width:0}
+.lp-v100-check .top{display:flex;align-items:center;justify-content:space-between;gap:8px}.lp-v100-check b{font-size:11px}.lp-v100-check small{display:block;margin-top:5px;font-size:9.5px;line-height:1.4;color:var(--muted)}
+.lp-v100-close-overall{margin-top:12px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);font-size:11px;line-height:1.45}
+.lp-v100-close-overall.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534}.lp-v100-close-overall.warn{border-color:#fde68a;background:#fffbeb;color:#92400e}.lp-v100-close-overall.err{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;color:#86efac}body.dark .lp-v100-close-overall.warn{background:#322710;border-color:#684f16;color:#fcd34d}body.dark .lp-v100-close-overall.err{background:#341719;border-color:#6f292e;color:#fca5a5}
+@media(max-width:1150px){.lp-v100-health-grid{grid-template-columns:repeat(2,1fr)}.lp-v100-health-summary{grid-template-columns:1fr}.lp-v100-checks{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.lp-v100-health-grid,.lp-v100-checks{grid-template-columns:1fr}.lp-v100-guided-controls{width:100%}.lp-v100-guided-controls label{flex:1}.lp-v100-guided-controls .btn{flex:1}.lp-v100-version{display:none}}
+</style>
+
+<script id="lp-v100-health-closing-js">
+(function(){
+  if(window.__lpV100)return;
+  window.__lpV100=true;
+
+  const VERSION='V100';
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const E=v=>typeof window.esc==='function'?window.esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof window.money==='function'?window.money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const health={heartbeat:null,heartbeatError:'',started:false};
+
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    try{if(window.firebase){if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);return firebase.firestore()}}catch(e){}
+    return null;
+  }
+  function currentUser(){
+    try{return window.lpFirebaseUser||firebase.auth().currentUser||null}catch(e){return null}
+  }
+  function brDateMs(v){
+    const s=T(v);if(!s)return 0;
+    const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if(m)return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime();
+    const n=Date.parse(s);return Number.isFinite(n)?n:0;
+  }
+  function heartbeatAge(){
+    const epoch=N(health.heartbeat?.checkedAtEpoch);
+    const ms=epoch>1000000000?epoch*1000:brDateMs(health.heartbeat?.checkedAtText);
+    return ms?Math.max(0,Date.now()-ms):Infinity;
+  }
+  function heartbeatState(){
+    if(health.heartbeatError)return {cls:'err',label:'Erro',detail:health.heartbeatError};
+    if(!health.heartbeat)return {cls:'warn',label:'Aguardando',detail:'Ainda não recebi o sinal do sincronizador.'};
+    const age=heartbeatAge();
+    if(age<=12*60000)return {cls:'ok',label:'Ativo',detail:`Última verificação ${T(health.heartbeat.checkedAtText)||'agora'}`};
+    if(age<=30*60000)return {cls:'warn',label:'Atrasado',detail:`Último sinal ${T(health.heartbeat.checkedAtText)||''}`};
+    return {cls:'err',label:'Parado',detail:`Sem sinal recente • ${T(health.heartbeat.checkedAtText)||'horário desconhecido'}`};
+  }
+  function startHeartbeat(){
+    if(health.started)return;
+    const d=db(),u=currentUser();if(!d||!u){setTimeout(startHeartbeat,1200);return}
+    health.started=true;
+    d.collection('controleSyncStatus').doc('pagar').onSnapshot(doc=>{
+      health.heartbeat=doc.exists?(doc.data()||{}):null;health.heartbeatError='';refreshHealthIfOpen();
+    },e=>{health.heartbeatError=e?.message||String(e);refreshHealthIfOpen()});
+  }
+
+  function installVersion(){
+    const copy=document.querySelector('.brand-copy');
+    if(copy&&!copy.querySelector('.lp-v100-version'))copy.insertAdjacentHTML('beforeend',`<span class="lp-v100-version">Le Pneus ${VERSION}</span>`);
+    document.title='Le Pneus - Controle de Mercadorias • '+VERSION;
+  }
+  function installHealthPage(){
+    const content=document.querySelector('.content');
+    if(content&&!document.getElementById('saude'))content.insertAdjacentHTML('beforeend','<div class="page" id="saude"></div>');
+    const nav=document.getElementById('nav');
+    if(nav&&!nav.querySelector('[data-lp-v100-health]')){
+      const btn=document.createElement('button');
+      btn.setAttribute('data-lp-v100-health','1');
+      btn.setAttribute('onclick',"openPage('saude',this)");
+      let icon='<span class="nav-svg"><span style="width:9px;height:9px;border-radius:50%;background:#22c55e;display:block;box-shadow:0 0 0 4px rgba(34,197,94,.13)"></span></span>';
+      try{if(typeof window.navIcon==='function')icon=window.navIcon('chart')}catch(e){}
+      btn.innerHTML=icon+'<span class="nav-text">Saúde do Sistema</span>';
+      const plan=nav.querySelector("button[onclick*='planilhas']");
+      if(plan)plan.insertAdjacentElement('afterend',btn);else nav.appendChild(btn);
+    }
+  }
+
+  function sourceRows(kind){
+    const rev=data.lpFinanceReview||{};
+    if(kind==='receber')return (rev.receivables||[]).filter(x=>x?.autoSyncFinance);
+    if(kind==='perdas')return (rev.losses||[]).filter(x=>x?.autoSyncFinance);
+    return (rev.payables||[]).filter(x=>x?.autoSyncFinance);
+  }
+  function cloudFinance(type){return (data.finance||[]).filter(f=>f?.cloudManagedFinance&&T(f.type)===type)}
+  function sum(arr,key='value'){return arr.reduce((a,x)=>a+N(typeof key==='function'?key(x):x?.[key]),0)}
+  function duplicateFinanceKeys(){
+    const map=new Map();
+    (data.finance||[]).forEach(f=>{const k=T(f.sourceKey);if(!k)return;map.set(k,(map.get(k)||0)+1)});
+    return [...map.entries()].filter(([,n])=>n>1);
+  }
+  function legacySourceCopies(){
+    return (data.finance||[]).filter(f=>{
+      if(f?.cloudManagedFinance)return false;
+      const s=norm(`${T(f.sourceFile)} ${T(f.sourceSheet)} ${T(f.notes)}`);
+      return s.includes('dividas lepneus')||s.includes('devedores lepneus');
+    });
+  }
+  function stockCheck(type,label){
+    const conn=data.spreadsheetConnections?.[type]||null;
+    const rows=(data.products||[]).filter(p=>p?.excelManaged&&norm(p.sourceType)===type);
+    const sysCount=rows.length,sysQty=sum(rows,'qty');
+    const srcCount=conn?N(conn.itemCount):null,srcQty=conn?N(conn.totalQty):null;
+    const ok=!!conn&&srcCount===sysCount&&Math.abs(srcQty-sysQty)<.01;
+    return {id:type,label,ok,srcCount,sysCount,srcQty,sysQty,last:T(conn?.lastImportedAt),file:T(conn?.name)};
+  }
+  function financeCheck(type,label){
+    const meta=data.lpFinancialCloudMeta?.[type]||null;
+    const review=type==='receber'?[...sourceRows('receber'),...sourceRows('perdas')]:sourceRows('pagar');
+    const openReview=type==='receber'?sourceRows('receber'):sourceRows('pagar');
+    const finance=cloudFinance(type==='receber'?'Receita':'Despesa');
+    const srcCount=meta?N(meta.itemCount):null,loadedCount=review.length;
+    const sourceOpen=sum(openReview,x=>x.remaining),systemOpen=sum(finance,x=>x.remaining!==undefined?x.remaining:x.value);
+    const countOk=!!meta&&srcCount===loadedCount;
+    const moneyOk=Math.abs(sourceOpen-systemOpen)<.01;
+    return {id:type,label,ok:countOk&&moneyOk,srcCount,sysCount:loadedCount,sourceOpen,systemOpen,last:T(meta?.updatedAtText),file:T(meta?.sourceFile),moneyDiff:systemOpen-sourceOpen};
+  }
+  function collectChecks(){
+    return [stockCheck('carro','Estoque Carro'),stockCheck('moto','Estoque Moto'),stockCheck('acessorios','Acessórios'),financeCheck('receber','Devedores'),financeCheck('pagar','Dívidas')];
+  }
+  function firebaseState(){
+    const user=currentUser(),d=db();
+    if(d&&user)return {cls:'ok',label:'Conectado',detail:'Firebase autenticado e disponível.'};
+    if(d)return {cls:'warn',label:'Sem sessão',detail:'Firebase carregou, mas a sessão ainda não está pronta.'};
+    return {cls:'err',label:'Desconectado',detail:'Firebase não está disponível neste momento.'};
+  }
+  function overallHealth(){
+    const checks=collectChecks(),hb=heartbeatState(),fb=firebaseState(),dups=duplicateFinanceKeys(),legacy=legacySourceCopies();
+    const bad=checks.filter(x=>!x.ok).length+(hb.cls==='err'?1:0)+(fb.cls==='err'?1:0)+(dups.length?1:0)+(legacy.length?1:0);
+    const warn=(hb.cls==='warn'?1:0)+(fb.cls==='warn'?1:0);
+    return {checks,hb,fb,dups,legacy,cls:bad?'err':warn?'warn':'ok',label:bad?'Atenção necessária':warn?'Verificando':'Tudo conferido'};
+  }
+  function statusHtml(cls,label){return `<span class="lp-v100-status ${cls}"><span class="lp-v100-dot ${cls}"></span>${E(label)}</span>`}
+  function sourceCard(title,state,detail,small){return `<div class="lp-v100-health-card"><div class="top"><span class="name">${E(title)}</span><span class="lp-v100-dot ${state}"></span></div><b>${E(detail)}</b><small>${E(small||'')}</small></div>`}
+
+  function reconcileRows(h){
+    const rows=[];
+    h.checks.forEach(c=>{
+      if(['carro','moto','acessorios'].includes(c.id)){
+        const diffQty=N(c.sysQty)-N(c.srcQty),diffCount=N(c.sysCount)-N(c.srcCount);
+        rows.push(`<tr><td><b>${E(c.label)}</b><small class="cell-sub">${E(c.file||'Fonte automática')}</small></td><td>${N(c.srcCount)} item(ns) • ${N(c.srcQty).toLocaleString('pt-BR')} un.</td><td>${N(c.sysCount)} item(ns) • ${N(c.sysQty).toLocaleString('pt-BR')} un.</td><td class="${Math.abs(diffQty)<.01&&diffCount===0?'lp-v100-money-ok':'lp-v100-money-bad'}">${diffCount===0&&Math.abs(diffQty)<.01?'Bateu':`${diffCount>0?'+':''}${diffCount} item(ns) • ${diffQty>0?'+':''}${diffQty.toLocaleString('pt-BR')} un.`}</td></tr>`);
+      }else{
+        const d=N(c.moneyDiff);
+        rows.push(`<tr><td><b>${E(c.label)}</b><small class="cell-sub">${E(c.file||'Fonte automática')}</small></td><td>${N(c.srcCount)} registro(s) • ${M(c.sourceOpen)}</td><td>${N(c.sysCount)} registro(s) • ${M(c.systemOpen)}</td><td class="${c.ok?'lp-v100-money-ok':'lp-v100-money-bad'}">${c.ok?'Bateu':M(d)}</td></tr>`);
+      }
+    });
+    return rows.join('');
+  }
+  function diagnosticsHtml(h){
+    const out=[];
+    out.push(`<div class="lp-v100-diagnostic-row"><span class="lp-v100-dot ${h.dups.length?'err':'ok'}"></span><div><b>Duplicidades financeiras</b><small>${h.dups.length?`${h.dups.length} chave(s) aparecem mais de uma vez.`:'Nenhuma sourceKey duplicada no Financeiro.'}</small></div></div>`);
+    out.push(`<div class="lp-v100-diagnostic-row"><span class="lp-v100-dot ${h.legacy.length?'err':'ok'}"></span><div><b>Cópias antigas das planilhas</b><small>${h.legacy.length?`${h.legacy.length} lançamento(s) antigo(s) ainda identificado(s).`:'Nenhuma cópia manual antiga de Devedores/Dívidas foi encontrada.'}</small></div></div>`);
+    const hb=h.hb;out.push(`<div class="lp-v100-diagnostic-row"><span class="lp-v100-dot ${hb.cls}"></span><div><b>Sincronizador</b><small>${E(hb.detail)}</small></div></div>`);
+    return out.join('');
+  }
+  function renderHealth(){
+    const host=document.getElementById('saude');if(!host)return;
+    const h=overallHealth();
+    const stock=h.checks.filter(x=>['carro','moto','acessorios'].includes(x.id));
+    const rec=h.checks.find(x=>x.id==='receber'),pay=h.checks.find(x=>x.id==='pagar');
+    host.innerHTML=heading('Saúde do Sistema','Conferência rápida da sincronização, Firebase e valores entre planilhas e sistema.',`<button class="btn ghost" onclick="lpRefreshHealthV100()">Atualizar conferência</button>`)+
+      `<div class="notice"><b>Le Pneus ${VERSION}</b> • ${statusHtml(h.cls,h.label)}<br><small>O horário das planilhas abaixo representa a última alteração de conteúdo. O estado do sincronizador usa o sinal periódico separado.</small></div>
+      <div class="lp-v100-health-grid">
+        ${sourceCard('Sincronizador',h.hb.cls,h.hb.label,h.hb.detail)}
+        ${sourceCard('Firebase',h.fb.cls,h.fb.label,h.fb.detail)}
+        ${sourceCard('Devedores',rec?.ok?'ok':'err',rec?.ok?'Conferido':'Diferença encontrada',`${rec?.sysCount??0} registro(s) carregado(s) • ${rec?.last||'sem atualização'}`)}
+        ${sourceCard('Dívidas',pay?.ok?'ok':'err',pay?.ok?'Conferido':'Diferença encontrada',`${pay?.sysCount??0} registro(s) carregado(s) • ${pay?.last||'sem atualização'}`)}
+        ${stock.map(x=>sourceCard(x.label,x.ok?'ok':'err',x.ok?'Conferido':'Diferença encontrada',`${x.sysCount} item(ns) • ${x.last||'sem atualização'}`)).join('')}
+      </div>
+      <section class="card">
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Conciliação automática</h3><small class="cell-sub">Compara o lote recebido com o que o sistema realmente está usando.</small></div>${statusHtml(h.checks.every(x=>x.ok)?'ok':'err',h.checks.every(x=>x.ok)?'Planilha = Sistema':'Existe diferença')}</div>
+        <div class="table-wrap lp-v100-reconcile-table"><table><thead><tr><th>Fonte</th><th>Planilha recebida</th><th>Sistema</th><th>Diferença</th></tr></thead><tbody>${reconcileRows(h)}</tbody></table></div>
+      </section>
+      <div class="lp-v100-health-summary">
+        <section class="card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Diagnóstico</h3><small class="cell-sub">Problemas que podem gerar soma incorreta ou dados repetidos.</small></div></div><div class="lp-v100-diagnostic">${diagnosticsHtml(h)}</div></section>
+        <section class="card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Acesso rápido</h3><small class="cell-sub">Abra diretamente a área relacionada à conferência.</small></div></div><div class="lp-v100-health-actions"><button class="btn ghost" onclick="openPage('planilhas')">Planilhas</button><button class="btn ghost" onclick="openPage('financeiro')">Contas a pagar</button><button class="btn ghost" onclick="openPage('clientes')">Clientes</button><button class="btn ghost" onclick="openPage('caixa')">Caixa</button></div></section>
+      </div>`;
+  }
+  window.lpRefreshHealthV100=renderHealth;
+  function refreshHealthIfOpen(){if(document.getElementById('saude')?.classList.contains('active'))renderHealth()}
+
+  function monthOf(v){
+    const s=T(v);if(!s)return '';
+    const iso=s.match(/^(\d{4})-(\d{2})/);if(iso)return `${iso[1]}-${iso[2]}`;
+    const br=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(br)return `${br[3]}-${br[2]}`;
+    return '';
+  }
+  function monthValue(){return T(document.getElementById('lpV100ClosingMonth')?.value)||new Date().toISOString().slice(0,7)}
+  function salesForMonth(month){return (data.sales||[]).filter(x=>monthOf(x.date||x.createdAt||x.createdAtIso||x.saleDate)===month)}
+  function servicesForMonth(month){return (data.serviceOrders||[]).filter(x=>monthOf(x.date||x.createdAt||x.createdAtIso||x.serviceDate||x.scheduledDate)===month)}
+  function cardNet(r){return Math.max(0,N(r?.gross)-N(r?.gross)*N(r?.feePct)/100)}
+  function closingChecks(month){
+    const h=overallHealth();
+    const cashState=data.settings?.lpCashAccountsV82||{};
+    const snap=(cashState.snapshots||[]).find(x=>T(x.month)===month)||null;
+    const b=typeof window.lpCashBalancesV82==='function'?window.lpCashBalancesV82():null;
+    const cards=(data.cardReceivablesV96||[]).filter(x=>T(x.status)!=='Recebido');
+    const pendingCards=sum(cards,cardNet);
+    const cardAccount=b?N(b.cartoes):0;
+    const cardDiff=cardAccount-pendingCards;
+    const currentMonth=new Date().toISOString().slice(0,7);
+    const monthCards=(data.cardReceivablesV96||[]).filter(x=>monthOf(x.saleDate)===month);
+    const monthCardsNet=sum(monthCards,cardNet);
+    const pay=h.checks.find(x=>x.id==='pagar'),rec=h.checks.find(x=>x.id==='receber');
+    const sales=salesForMonth(month),services=servicesForMonth(month);
+    const salesTotal=sum(sales,x=>x.total),servicesTotal=sum(services,x=>N(x.total||x.value||x.serviceValue));
+    const existing=(data.monthlyClosings||[]).find(x=>T(x.month)===month)||null;
+    return [
+      {id:'sync',label:'Sincronização',cls:h.hb.cls==='ok'&&h.fb.cls==='ok'?'ok':h.hb.cls==='err'||h.fb.cls==='err'?'err':'warn',detail:h.hb.cls==='ok'?'Sincronizador e Firebase ativos.':'Confira a Saúde do Sistema antes de fechar.'},
+      {id:'cash',label:'Caixa / Bancos',cls:snap?'ok':'warn',detail:snap?`Movimento de Caixa importado • base ${T(snap.snapshotDate||snap.month)}.`:'Ainda não há Movimento de Caixa importado para este mês.'},
+      {id:'cards',label:'Cartões',cls:month===currentMonth?(Math.abs(cardDiff)<.02?'ok':'warn'):'ok',detail:month===currentMonth?`A receber ${M(pendingCards)} • conta Cartões ${M(cardAccount)}${Math.abs(cardDiff)<.02?' • conferido':` • diferença ${M(cardDiff)}`}.`:`${monthCards.length} recebível(is) originado(s) no mês • ${M(monthCardsNet)}. O saldo atual não é comparado em mês histórico.`},
+      {id:'pay',label:'Contas a pagar',cls:pay?.ok?'ok':'err',detail:pay?.ok?`${M(pay.systemOpen)} em aberto • conferido com Dívidas.`:`Diferença de ${M(pay?.moneyDiff||0)}. Abra Saúde do Sistema.`},
+      {id:'rec',label:'Clientes / Devedores',cls:rec?.ok?'ok':'err',detail:rec?.ok?`${M(rec.systemOpen)} em aberto • conferido com Devedores.`:`Diferença de ${M(rec?.moneyDiff||0)}. Abra Saúde do Sistema.`},
+      {id:'activity',label:'Vendas / Serviços',cls:'ok',detail:`${sales.length} venda(s) • ${M(salesTotal)} | ${services.length} serviço(s) • ${M(servicesTotal)}.`},
+      {id:'closed',label:'Histórico do mês',cls:existing?'warn':'ok',detail:existing?'Este mês já possui fechamento salvo/importado. Confira antes de substituir.':'Nenhum fechamento anterior para este mês.'}
+    ];
+  }
+  function guidedHtml(month){
+    const checks=closingChecks(month),errors=checks.filter(x=>x.cls==='err'),warnings=checks.filter(x=>x.cls==='warn');
+    const overall=errors.length?'err':warnings.length?'warn':'ok';
+    const text=errors.length?`${errors.length} problema(s) precisam ser corrigidos antes da conferência final.`:warnings.length?`${warnings.length} ponto(s) merecem conferência antes de fechar.`:'Conferência automática sem divergências críticas.';
+    return `<section class="card lp-v100-guided">
+      <div class="lp-v100-guided-head"><div><h3 class="section-title" style="margin:0">Fechamento mensal guiado</h3><small class="cell-sub">Confere sincronização, caixa, cartões, dívidas, devedores, vendas e serviços antes do PDF.</small></div>
+        <div class="lp-v100-guided-controls"><label>Mês<input id="lpV100ClosingMonth" type="month" value="${E(month)}" onchange="lpRefreshGuidedClosingV100()"></label><button class="btn ghost" onclick="lpRefreshGuidedClosingV100()">Conferir agora</button></div></div>
+      <div class="lp-v100-checks">${checks.map(c=>`<div class="lp-v100-check"><div class="top"><b>${E(c.label)}</b>${statusHtml(c.cls,c.cls==='ok'?'OK':c.cls==='warn'?'Conferir':'Erro')}</div><small>${E(c.detail)}</small></div>`).join('')}</div>
+      <div class="lp-v100-close-overall ${overall}"><b>${overall==='ok'?'Pronto para revisar o fechamento':overall==='warn'?'Revise os avisos antes de fechar':'Corrija as divergências antes de fechar'}</b><br>${E(text)}</div>
+      <div class="lp-v100-health-actions" style="margin-top:10px"><button class="btn ghost" onclick="openPage('saude')">Abrir Saúde do Sistema</button><button class="btn ghost" onclick="openPage('caixa')">Abrir Caixa</button><button class="btn ghost" onclick="openPage('cartoes')">Abrir Cartões</button><button class="btn ghost" onclick="openPage('financeiro')">Abrir Contas</button></div>
+    </section>`;
+  }
+  function injectGuidedClosing(){
+    const host=document.getElementById('fechamento');if(!host)return;
+    host.querySelectorAll(':scope > .lp-v100-guided').forEach(x=>x.remove());
+    const current=T(window.__lpV100ClosingMonth)||T(document.getElementById('lpV100ClosingMonth')?.value)||new Date().toISOString().slice(0,7);
+    window.__lpV100ClosingMonth=current;
+    const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',guidedHtml(current));else host.insertAdjacentHTML('afterbegin',guidedHtml(current));
+  }
+  window.lpRefreshGuidedClosingV100=function(){
+    const v=T(document.getElementById('lpV100ClosingMonth')?.value)||new Date().toISOString().slice(0,7);window.__lpV100ClosingMonth=v;injectGuidedClosing();
+  };
+
+  // Consolidação V100: um único ponto final para as duas novas telas.
+  const previousRenderPageV100=window.renderPageById;
+  window.renderPageById=function(id){
+    if(id==='saude'){renderHealth();return}
+    return typeof previousRenderPageV100==='function'?previousRenderPageV100.apply(this,arguments):undefined;
+  };
+  const previousClosingV100=window.renderFechamento;
+  if(typeof previousClosingV100==='function'){
+    window.renderFechamento=function(){
+      const r=previousClosingV100.apply(this,arguments);
+      injectGuidedClosing();
+      return r;
+    };
+  }
+
+  // Limpeza segura: remove somente elementos duplicados de interface que versões antigas possam ter deixado no DOM.
+  function runtimeCleanup(){
+    document.querySelectorAll('#financeiro > .lp-fin-v63').forEach(x=>x.remove());
+    document.querySelectorAll('#clientes > .lp-debtors-v64').forEach((x,i)=>{if(i>0)x.remove()});
+    document.querySelectorAll('#planilhas > .lp-fin-v63').forEach((x,i)=>{if(i>0)x.remove()});
+  }
+  const oldRenderAllV100=window.renderAll;
+  window.renderAll=function(){const r=typeof oldRenderAllV100==='function'?oldRenderAllV100.apply(this,arguments):undefined;runtimeCleanup();return r};
+
+  window.addEventListener('load',()=>setTimeout(()=>{
+    installVersion();installHealthPage();startHeartbeat();runtimeCleanup();
+    if(document.getElementById('saude')?.classList.contains('active'))renderHealth();
+    if(document.getElementById('fechamento')?.classList.contains('active'))injectGuidedClosing();
+  },900));
+  try{installVersion();installHealthPage()}catch(e){}
+  setInterval(()=>{if(document.getElementById('saude')?.classList.contains('active'))renderHealth()},30000);
+})();
+</script>
+
+<!-- LE PNEUS V100 • 2026-09-25
+     Central de Saúde + conciliação automática + fechamento mensal guiado + consolidação segura da interface. -->
+
 </body>
 </html>
