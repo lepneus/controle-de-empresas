@@ -11315,7 +11315,9 @@ window.__LP_SALES_FIX_VERSION__='v47';
   const ARRAY_KEYS=[
     'sales','finance','cash','customers','purchases','reminders',
     'cashSessions','monthlyClosings','saleCancellations','commissions',
-    'quotes','serviceOrders','whatsappMessages','whatsappTemplates','cardReceivablesV96'
+    'quotes','serviceOrders','whatsappMessages','whatsappTemplates','cardReceivablesV96',
+    // V101: mantém no Firebase também o conteúdo completo das planilhas de Caixa importadas.
+    'lpDailyFinancial','lpCashImportsV68'
   ];
   const OBJECT_KEYS=['settings','cashRegister'];
   const ROOT_COLLECTION='controlePersist';
@@ -11332,6 +11334,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
   let lastPersistFingerprint='';
   let originalSave=window.save;
   let listenerBound=false;
+  let needsCloudBackfill=false;
 
   const badge=()=>document.getElementById('lpCloudPersistBadgeV50');
   const overlay=()=>document.getElementById('lpCloudLoadingV50');
@@ -11470,6 +11473,7 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
       let cloudHasAny=false;
 
+      needsCloudBackfill=false;
       const arrayResults=await Promise.all(ARRAY_KEYS.map(async key=>{
         const snap=await root.collection('arr_'+key).get();
         const cloud=[];
@@ -11496,6 +11500,9 @@ window.__LP_SALES_FIX_VERSION__='v47';
       arrayResults.forEach(({key,cloud,hashes})=>{
         lastHashes[key]=hashes;
         if(cloud.length)cloudHasAny=true;
+        if((key==='lpDailyFinancial'||key==='lpCashImportsV68') && !cloud.length && (localBefore[key]||[]).length){
+          needsCloudBackfill=true;
+        }
         data[key]=mergeArrays(localBefore[key],cloud,key,preferLocal);
       });
 
@@ -11530,10 +11537,12 @@ window.__LP_SALES_FIX_VERSION__='v47';
 
       loaded=true;
       loading=false;
-      lastPersistFingerprint=persistentFingerprint();
+      // Se esta versão encontrou uma importação antiga só no navegador,
+      // força o backfill dela para o Firebase sem regravar o que já está igual.
+      lastPersistFingerprint=needsCloudBackfill?'':persistentFingerprint();
       showLoading(false);
 
-      if(!rootSnap.exists || preferLocal || !cloudHasAny){
+      if(!rootSnap.exists || preferLocal || !cloudHasAny || needsCloudBackfill){
         status('Dados: sincronizando…','wait');
         /* Mesmo na primeira migração não usamos force=true.
            lastHashes já diz o que existe no Firebase; assim só os registros
@@ -17388,6 +17397,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const inTotal=cash.filter(x=>x.type==='Entrada').reduce((s,x)=>s+N(x.value),0);
       const outTotal=cash.filter(x=>x.type==='Saída').reduce((s,x)=>s+N(x.value),0);
       data.lpCashImportsV68.push({
+        id:`cash-import-${month}`,
         month,file:file.name,rows:daily.length,cashEntries:cash.length,inTotal,outTotal,
         importedAt:new Date().toLocaleString('pt-BR'),importedAtIso,importSchema:'v82',
         snapshotDay:summary.day
@@ -18549,10 +18559,15 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 
-<script id="lp-v97-sales-cards-pdf-js">
+
+<style id="lp-v101-card-calendar-css">
+.lp-v101-calendar-card{margin-top:16px}.lp-v101-calendar-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.lp-v101-week,.lp-v101-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.lp-v101-week{margin:10px 0 6px;color:var(--muted,#64748b);font-size:12px;font-weight:700;text-align:center}.lp-v101-cal-day{min-height:106px;border:1px solid rgba(148,163,184,.28);border-radius:14px;background:rgba(248,250,252,.7);padding:10px;text-align:left;display:flex;flex-direction:column;gap:5px;color:inherit}.lp-v101-cal-day.empty{visibility:hidden}.lp-v101-cal-day.has-value{cursor:pointer;background:rgba(236,253,245,.78);border-color:rgba(16,185,129,.3)}.lp-v101-cal-day.has-value:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(15,23,42,.08)}.lp-v101-cal-day.today{outline:2px solid rgba(37,99,235,.28)}.lp-v101-cal-num{font-size:12px;font-weight:800;color:var(--muted,#64748b)}.lp-v101-cal-day b{font-size:14px}.lp-v101-cal-day small{font-size:10px;color:var(--muted,#64748b)}.lp-v101-cal-day .new-sale{color:#047857;font-weight:700}.lp-v101-month-label{min-width:145px;text-align:center;text-transform:capitalize}.lp-v101-calendar-card .panel-head>.actions{align-items:center}@media(max-width:850px){.lp-v101-calendar-kpis{grid-template-columns:1fr}.lp-v101-week,.lp-v101-calendar{gap:4px}.lp-v101-cal-day{min-height:82px;padding:6px}.lp-v101-cal-day b{font-size:11px}.lp-v101-cal-day small{display:none}.lp-v101-month-label{min-width:100px;font-size:12px}}
+</style>
+
+<script id="lp-v101-sales-cards-calendar-js">
 (function(){
-  if(window.__lpV96)return;
-  window.__lpV96=true;
+  if(window.__lpV101Cards)return;
+  window.__lpV101Cards=true;
 
   const T=v=>String(v??'').trim();
   const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
@@ -18587,6 +18602,31 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   function idNow96(prefix='V96'){return `${prefix}-${Date.now()}-${Math.floor(Math.random()*100000)}`}
 
   // =========================================================
+  // CALENDÁRIO OFICIAL DE RECEBÍVEIS • PDF 05/10/2026
+  // 486 transações • bruto R$ 97.723,91 • taxas R$ 2.815,23 • líquido R$ 94.908,68
+  // =========================================================
+  const PDF_CARD_SOURCE_V101='Recebíveis calendário • relatório 05/10/2026';
+  const PDF_CARD_ROWS_V101=[["2026-10-01","Visa","Venda parcelada",5,805.27,23.3,781.97],["2026-10-01","Mastercard","Venda crédito",1,610.0,13.73,596.27],["2026-10-01","Mastercard","Venda parcelada",2,718.1,22.19,695.91],["2026-10-02","Visa","Venda débito",1,35.0,0.44,34.56],["2026-10-02","Mastercard","Venda débito",4,1228.0,15.6,1212.4],["2026-10-02","Mastercard","Venda parcelada",2,458.99,12.44,446.55],["2026-10-05","Visa","Venda débito",1,150.0,1.91,148.09],["2026-10-05","Visa","Venda crédito",3,405.0,9.11,395.89],["2026-10-05","Visa","Venda parcelada",2,352.8,9.98,342.82],["2026-10-05","Mastercard","Venda débito",1,600.0,7.62,592.38],["2026-10-05","Mastercard","Venda crédito",3,280.0,6.3,273.7],["2026-10-05","Mastercard","Venda parcelada",12,2734.79,78.06,2656.73],["2026-10-06","Mastercard","Venda parcelada",2,608.0,18.79,589.21],["2026-10-06","Elo","Venda parcelada",1,116.33,3.91,112.42],["2026-10-07","Mastercard","Venda parcelada",6,1369.23,39.51,1329.72],["2026-10-07","Elo","Venda parcelada",1,136.66,4.59,132.07],["2026-10-08","Mastercard","Venda parcelada",2,323.6,10.0,313.6],["2026-10-09","Visa","Venda crédito",1,245.0,5.51,239.49],["2026-10-09","Mastercard","Venda crédito",1,519.0,11.68,507.32],["2026-10-09","Mastercard","Venda parcelada",2,249.32,6.76,242.56],["2026-10-13","Visa","Venda parcelada",5,759.5,21.91,737.59],["2026-10-13","Mastercard","Venda crédito",3,425.0,9.57,415.43],["2026-10-13","Mastercard","Venda parcelada",11,2445.06,69.08,2375.98],["2026-10-13","Elo","Venda parcelada",2,310.93,11.01,299.92],["2026-10-14","Visa","Venda parcelada",1,359.66,9.75,349.91],["2026-10-14","Mastercard","Venda parcelada",3,511.66,13.86,497.8],["2026-10-15","Mastercard","Venda crédito",1,360.0,8.1,351.9],["2026-10-15","Mastercard","Venda parcelada",3,556.2,16.45,539.75],["2026-10-16","Visa","Venda crédito",1,485.0,10.91,474.09],["2026-10-16","Visa","Venda parcelada",3,416.86,12.39,404.47],["2026-10-16","Mastercard","Venda parcelada",4,847.92,25.64,822.28],["2026-10-19","Visa","Venda crédito",3,120.0,2.71,117.29],["2026-10-19","Visa","Venda parcelada",2,500.1,14.2,485.9],["2026-10-19","Mastercard","Venda crédito",3,355.0,7.99,347.01],["2026-10-19","Mastercard","Venda parcelada",6,1117.26,33.11,1084.15],["2026-10-19","Elo","Venda crédito",1,125.0,3.5,121.5],["2026-10-20","Visa","Venda parcelada",1,750.0,20.33,729.67],["2026-10-21","Mastercard","Venda parcelada",3,773.7,23.91,749.79],["2026-10-22","Mastercard","Venda crédito",2,155.0,3.49,151.51],["2026-10-23","Mastercard","Venda crédito",2,90.0,2.03,87.97],["2026-10-26","Visa","Venda crédito",3,165.0,3.72,161.28],["2026-10-26","Visa","Venda parcelada",3,498.03,14.0,484.03],["2026-10-26","Mastercard","Venda crédito",4,130.0,2.94,127.06],["2026-10-26","Mastercard","Venda parcelada",6,1307.59,36.0,1271.59],["2026-10-26","Elo","Venda parcelada",1,163.6,6.12,157.48],["2026-10-27","Mastercard","Venda parcelada",4,710.66,19.95,690.71],["2026-10-28","Visa","Venda parcelada",2,478.16,12.96,465.2],["2026-10-28","Mastercard","Venda parcelada",1,223.0,6.04,216.96],["2026-10-29","Visa","Venda parcelada",1,197.5,5.35,192.15],["2026-10-29","Mastercard","Venda parcelada",1,369.0,10.0,359.0],["2026-10-30","Visa","Venda crédito",1,60.0,1.35,58.65],["2026-10-30","Visa","Venda parcelada",1,49.4,1.53,47.87],["2026-10-30","Mastercard","Venda crédito",1,30.0,0.68,29.32],["2026-10-30","Mastercard","Venda parcelada",1,124.5,3.85,120.65],["2026-11-03","Visa","Venda crédito",1,179.0,4.03,174.97],["2026-11-03","Visa","Venda parcelada",5,1058.32,31.54,1026.78],["2026-11-03","Mastercard","Venda crédito",4,1770.0,39.83,1730.17],["2026-11-03","Mastercard","Venda parcelada",14,3459.55,100.43,3359.12],["2026-11-04","Visa","Venda parcelada",1,243.0,6.59,236.41],["2026-11-05","Mastercard","Venda parcelada",1,376.0,11.62,364.38],["2026-11-05","Elo","Venda parcelada",1,116.33,3.91,112.42],["2026-11-06","Mastercard","Venda parcelada",3,676.13,18.76,657.37],["2026-11-06","Elo","Venda parcelada",1,136.66,4.59,132.07],["2026-11-09","Visa","Venda parcelada",1,133.33,3.61,129.72],["2026-11-09","Mastercard","Venda parcelada",4,937.32,26.12,911.2],["2026-11-10","Visa","Venda parcelada",2,275.99,7.48,268.51],["2026-11-10","Mastercard","Venda parcelada",3,767.5,22.7,744.8],["2026-11-10","Elo","Venda parcelada",1,147.6,5.52,142.08],["2026-11-11","Visa","Venda parcelada",2,350.1,10.82,339.28],["2026-11-11","Mastercard","Venda parcelada",3,760.99,21.18,739.81],["2026-11-12","Mastercard","Venda parcelada",2,265.83,7.2,258.63],["2026-11-13","Visa","Venda parcelada",1,359.66,9.75,349.91],["2026-11-13","Mastercard","Venda parcelada",3,511.66,13.86,497.8],["2026-11-16","Visa","Venda parcelada",4,588.46,17.69,570.77],["2026-11-16","Mastercard","Venda parcelada",8,1641.28,49.98,1591.3],["2026-11-17","Visa","Venda parcelada",1,328.5,8.9,319.6],["2026-11-17","Mastercard","Venda parcelada",1,189.66,5.14,184.52],["2026-11-18","Mastercard","Venda parcelada",3,540.4,16.01,524.39],["2026-11-23","Visa","Venda parcelada",1,209.66,5.68,203.98],["2026-11-23","Mastercard","Venda parcelada",5,1086.36,32.38,1053.98],["2026-11-24","Visa","Venda parcelada",2,288.33,8.32,280.01],["2026-11-24","Elo","Venda parcelada",1,163.6,6.12,157.48],["2026-11-25","Mastercard","Venda parcelada",1,151.6,4.68,146.92],["2026-11-26","Mastercard","Venda parcelada",4,710.66,19.95,690.71],["2026-11-27","Visa","Venda parcelada",2,478.16,12.96,465.2],["2026-11-27","Mastercard","Venda parcelada",1,223.0,6.04,216.96],["2026-11-30","Visa","Venda parcelada",2,246.9,6.88,240.02],["2026-11-30","Mastercard","Venda parcelada",3,694.1,20.05,674.05],["2026-12-01","Visa","Venda parcelada",4,693.92,20.28,673.64],["2026-12-01","Mastercard","Venda parcelada",3,581.99,15.77,566.22],["2026-12-02","Mastercard","Venda parcelada",4,943.53,27.73,915.8],["2026-12-03","Visa","Venda parcelada",1,364.4,11.26,353.14],["2026-12-03","Mastercard","Venda parcelada",2,471.6,14.57,457.03],["2026-12-07","Visa","Venda parcelada",1,243.0,6.59,236.41],["2026-12-07","Mastercard","Venda parcelada",4,908.13,27.2,880.93],["2026-12-07","Elo","Venda parcelada",2,252.99,8.5,244.49],["2026-12-08","Mastercard","Venda parcelada",1,189.66,5.14,184.52],["2026-12-09","Mastercard","Venda parcelada",1,246.66,6.68,239.98],["2026-12-10","Visa","Venda parcelada",1,133.33,3.61,129.72],["2026-12-10","Mastercard","Venda parcelada",3,767.5,22.7,744.8],["2026-12-11","Visa","Venda parcelada",2,275.99,7.48,268.51],["2026-12-11","Mastercard","Venda parcelada",2,247.66,7.27,240.39],["2026-12-11","Elo","Venda parcelada",1,147.6,5.52,142.08],["2026-12-14","Visa","Venda parcelada",2,515.26,14.56,500.7],["2026-12-14","Mastercard","Venda parcelada",6,961.53,27.43,934.1],["2026-12-15","Mastercard","Venda parcelada",3,697.88,21.57,676.31],["2026-12-16","Visa","Venda parcelada",2,287.2,8.88,278.32],["2026-12-16","Mastercard","Venda parcelada",2,387.2,11.96,375.24],["2026-12-17","Mastercard","Venda parcelada",1,189.66,5.14,184.52],["2026-12-18","Visa","Venda parcelada",1,328.5,8.9,319.6],["2026-12-18","Mastercard","Venda parcelada",3,540.4,16.01,524.39],["2026-12-21","Mastercard","Venda parcelada",2,538.1,16.63,521.47],["2026-12-23","Mastercard","Venda parcelada",2,312.66,8.47,304.19],["2026-12-24","Visa","Venda parcelada",1,209.66,5.68,203.98],["2026-12-28","Visa","Venda parcelada",2,288.33,8.32,280.01],["2026-12-28","Mastercard","Venda parcelada",5,832.6,23.82,808.78],["2026-12-28","Elo","Venda parcelada",1,163.6,6.12,157.48],["2026-12-29","Visa","Venda parcelada",1,197.5,5.35,192.15],["2026-12-29","Mastercard","Venda parcelada",1,124.5,3.85,120.65],["2026-12-30","Visa","Venda parcelada",1,49.4,1.53,47.87],["2026-12-30","Mastercard","Venda parcelada",1,200.6,6.2,194.4],["2026-12-31","Visa","Venda parcelada",3,507.26,15.22,492.04],["2026-12-31","Mastercard","Venda parcelada",1,123.0,3.33,119.67],["2027-01-04","Visa","Venda parcelada",1,364.4,11.26,353.14],["2027-01-04","Mastercard","Venda parcelada",6,1623.53,48.74,1574.79],["2027-01-05","Mastercard","Venda parcelada",2,340.13,9.65,330.48],["2027-01-06","Mastercard","Venda parcelada",1,192.0,5.93,186.07],["2027-01-06","Elo","Venda parcelada",1,136.66,4.59,132.07],["2027-01-08","Mastercard","Venda parcelada",1,246.66,6.68,239.98],["2027-01-11","Visa","Venda parcelada",4,564.92,15.9,549.02],["2027-01-11","Mastercard","Venda parcelada",4,853.99,25.6,828.39],["2027-01-11","Elo","Venda parcelada",1,147.6,5.52,142.08],["2027-01-12","Mastercard","Venda parcelada",1,169.5,4.59,164.91],["2027-01-13","Visa","Venda parcelada",1,359.66,9.75,349.91],["2027-01-13","Mastercard","Venda parcelada",2,344.6,9.91,334.69],["2027-01-14","Mastercard","Venda parcelada",3,697.88,21.57,676.31],["2027-01-15","Visa","Venda parcelada",2,287.2,8.88,278.32],["2027-01-15","Mastercard","Venda parcelada",1,127.6,3.94,123.66],["2027-01-18","Mastercard","Venda parcelada",3,540.4,16.01,524.39],["2027-01-19","Mastercard","Venda parcelada",2,538.1,16.63,521.47],["2027-01-22","Mastercard","Venda parcelada",1,119.66,3.24,116.42],["2027-01-25","Visa","Venda parcelada",2,341.66,9.76,331.9],["2027-01-25","Mastercard","Venda parcelada",4,609.6,17.78,591.82],["2027-01-25","Elo","Venda parcelada",1,163.6,6.12,157.48],["2027-01-26","Mastercard","Venda parcelada",1,223.0,6.04,216.96],["2027-01-28","Visa","Venda parcelada",1,197.5,5.35,192.15],["2027-01-28","Mastercard","Venda parcelada",1,124.5,3.85,120.65],["2027-01-29","Visa","Venda parcelada",1,49.4,1.53,47.87],["2027-01-29","Mastercard","Venda parcelada",1,200.6,6.2,194.4],["2027-02-01","Visa","Venda parcelada",3,507.26,15.22,492.04],["2027-02-01","Mastercard","Venda parcelada",6,1370.53,40.45,1330.08],["2027-02-02","Visa","Venda parcelada",1,364.4,11.26,353.14],["2027-02-03","Mastercard","Venda parcelada",1,376.0,11.62,364.38],["2027-02-04","Mastercard","Venda parcelada",1,226.33,6.13,220.2],["2027-02-10","Visa","Venda parcelada",3,409.32,11.09,398.23],["2027-02-10","Mastercard","Venda parcelada",4,994.32,29.4,964.92],["2027-02-10","Elo","Venda parcelada",2,284.26,10.11,274.15],["2027-02-11","Visa","Venda parcelada",1,155.6,4.81,150.79],["2027-02-12","Mastercard","Venda parcelada",1,193.0,5.23,187.77],["2027-02-15","Visa","Venda parcelada",3,646.86,18.63,628.23],["2027-02-15","Mastercard","Venda parcelada",3,593.48,18.34,575.14],["2027-02-16","Mastercard","Venda parcelada",3,540.4,16.01,524.39],["2027-02-18","Mastercard","Venda parcelada",2,538.1,16.63,521.47],["2027-02-22","Mastercard","Venda parcelada",1,119.66,3.24,116.42],["2027-02-23","Visa","Venda parcelada",1,209.66,5.68,203.98],["2027-02-23","Mastercard","Venda parcelada",1,151.6,4.68,146.92],["2027-02-24","Visa","Venda parcelada",1,132.0,4.08,127.92],["2027-02-24","Mastercard","Venda parcelada",2,305.0,8.95,296.05],["2027-02-24","Elo","Venda parcelada",1,163.6,6.12,157.48],["2027-03-01","Visa","Venda parcelada",2,246.9,6.88,240.02],["2027-03-01","Mastercard","Venda parcelada",3,448.1,13.38,434.72],["2027-03-02","Mastercard","Venda parcelada",2,582.6,17.31,565.29],["2027-03-03","Visa","Venda parcelada",2,387.6,11.98,375.62],["2027-03-03","Mastercard","Venda parcelada",2,471.6,14.57,457.03],["2027-03-05","Visa","Venda parcelada",1,364.4,11.26,353.14],["2027-03-05","Mastercard","Venda parcelada",1,376.0,11.62,364.38],["2027-03-09","Mastercard","Venda parcelada",1,246.66,6.68,239.98],["2027-03-11","Mastercard","Venda parcelada",1,99.66,2.7,96.96],["2027-03-12","Visa","Venda parcelada",1,133.33,3.61,129.72],["2027-03-15","Visa","Venda parcelada",3,431.59,12.29,419.3],["2027-03-15","Mastercard","Venda parcelada",3,658.88,19.63,639.25],["2027-03-15","Elo","Venda parcelada",1,147.6,5.52,142.08],["2027-03-16","Mastercard","Venda parcelada",1,127.6,3.94,123.66],["2027-03-18","Visa","Venda parcelada",2,287.2,8.88,278.32],["2027-03-18","Mastercard","Venda parcelada",2,357.4,11.05,346.35],["2027-03-22","Mastercard","Venda parcelada",1,226.1,6.99,219.11],["2027-03-25","Mastercard","Venda parcelada",1,151.6,4.68,146.92],["2027-03-29","Visa","Venda parcelada",1,209.66,5.68,203.98],["2027-03-29","Mastercard","Venda parcelada",1,124.5,3.85,120.65],["2027-03-29","Elo","Venda parcelada",1,163.6,6.12,157.48],["2027-03-30","Mastercard","Venda parcelada",1,200.6,6.2,194.4],["2027-03-31","Visa","Venda parcelada",3,437.0,13.51,423.49],["2027-03-31","Mastercard","Venda parcelada",1,123.0,3.33,119.67],["2027-04-01","Mastercard","Venda parcelada",2,582.6,17.31,565.29],["2027-04-02","Visa","Venda parcelada",1,364.4,11.26,353.14],["2027-04-02","Mastercard","Venda parcelada",2,471.6,14.57,457.03],["2027-04-05","Mastercard","Venda parcelada",1,376.0,11.62,364.38],["2027-04-12","Visa","Venda parcelada",1,155.6,4.81,150.79],["2027-04-12","Elo","Venda parcelada",1,147.6,5.52,142.08],["2027-04-14","Mastercard","Venda parcelada",2,465.88,14.4,451.48],["2027-04-15","Visa","Venda parcelada",1,163.6,5.06,158.54],["2027-04-15","Mastercard","Venda parcelada",1,127.6,3.94,123.66],["2027-04-19","Mastercard","Venda parcelada",2,501.7,15.51,486.19],["2027-04-26","Mastercard","Venda parcelada",1,151.6,4.68,146.92],["2027-04-26","Elo","Venda parcelada",1,163.6,6.12,157.48],["2027-04-29","Visa","Venda parcelada",1,49.4,1.53,47.87],["2027-04-29","Mastercard","Venda parcelada",1,200.6,6.2,194.4],["2027-05-03","Visa","Venda parcelada",3,752.0,23.24,728.76],["2027-05-03","Mastercard","Venda parcelada",1,399.6,12.35,387.25],["2027-05-04","Mastercard","Venda parcelada",1,376.0,11.62,364.38],["2027-05-11","Elo","Venda parcelada",1,147.6,5.52,142.08],["2027-05-12","Visa","Venda parcelada",1,155.6,4.81,150.79],["2027-05-14","Mastercard","Venda parcelada",1,163.6,5.06,158.54],["2027-05-17","Mastercard","Venda parcelada",1,275.6,8.52,267.08],["2027-05-24","Mastercard","Venda parcelada",1,151.6,4.68,146.92],["2027-05-25","Elo","Venda parcelada",1,163.6,6.12,157.48],["2027-05-31","Visa","Venda parcelada",3,437.0,13.51,423.49],["2027-05-31","Mastercard","Venda parcelada",1,399.6,12.35,387.25],["2027-06-02","Visa","Venda parcelada",1,364.4,11.26,353.14],["2027-06-10","Elo","Venda parcelada",1,147.6,5.52,142.08],["2027-06-11","Visa","Venda parcelada",1,155.6,4.81,150.79],["2027-06-14","Mastercard","Venda parcelada",1,163.6,5.06,158.54],["2027-06-16","Mastercard","Venda parcelada",1,275.6,8.52,267.08],["2027-06-24","Elo","Venda parcelada",1,163.6,6.12,157.48],["2027-06-29","Visa","Venda parcelada",1,49.4,1.53,47.87],["2027-06-30","Mastercard","Venda parcelada",1,399.6,12.35,387.25],["2027-07-01","Visa","Venda parcelada",2,387.6,11.98,375.62],["2027-07-05","Visa","Venda parcelada",1,364.4,11.26,353.14],["2027-07-12","Visa","Venda parcelada",1,155.6,4.81,150.79],["2027-07-12","Elo","Venda parcelada",1,147.6,5.52,142.08],["2027-07-13","Mastercard","Venda parcelada",1,163.6,5.06,158.54],["2027-07-16","Mastercard","Venda parcelada",1,275.6,8.52,267.08],["2027-07-30","Visa","Venda parcelada",1,49.4,1.53,47.87],["2027-08-02","Visa","Venda parcelada",1,364.4,11.26,353.14]];
+
+  function seedPdfCardsV101(){
+    data.cardReceivablesV96=Array.isArray(data.cardReceivablesV96)?data.cardReceivablesV96:[];
+    const arr=data.cardReceivablesV96;
+    const existing=new Set(arr.map(x=>T(x.id)));
+    PDF_CARD_ROWS_V101.forEach((row,i)=>{
+      const [expectedDate,brand,type,qty,gross,fee,net]=row;
+      const id=`PDFCARD-20261005-${String(i+1).padStart(3,'0')}`;
+      if(existing.has(id))return;
+      arr.push({
+        id,cashId:'',originId:'',originNumber:`PDF-${String(i+1).padStart(3,'0')}`,
+        description:`${brand} • ${type} • ${qty} transação${qty===1?'':'ões'}`,
+        payment:type,brand,transactionQty:qty,saleDate:'',gross:N(gross),feePct:gross>0?(N(fee)/N(gross))*100:0,
+        feeValueExpected:N(fee),netExpected:N(net),expectedDate,destinationAccount:'sicredi',
+        status:'Pendente',receivedAt:'',createdAtIso:'2026-10-05T00:00:00-03:00',source:'pdf-calendar-v101',sourceLabel:PDF_CARD_SOURCE_V101
+      });
+    });
+  }
+
+  // =========================================================
   // CONTROLE DE CARTÕES
   // =========================================================
   function ensureCards(){
@@ -18594,7 +18634,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     data.settings=data.settings||{};
     if(data.settings.cardDebitDaysV96===undefined)data.settings.cardDebitDaysV96=1;
     if(data.settings.cardCreditDaysV96===undefined)data.settings.cardCreditDaysV96=30;
-    if(!T(data.settings.cardDefaultBankV96))data.settings.cardDefaultBankV96='sicredi';
+    // Todos os recebíveis futuros de cartão entram no Sicredi Le Pneus.
+    data.settings.cardDefaultBankV96='sicredi';
+    seedPdfCardsV101();
+    data.cardReceivablesV96.forEach(r=>{if(T(r.status)!=='Recebido')r.destinationAccount='sicredi'});
     return data.cardReceivablesV96;
   }
   window.lpEnsureCardsV96=ensureCards;
@@ -18604,8 +18647,8 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     if(p.includes('debito'))return Math.max(0,N(data.settings.cardDebitDaysV96));
     return Math.max(0,N(data.settings.cardCreditDaysV96));
   }
-  function cardNet(r){return Math.max(0,N(r.gross)-N(r.gross)*N(r.feePct)/100)}
-  function cardFee(r){return Math.max(0,N(r.gross)-cardNet(r))}
+  function cardNet(r){return Math.max(0,r&&r.netExpected!==undefined?N(r.netExpected):N(r.gross)-N(r.gross)*N(r.feePct)/100)}
+  function cardFee(r){return Math.max(0,r&&r.feeValueExpected!==undefined?N(r.feeValueExpected):N(r.gross)-cardNet(r))}
   function isCardPayment(p){const x=norm(p);return x.includes('credito')||x.includes('debito')||x.includes('cartao')}
 
   function ensureCardFromCash(c){
@@ -18658,7 +18701,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     ensureCards();
     data.settings.cardDebitDaysV96=Math.max(0,N(document.getElementById('lpCardDebitDaysV96')?.value));
     data.settings.cardCreditDaysV96=Math.max(0,N(document.getElementById('lpCardCreditDaysV96')?.value));
-    data.settings.cardDefaultBankV96=T(document.getElementById('lpCardBankV96')?.value)||'sicredi';
+    data.settings.cardDefaultBankV96='sicredi';
     try{save()}catch(e){}
     renderCartoes();
   };
@@ -18673,7 +18716,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <label>Valor bruto<input id="lpCardNewGrossV96" type="number" min="0" step="0.01"></label>
         <label>Taxa %<input id="lpCardNewFeeV96" type="number" min="0" step="0.01" value="0"></label>
         <label>Previsão de crédito<input id="lpCardNewExpectedV96" type="date" value="${addDays(today(),N(data.settings.cardCreditDaysV96))}"></label>
-        <label>Destino<select id="lpCardNewBankV96"><option value="sicredi">Sicredi Le Pneus</option><option value="sicoob">Sicoob Le Pneus</option></select></label>
+        <label>Destino<input value="Sicredi Le Pneus" disabled></label>
         <label class="full">Descrição<input id="lpCardNewDescV96" placeholder="Ex.: Venda balcão"></label>
       </div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpSaveNewCardV96()">Salvar</button></div>`);
@@ -18698,7 +18741,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       payment:T(document.getElementById('lpCardNewPayV96')?.value)||'Crédito',
       saleDate,gross,feePct:Math.max(0,N(document.getElementById('lpCardNewFeeV96')?.value)),
       expectedDate:T(document.getElementById('lpCardNewExpectedV96')?.value)||addDays(saleDate,30),
-      destinationAccount:T(document.getElementById('lpCardNewBankV96')?.value)||'sicredi',
+      destinationAccount:'sicredi',
       status:'Pendente',receivedAt:'',createdAtIso:new Date().toISOString(),source:'manual-v96'
     });
     try{save()}catch(e){}
@@ -18712,7 +18755,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       <div class="form">
         <label>Taxa %<input id="lpCardEditFeeV96" type="number" min="0" step="0.01" value="${N(r.feePct)}"></label>
         <label>Previsão de crédito<input id="lpCardEditExpectedV96" type="date" value="${E(r.expectedDate)}"></label>
-        <label>Destino<select id="lpCardEditBankV96"><option value="sicredi" ${r.destinationAccount==='sicredi'?'selected':''}>Sicredi Le Pneus</option><option value="sicoob" ${r.destinationAccount==='sicoob'?'selected':''}>Sicoob Le Pneus</option></select></label>
+        <label>Destino<input value="Sicredi Le Pneus" disabled></label>
         <label class="full">Descrição<input id="lpCardEditDescV96" value="${E(r.description)}"></label>
       </div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick='lpSaveCardEditV96(${JSON.stringify(T(id))})'>Salvar</button></div>`);
@@ -18721,7 +18764,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     const r=ensureCards().find(x=>T(x.id)===T(id));if(!r)return;
     r.feePct=Math.max(0,N(document.getElementById('lpCardEditFeeV96')?.value));
     r.expectedDate=T(document.getElementById('lpCardEditExpectedV96')?.value)||r.expectedDate;
-    r.destinationAccount=T(document.getElementById('lpCardEditBankV96')?.value)||'sicredi';
+    r.destinationAccount='sicredi';
     r.description=T(document.getElementById('lpCardEditDescV96')?.value)||r.description;
     try{save()}catch(e){}
     closeModal();renderCartoes();
@@ -18733,7 +18776,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       <div class="notice">Bruto: <b>${M(r.gross)}</b> • Taxa: <b>${M(cardFee(r))}</b> • Líquido previsto: <b>${M(cardNet(r))}</b></div>
       <div class="form">
         <label>Data que caiu<input id="lpCardReceiveDateV96" type="date" value="${today()}"></label>
-        <label>Conta de destino<select id="lpCardReceiveBankV96"><option value="sicredi" ${r.destinationAccount==='sicredi'?'selected':''}>Sicredi Le Pneus</option><option value="sicoob" ${r.destinationAccount==='sicoob'?'selected':''}>Sicoob Le Pneus</option></select></label>
+        <label>Conta de destino<input value="Sicredi Le Pneus" disabled></label>
         <label>Valor líquido recebido<input id="lpCardReceiveNetV96" type="number" min="0" step="0.01" value="${cardNet(r).toFixed(2)}"></label>
       </div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick='lpConfirmReceiveCardV96(${JSON.stringify(T(id))})'>Confirmar recebimento</button></div>`);
@@ -18742,7 +18785,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   window.lpConfirmReceiveCardV96=function(id){
     const r=ensureCards().find(x=>T(x.id)===T(id));if(!r||r.status==='Recebido')return;
     const net=Math.max(0,N(document.getElementById('lpCardReceiveNetV96')?.value));
-    const bank=T(document.getElementById('lpCardReceiveBankV96')?.value)||r.destinationAccount||'sicredi';
+    const bank='sicredi';
     const receiveDate=T(document.getElementById('lpCardReceiveDateV96')?.value)||today();
     const gross=N(r.gross),fee=Math.max(0,gross-net);
     const dateBR=br(receiveDate);
@@ -18777,6 +18820,68 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     try{if(typeof renderCaixa==='function'&&document.getElementById('caixa')?.classList.contains('active'))renderCaixa()}catch(e){}
   };
 
+  function monthShiftV101(ym,delta){
+    const [y,m]=T(ym).split('-').map(Number);const d=new Date(y,m-1+Number(delta||0),1,12);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  function monthLabelV101(ym){
+    const [y,m]=T(ym).split('-').map(Number);
+    return new Date(y,m-1,1,12).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  }
+  function cardGroupsByDayV101(arr){
+    const map=new Map();
+    (arr||[]).forEach(r=>{
+      const d=T(r.expectedDate);if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
+      if(!map.has(d))map.set(d,[]);map.get(d).push(r);
+    });
+    return map;
+  }
+  window.lpCardCalendarMoveV101=function(delta){
+    window.__lpCardCalendarMonthV101=monthShiftV101(window.__lpCardCalendarMonthV101||today().slice(0,7),delta);
+    renderCartoes();
+  };
+  window.lpCardSetViewV101=function(view){window.__lpCardViewV101=view==='agenda'?'agenda':'calendar';renderCartoes()};
+  window.lpCardDayV101=function(date){
+    const list=ensureCards().filter(r=>T(r.expectedDate)===T(date));
+    if(!list.length)return;
+    const pending=list.filter(r=>T(r.status)!=='Recebido');
+    const total=list.reduce((a,r)=>a+cardNet(r),0),pdf=list.filter(r=>r.source==='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),sales=list.filter(r=>r.source!=='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0);
+    const rows=list.map(r=>`<tr><td><b>${E(r.description)}</b><small>${E(r.source==='pdf-calendar-v101'?'PDF 05/10/2026':'Venda do sistema')}</small></td><td>${M(r.gross)}</td><td>${M(cardFee(r))}</td><td><b>${M(cardNet(r))}</b></td><td>${E(r.status||'Pendente')}</td></tr>`).join('');
+    showModal(`<h2>Recebimentos de ${br(date)}</h2>
+      <div class="notice">PDF: <b>${M(pdf)}</b> • Novas vendas: <b>${M(sales)}</b> • Total do dia no Sicredi: <b>${M(total)}</b></div>
+      <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button>${pending.length?`<button class="btn primary" onclick='lpReceiveCardDayV101(${JSON.stringify(T(date))})'>Receber pendentes no Sicredi</button>`:''}</div>`);
+  };
+  window.lpReceiveCardDayV101=function(date){
+    const list=ensureCards().filter(r=>T(r.expectedDate)===T(date)&&T(r.status)!=='Recebido');
+    if(!list.length)return closeModal();
+    if(!confirm(`Confirmar ${list.length} recebível(is) de ${br(date)} no Sicredi?`))return;
+    list.forEach(r=>{
+      const net=cardNet(r),gross=N(r.gross),fee=Math.max(0,gross-net),dateBR=br(date),bank='sicredi';
+      const out={id:idNow96('CARD-OUT'),type:'Saída',desc:`Liquidação cartão • ${r.description}`,value:gross,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:'cartoes',accountName:'Cartões a Receber',accountSchema:'v101'};
+      const inc={id:idNow96('CARD-IN'),type:'Entrada',desc:`Crédito cartão • ${r.description}`,value:net,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:bank,accountName:'Sicredi Le Pneus',accountSchema:'v101'};
+      data.cash.unshift(inc,out);
+      if(fee>.009)data.finance.unshift({id:idNow96('CARD-FEE'),type:'Despesa',category:'Taxas de cartão',desc:`Taxa cartão • ${r.description}`,value:fee,status:'Pago',date,dueDate:date,payment:'Desconto da adquirente',originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',cardFeeV96:true,noCashMovementV96:true});
+      r.status='Recebido';r.receivedAt=date;r.receivedNet=net;r.feeValue=fee;r.destinationAccount='sicredi';r.cardCashOutId=out.id;r.bankCashId=inc.id;
+    });
+    try{save()}catch(e){}
+    closeModal();renderCartoes();
+    try{if(typeof renderCaixa==='function'&&document.getElementById('caixa')?.classList.contains('active'))renderCaixa()}catch(e){}
+  };
+  function renderCardCalendarV101(arr){
+    const ym=window.__lpCardCalendarMonthV101||today().slice(0,7);window.__lpCardCalendarMonthV101=ym;
+    const [y,m]=ym.split('-').map(Number),first=new Date(y,m-1,1,12),days=new Date(y,m,0).getDate(),start=first.getDay();
+    const groups=cardGroupsByDayV101(arr);
+    let cells='';for(let i=0;i<start;i++)cells+='<div class="lp-v101-cal-day empty"></div>';
+    for(let day=1;day<=days;day++){
+      const iso=`${ym}-${String(day).padStart(2,'0')}`,list=groups.get(iso)||[];
+      const total=list.reduce((a,r)=>a+cardNet(r),0),pdf=list.filter(r=>r.source==='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),sales=list.filter(r=>r.source!=='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),received=list.filter(r=>T(r.status)==='Recebido').reduce((a,r)=>a+N(r.receivedNet||cardNet(r)),0);
+      cells+=`<button class="lp-v101-cal-day ${list.length?'has-value':''} ${iso===today()?'today':''}" ${list.length?`onclick='lpCardDayV101(${JSON.stringify(iso)})'`:''}><span class="lp-v101-cal-num">${day}</span>${list.length?`<b>${M(total)}</b><small>${list.length} lançamento(s)</small>${sales>.009?`<small class="new-sale">+ ${M(sales)} vendas</small>`:''}${received>.009?`<small>Recebido ${M(received)}</small>`:''}`:''}</button>`;
+    }
+    const monthItems=arr.filter(r=>T(r.expectedDate).slice(0,7)===ym),monthNet=monthItems.reduce((a,r)=>a+cardNet(r),0),monthPdf=monthItems.filter(r=>r.source==='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),monthSales=monthItems.filter(r=>r.source!=='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0);
+    return `<section class="card lp-v101-calendar-card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Calendário Sicredi</h3><small class="cell-sub">PDF + novas vendas de cartão somadas automaticamente pela data prevista.</small></div><div class="actions"><button class="btn ghost small" onclick="lpCardCalendarMoveV101(-1)">←</button><b class="lp-v101-month-label">${E(monthLabelV101(ym))}</b><button class="btn ghost small" onclick="lpCardCalendarMoveV101(1)">→</button></div></div><div class="lp-v101-calendar-kpis">${metric('PDF no mês',M(monthPdf),'relatório importado','green')}${metric('Novas vendas',M(monthSales),'somadas às datas previstas','green')}${metric('Total previsto',M(monthNet),'destino: Sicredi Le Pneus','green')}</div><div class="lp-v101-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div><div class="lp-v101-calendar">${cells}</div></section>`;
+  }
+
   window.renderCartoes=function(){
     ensureCards();migrateCards();
     const now=today(),in7=addDays(now,7),ym=now.slice(0,7);
@@ -18807,21 +18912,22 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     </tr>`).join('');
 
     const host=document.getElementById('cartoes');if(!host)return;
-    host.innerHTML=heading('Controle de Cartões','Veja quanto ainda vai cair, previsão de crédito, taxas e em qual banco o valor entra.',
-      `<button class="btn primary" onclick="lpNewCardReceivableV96()">+ Recebível</button>`)+
-      `<div class="notice"><b>Importante:</b> os prazos abaixo são previsões editáveis. Ajuste os dias conforme sua maquininha/adquirente. A taxa começa em 0% até você informar a taxa real.</div>
+    const view=window.__lpCardViewV101||'calendar';
+    host.innerHTML=heading('Controle de Cartões','Calendário de recebimentos e vendas de cartão com destino no Sicredi Le Pneus.',
+      `<div class="actions"><button class="btn ${view==='calendar'?'primary':'ghost'}" onclick="lpCardSetViewV101('calendar')">Calendário Sicredi</button><button class="btn ${view==='agenda'?'primary':'ghost'}" onclick="lpCardSetViewV101('agenda')">Lançamentos</button><button class="btn ghost" onclick="lpNewCardReceivableV96()">+ Recebível</button></div>`)+
+      `<div class="notice"><b>Sicredi fixo:</b> todos os recebíveis futuros de cartão têm destino <b>Sicredi Le Pneus</b>. O calendário soma o relatório importado com as novas vendas na mesma data.</div>
       <div class="lp-v96-card-kpis">
         ${metric('Bruto a receber',M(gross),pending.length+' lançamento(s)','green')}
         ${metric('Líquido previsto',M(net),'descontadas as taxas cadastradas','green')}
         ${metric('Próximos 7 dias',M(next7),'previsão de crédito','green')}
         ${metric('Recebido no mês',M(receivedMonth),'liquidações confirmadas','green')}
       </div>
-      <section class="card">
+      ${view==='calendar'?renderCardCalendarV101(arr):`<section class="card">
         <div class="panel-head"><div><h3 class="section-title" style="margin:0">Configuração da previsão</h3><small class="cell-sub">Apenas para calcular a data prevista automaticamente; você pode editar cada lançamento.</small></div></div>
         <div class="lp-v96-card-settings">
           <label>Débito cai em quantos dias<input id="lpCardDebitDaysV96" type="number" min="0" value="${N(data.settings.cardDebitDaysV96)}"></label>
           <label>Crédito: intervalo entre parcelas (dias)<input id="lpCardCreditDaysV96" type="number" min="1" value="${N(data.settings.cardCreditDaysV96)}"></label>
-          <label>Banco padrão<select id="lpCardBankV96"><option value="sicredi" ${data.settings.cardDefaultBankV96==='sicredi'?'selected':''}>Sicredi Le Pneus</option><option value="sicoob" ${data.settings.cardDefaultBankV96==='sicoob'?'selected':''}>Sicoob Le Pneus</option></select></label>
+          <label>Banco padrão<input value="Sicredi Le Pneus" disabled></label>
           <button class="btn ghost" onclick="lpSaveCardSettingsV96()">Salvar configuração</button>
         </div>
       </section>
@@ -18829,7 +18935,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <div class="panel-head"><div><h3 class="section-title" style="margin:0">Agenda de recebimentos</h3><small class="cell-sub">Ao marcar recebido, o valor sai de Cartões a Receber e entra no banco escolhido.</small></div></div>
         <table><thead><tr><th>Origem</th><th>Venda</th><th>Tipo</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Previsto</th><th>Destino</th><th>Status</th><th>Ação</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="10" class="empty">Nenhum recebível de cartão registrado.</td></tr>'}</tbody></table>
-      </section>`;
+      </section>`}`;
   };
 
   // Renderizador da nova página sem quebrar as páginas antigas.
@@ -19016,8 +19122,8 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         const cardStep=Math.max(1,N(data.settings.cardCreditDaysV96)||30);
         const due=isCardPayment(payment)
           ? (debitCard
-              ? addDays(purchaseDate,Math.max(1,N(data.settings.cardDebitDaysV96)||1))
-              : addDays(purchaseDate,cardStep*i))
+              ? firstDue
+              : addDays(firstDue,cardStep*(i-1)))
           : addMonths(firstDue,i-1);
         const status=payStatus==='Pago'?'Pago':'Pendente';
 
@@ -19039,8 +19145,8 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
           const r=c?ensureCardFromCash(c):null;
           if(r){
             r.expectedDate=debitCard
-              ? addDays(purchaseDate,Math.max(1,N(data.settings.cardDebitDaysV96)||1))
-              : addDays(purchaseDate,cardStep*i);
+              ? firstDue
+              : addDays(firstDue,cardStep*(i-1));
             r.description=count>1?`Venda #${sale.id} • parcela ${i}/${count}`:`Venda #${sale.id}`;
             r.originNumber=count>1?`VEN-${sale.id}-${i}/${count}`:`VEN-${sale.id}`;
             r.destinationAccount=T(data.settings.cardDefaultBankV96)||'sicredi';
