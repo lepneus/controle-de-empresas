@@ -13479,9 +13479,11 @@ window.__LP_PERSISTENCE_VERSION__='v60';
       const iDate=headerIndex(h,['data emissao']),iName=headerIndex(h,['cliente','fornecedor']),iDue=headerIndex(h,['vencimento']),iValue=headerIndex(h,['valor']),iPayment=headerIndex(h,['pagamento']),iRest=headerIndex(h,['valor restante']),iPaid=headerIndex(h,['data pagamento']);
       for(let r=hi+1;r<rows.length;r++){
         const row=rows[r]||[],name=T(row[iName]);if(!name)continue;
-        const value=rowNum(row,iValue),paid=rowNum(row,iPayment),restRaw=rowNumNull(row,iRest),remaining=restRaw===null?Math.max(0,value-paid):Math.max(0,restRaw);if(remaining<=0)continue;
+        const value=rowNum(row,iValue),paid=rowNum(row,iPayment),restRaw=rowNumNull(row,iRest),paidDate=excelDate(row[iPaid]),remaining=restRaw===null?Math.max(0,value-paid):Math.max(0,restRaw);
+        // Data de pagamento, saldo zerado ou pagamento total = conta quitada.
+        if(paidDate||remaining<=0||(value>0&&paid>=value))continue;
         const sourceKey=`${hash}|${sn}|${r+1}`;
-        pushUnique(data.lpFinanceReview.payables,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,name,value,remaining,emissionDate:excelDate(row[iDate]),dueDate:excelDate(row[iDue]),paidDate:excelDate(row[iPaid]),category:sn==='Banco'?'Banco / Empréstimo':'Fornecedor / Boleto',reviewStatus:'Pendente'});count++;
+        pushUnique(data.lpFinanceReview.payables,{id:sourceKey,sourceKey,sourceFile:file.name,sourceSheet:sn,row:r+1,name,value,remaining,emissionDate:excelDate(row[iDate]),dueDate:excelDate(row[iDue]),paidDate,paymentAmount:paid,category:sn==='Banco'?'Banco / Empréstimo':'Fornecedor / Boleto',reviewStatus:'Pendente'});count++;
       }
     });
     return count;
@@ -13625,7 +13627,20 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     saveV63();renderAll();
   };
 
-  function pendingFinance(){return (data.finance||[]).filter(f=>!/pago|recebido|cancelado/i.test(T(f.status)))}
+  function payableSettledV63(f){
+    if(/pago|paga|quitad|recebid|cancelad/i.test(T(f?.status)))return true;
+    if(T(f?.paidDate))return true;
+    const hasRemaining=f?.remaining!==undefined&&f?.remaining!==null&&T(f.remaining)!=='';
+    if(hasRemaining&&N(f.remaining)<=0)return true;
+    const original=N(f?.originalValue),paid=N(f?.paymentAmount);
+    if(original>0&&paid>=original)return true;
+    return false;
+  }
+  function pendingFinance(){return (data.finance||[]).filter(f=>{
+    if(/pago|paga|quitad|recebid|cancelad/i.test(T(f.status)))return false;
+    if(T(f.type)==='Despesa'&&payableSettledV63(f))return false;
+    return true;
+  })}
   function alerts(){
     ensureV63();const collectDays=Number(data.settings.lpCollectionDays||20),payDays=Number(data.settings.lpPayAlertDays||3),pending=pendingFinance();
     const rec=pending.filter(f=>T(f.type)==='Receita'),pay=pending.filter(f=>T(f.type)==='Despesa');
@@ -13792,6 +13807,16 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return {ready,items,docs,syncId,chunkCount};
   }
   function autoStatus(due){const x=daysOverdue(due);return x!==null&&x>0?'Vencido':'Pendente'}
+  function sourcePayableOpenAmount(x){
+    if(/pago|paga|quitad|recebid|cancelad/i.test(T(x?.status)))return 0;
+    if(T(x?.paidDate))return 0;
+    const hasRemaining=x?.remaining!==undefined&&x?.remaining!==null&&T(x.remaining)!=='';
+    const remaining=N(x?.remaining),original=N(x?.originalValue||x?.value),paid=N(x?.paymentAmount);
+    if(hasRemaining&&remaining<=0)return 0;
+    if(original>0&&paid>=original)return 0;
+    if(original>0&&paid>0){const calculated=Math.max(0,original-paid);return hasRemaining?Math.min(Math.max(0,remaining),calculated):calculated}
+    return hasRemaining?Math.max(0,remaining):Math.max(0,original);
+  }
   function sourceText(f){return norm(`${T(f?.sourceFile)} ${T(f?.sourceSheet)} ${T(f?.notes)}`)}
   function isLegacyAuthoritativeRow(f,type){
     if(f?.cloudManagedFinance)return false;
@@ -13837,7 +13862,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     const pay=payBundle.ready?payBundle.items:[];
     const recItems=recBundle.ready?uniqueBySource(recv.filter(x=>T(x.kind)!=='loss')).map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'})):[];
     const lossItems=recBundle.ready?uniqueBySource(recv.filter(x=>T(x.kind)==='loss')).map(x=>({...x,autoSyncFinance:true})):[];
-    const payItems=payBundle.ready?uniqueBySource(pay.filter(x=>!T(x.paidDate)&&N(x.remaining)>0)).map(x=>({...x,autoSyncFinance:true,reviewStatus:'Sincronizado'})):[];
+    const payItems=payBundle.ready?uniqueBySource(pay.filter(x=>sourcePayableOpenAmount(x)>0)).map(x=>({...x,remaining:sourcePayableOpenAmount(x),autoSyncFinance:true,reviewStatus:'Sincronizado'})):[];
 
     if(recBundle.ready){
       data.lpFinanceReview.receivables=[...data.lpFinanceReview.receivables.filter(x=>!x.autoSyncFinance),...recItems];
@@ -13867,7 +13892,7 @@ window.__LP_PERSISTENCE_VERSION__='v60';
       cloud.push({id:'finrec_'+T(r.sourceKey),type:'Receita',category:r.category||'A prazo',desc:r.customerName||'Cliente',customerName:r.customerName||'',value:N(r.remaining),date:r.purchaseDate||'',dueDate:r.dueDate||'',payment:r.category==='Cheque'?'Cheque':'A prazo',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.receber?.sourceFile||'Devedores LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.receber?.sourceFile||'',sourceSheet:r.sourceSheet||'',lastPaymentDate:r.lastPaymentDate||'',cloudManagedFinance:true});
     });
     if(payBundle.ready)payItems.forEach(r=>{
-      if(N(r.remaining)<=0||T(r.paidDate))return;
+      if(sourcePayableOpenAmount(r)<=0)return;
       cloud.push({id:'finpay_'+T(r.sourceKey),type:'Despesa',category:r.category||'Fornecedor / Boleto',desc:r.name||'Fornecedor',value:N(r.remaining),originalValue:N(r.value),remaining:N(r.remaining),date:r.emissionDate||'',dueDate:r.dueDate||'',payment:'Boleto',status:autoStatus(r.dueDate),notes:`Sincronizado de ${r.sourceFile||state.meta.pagar?.sourceFile||'Dívidas LEPNEUS'} • ${r.sourceSheet||''}`,sourceKey:T(r.sourceKey),sourceFile:r.sourceFile||state.meta.pagar?.sourceFile||'',sourceSheet:r.sourceSheet||'',paidDate:r.paidDate||'',paymentAmount:N(r.paymentAmount||0),cloudManagedFinance:true});
     });
     data.finance=[...manual,...cloud];
@@ -14646,22 +14671,28 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return !!f?.cloudManagedFinance||s.includes('dividas lepneus');
   }
   function payableOpenAmount(f){
+    if(/pago|paga|quitad|recebid|cancelad/i.test(T(f?.status)))return 0;
     if(T(f?.paidDate))return 0;
+    const hasRemaining=f?.remaining!==undefined&&f?.remaining!==null&&T(f.remaining)!=='';
     const remaining=N(f?.remaining);
     const original=N(f?.originalValue);
     const paid=N(f?.paymentAmount);
+    // Saldo explicitamente zerado sempre significa conta quitada.
+    if(hasRemaining&&remaining<=0)return 0;
+    // Mesmo que a coluna de saldo esteja desatualizada, pagamento total encerra a conta.
+    if(original>0&&paid>=original)return 0;
     if(original>0&&paid>0){
       const calculated=Math.max(0,original-paid);
       if(remaining>0)return Math.min(remaining,calculated);
       return calculated;
     }
-    if(remaining>0)return remaining;
+    if(hasRemaining)return Math.max(0,remaining);
     return Math.max(0,N(f?.value));
   }
   function payables(){
     let rows=data.finance.filter(f=>
       T(f.type)==='Despesa' &&
-      !/pago|recebido|cancelado/i.test(T(f.status)) &&
+      !/pago|paga|quitad|recebid|cancelad/i.test(T(f.status)) &&
       !T(f.paidDate) &&
       payableOpenAmount(f)>0 &&
       isDebtSource(f)
