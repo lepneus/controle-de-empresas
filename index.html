@@ -12169,8 +12169,8 @@ window.__LP_SALES_FIX_VERSION__='v47';
           <div><span>Preço cadastrado</span><b>${M(d.price)}</b></div>
         </div>
         <div class="actions" style="margin-top:12px">
-          <button class="btn ghost small" onclick="lpResolveDifference(${JSON.stringify(d.id)},'ajuste')">Foi ajuste</button>
-          <button class="btn primary small" onclick="lpDifferenceSaleModal(${JSON.stringify(d.id)})">Confirmar como venda</button>
+          <button class="btn ghost small" onclick="lpResolveDifference(this.closest('.lp-sale-pending-v46').dataset.diffId,'ajuste')">Foi ajuste</button>
+          <button class="btn primary small" onclick="lpDifferenceSaleModal(this.closest('.lp-sale-pending-v46').dataset.diffId)">Confirmar como venda</button>
         </div>
       </div>`).join('');
 
@@ -16978,7 +16978,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     const p=paymentKey(payment);
     if(p.includes('dinheiro')||p==='avista')return ['loja','casa'];
     if(p.includes('pix')||p.includes('transfer'))return ['sicredi','sicoob'];
-    if(p.includes('debito')||p.includes('credito')||p.includes('cartao'))return direction==='in'?['cartoes','sicredi','sicoob']:['sicredi','sicoob'];
+    // Cartão: o usuário vê apenas Sicredi como destino final.
+    // Internamente fica em 'cartoes' até a adquirente liquidar, evitando somar no banco antes da hora.
+    if(p.includes('debito')||p.includes('credito')||p.includes('cartao'))return direction==='in'?['cartoes']:['sicredi'];
     if(p.includes('cheque'))return ['chequeVista','chequePre'];
     if(p.includes('boleto'))return ['sicredi','sicoob'];
     return direction==='in'?['loja','sicredi','sicoob','chequeVista','cartoes']:['loja','casa','sicredi','sicoob','chequeVista'];
@@ -16989,8 +16991,11 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }
   function accountOptions(payment,direction='in',selected=''){
     const ids=allowedAccounts(payment,direction);
+    const cardIn=direction==='in'&&(paymentKey(payment).includes('debito')||paymentKey(payment).includes('credito')||paymentKey(payment).includes('cartao'));
     return ids.map(id=>{
-      const a=accountDef(id);return `<option value="${id}" ${selected===id?'selected':''}>${a?.icon||''} ${E(a?.name||id)}</option>`;
+      const a=accountDef(id);
+      const label=(cardIn&&id==='cartoes')?'🏦 Sicredi Le Pneus':`${a?.icon||''} ${E(a?.name||id)}`;
+      return `<option value="${id}" ${selected===id?'selected':''}>${label}</option>`;
     }).join('');
   }
 
@@ -17036,9 +17041,13 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const disabled=/pendente|a receber|parcelado/i.test(status);
       const current=T(sel.value);
       sel.innerHTML=accountOptions(pay.value,direction,current);
-      sel.disabled=disabled;
-      wrap.style.opacity=disabled?'.55':'1';
-      if(disabled)sel.title='A conta será escolhida quando o lançamento for recebido/pago.';
+      const cardIn=direction==='in'&&(paymentKey(pay.value).includes('debito')||paymentKey(pay.value).includes('credito')||paymentKey(pay.value).includes('cartao'));
+      const mini=wrap.querySelector('.lp-v82-mini');
+      if(mini)mini.textContent=cardIn?'Destino final: Sicredi Le Pneus. O valor entra no calendário e só soma ao saldo quando cair.':'Define exatamente onde o dinheiro entra ou sai.';
+      // Para cartão, o único destino visível é Sicredi; o valor fica tecnicamente em Cartões a Receber até a liquidação.
+      sel.disabled=cardIn?true:disabled;
+      wrap.style.opacity=(disabled&&!cardIn)?'.55':'1';
+      if(disabled&&!cardIn)sel.title='A conta será escolhida quando o lançamento for recebido/pago.';
     };
     pay.addEventListener('change',refresh);
     if(statusId)document.getElementById(statusId)?.addEventListener('change',refresh);
@@ -18651,18 +18660,33 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   function cardFee(r){return Math.max(0,r&&r.feeValueExpected!==undefined?N(r.feeValueExpected):N(r.gross)-cardNet(r))}
   function isCardPayment(p){const x=norm(p);return x.includes('credito')||x.includes('debito')||x.includes('cartao')}
 
+  function cardDescriptionFromCash(c){
+    const sale=(data.sales||[]).find(s=>T(s.id)===T(c?.originId));
+    if(!sale)return T(c?.desc)||'Venda no cartão';
+    const customer=T(sale.customer)||T((data.customers||[]).find(x=>T(x.id)===T(sale.customerId))?.name);
+    const items=(sale.items||[]).map(i=>T(i.name)).filter(Boolean);
+    const detail=items.slice(0,3).join(' + ');
+    const kind=norm(sale.originType).includes('os')||items.some((_,i)=>sale.items?.[i]?.kind==='service')?'Serviço':'Venda';
+    return [customer, detail||kind].filter(Boolean).join(' • ') || T(c?.desc) || 'Venda no cartão';
+  }
+
   function ensureCardFromCash(c){
     if(!c||c.type!=='Entrada'||T(c.accountId)!=='cartoes')return null;
     const arr=ensureCards();
     let r=arr.find(x=>T(x.cashId)===T(c.id));
-    if(r)return r;
+    const autoDescription=cardDescriptionFromCash(c);
+    if(r){
+      if(r.source==='automatic-v96'||!T(r.description))r.description=autoDescription;
+      r.destinationAccount='sicredi';
+      return r;
+    }
     const saleDate=dateFromCash(c);
     r={
       id:idNow96('CARD'),
       cashId:c.id,
       originId:c.originId||'',
       originNumber:c.originNumber||'',
-      description:c.desc||'Venda no cartão',
+      description:autoDescription,
       payment:c.payment||'Cartão',
       saleDate,
       gross:N(c.value),
@@ -18850,23 +18874,72 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     showModal(`<h2>Recebimentos de ${br(date)}</h2>
       <div class="notice">PDF: <b>${M(pdf)}</b> • Novas vendas: <b>${M(sales)}</b> • Total do dia no Sicredi: <b>${M(total)}</b></div>
       <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button>${pending.length?`<button class="btn primary" onclick='lpReceiveCardDayV101(${JSON.stringify(T(date))})'>Receber pendentes no Sicredi</button>`:''}</div>`);
+      <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button></div>`);
   };
+  function lpAutoSettleCardV102(r,receiveDate){
+    if(!r||T(r.status)==='Recebido')return false;
+    const date=T(receiveDate)||T(r.expectedDate)||today();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>today())return false;
+
+    data.cash=Array.isArray(data.cash)?data.cash:[];
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+
+    const net=cardNet(r),gross=N(r.gross),fee=Math.max(0,gross-net),dateBR=br(date),bank='sicredi';
+    const hasBank=(data.cash||[]).find(x=>T(x.originId)===T(r.id)&&T(x.accountId)==='sicredi'&&(x.autoCardSettlementV102||T(x.payment)==='Liquidação cartão'));
+    let inc=hasBank||null;
+
+    // Só retira de "Cartões a Receber" quando a venda original realmente criou
+    // uma entrada nessa conta. Registros vindos do PDF/manual não têm cashId.
+    let out=null;
+    if(T(r.cashId)){
+      const hasOut=(data.cash||[]).find(x=>T(x.originId)===T(r.id)&&T(x.accountId)==='cartoes'&&x.type==='Saída'&&(x.autoCardSettlementV102||T(x.payment)==='Liquidação cartão'));
+      if(!hasOut){
+        out={id:idNow96('CARD-OUT-AUTO'),type:'Saída',desc:`Liquidação automática cartão • ${r.description}`,value:gross,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:'cartoes',accountName:'Cartões a Receber',accountSchema:'v102',autoCardSettlementV102:true};
+        data.cash.unshift(out);
+      }else out=hasOut;
+    }
+
+    if(!inc){
+      inc={id:idNow96('CARD-IN-AUTO'),type:'Entrada',desc:`Crédito automático cartão • ${r.description}`,value:net,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:bank,accountName:'Sicredi Le Pneus',accountSchema:'v102',autoCardSettlementV102:true};
+      data.cash.unshift(inc);
+    }
+
+    if(fee>.009){
+      const hasFee=(data.finance||[]).some(x=>T(x.originId)===T(r.id)&&x.cardFeeV96);
+      if(!hasFee)data.finance.unshift({id:idNow96('CARD-FEE-AUTO'),type:'Despesa',category:'Taxas de cartão',desc:`Taxa cartão • ${r.description}`,value:fee,status:'Pago',date,dueDate:date,payment:'Desconto da adquirente',originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',cardFeeV96:true,noCashMovementV96:true,autoCardSettlementV102:true});
+    }
+
+    r.status='Recebido';r.receivedAt=date;r.receivedNet=net;r.feeValue=fee;
+    r.destinationAccount='sicredi';r.cardCashOutId=out?.id||r.cardCashOutId||'';r.bankCashId=inc.id;
+    r.autoReceivedV102=true;
+    return true;
+  }
+
+  function lpProcessAutomaticCardReceiptsV102(){
+    const arr=ensureCards();
+    let changed=false;
+    arr.forEach(r=>{
+      const due=T(r.expectedDate);
+      if(T(r.status)!=='Recebido'&&/^\d{4}-\d{2}-\d{2}$/.test(due)&&due<=today()){
+        if(lpAutoSettleCardV102(r,due))changed=true;
+      }
+    });
+    if(changed){
+      try{save()}catch(e){console.warn('Baixa automática de cartões:',e)}
+      try{if(typeof renderCaixa==='function'&&document.getElementById('caixa')?.classList.contains('active'))renderCaixa()}catch(e){}
+    }
+    return changed;
+  }
+  window.lpProcessAutomaticCardReceiptsV102=lpProcessAutomaticCardReceiptsV102;
+
+  // Mantida apenas por compatibilidade com chamadas antigas: agora é automática.
   window.lpReceiveCardDayV101=function(date){
     const list=ensureCards().filter(r=>T(r.expectedDate)===T(date)&&T(r.status)!=='Recebido');
-    if(!list.length)return closeModal();
-    if(!confirm(`Confirmar ${list.length} recebível(is) de ${br(date)} no Sicredi?`))return;
-    list.forEach(r=>{
-      const net=cardNet(r),gross=N(r.gross),fee=Math.max(0,gross-net),dateBR=br(date),bank='sicredi';
-      const out={id:idNow96('CARD-OUT'),type:'Saída',desc:`Liquidação cartão • ${r.description}`,value:gross,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:'cartoes',accountName:'Cartões a Receber',accountSchema:'v101'};
-      const inc={id:idNow96('CARD-IN'),type:'Entrada',desc:`Crédito cartão • ${r.description}`,value:net,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:bank,accountName:'Sicredi Le Pneus',accountSchema:'v101'};
-      data.cash.unshift(inc,out);
-      if(fee>.009)data.finance.unshift({id:idNow96('CARD-FEE'),type:'Despesa',category:'Taxas de cartão',desc:`Taxa cartão • ${r.description}`,value:fee,status:'Pago',date,dueDate:date,payment:'Desconto da adquirente',originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',cardFeeV96:true,noCashMovementV96:true});
-      r.status='Recebido';r.receivedAt=date;r.receivedNet=net;r.feeValue=fee;r.destinationAccount='sicredi';r.cardCashOutId=out.id;r.bankCashId=inc.id;
-    });
-    try{save()}catch(e){}
-    closeModal();renderCartoes();
-    try{if(typeof renderCaixa==='function'&&document.getElementById('caixa')?.classList.contains('active'))renderCaixa()}catch(e){}
+    let changed=false;
+    list.forEach(r=>{if(lpAutoSettleCardV102(r,date))changed=true});
+    if(changed){try{save()}catch(e){}}
+    try{closeModal()}catch(e){}
+    try{renderCartoes()}catch(e){}
   };
   function renderCardCalendarV101(arr){
     const ym=window.__lpCardCalendarMonthV101||today().slice(0,7);window.__lpCardCalendarMonthV101=ym;
@@ -18884,7 +18957,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   }
 
   window.renderCartoes=function(){
-    ensureCards();migrateCards();
+    ensureCards();migrateCards();lpProcessAutomaticCardReceiptsV102();
     const now=today(),in7=addDays(now,7),ym=now.slice(0,7);
     const arr=[...data.cardReceivablesV96].sort((a,b)=>T(a.expectedDate).localeCompare(T(b.expectedDate)));
     const pending=arr.filter(x=>x.status!=='Recebido');
@@ -18908,7 +18981,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       <td><span class="lp-v96-card-status ${r.status==='Recebido'?'received':'pending'}">${E(r.status||'Pendente')}</span>${r.receivedAt?`<small>${br(r.receivedAt)}</small>`:''}</td>
       <td><div class="actions">
         <button class="btn ghost small" onclick='lpEditCardV96(${JSON.stringify(T(r.id))})'>Editar</button>
-        ${r.status!=='Recebido'?`<button class="btn primary small" onclick='lpReceiveCardV96(${JSON.stringify(T(r.id))})'>Marcar recebido</button>`:''}
+        ${r.status!=='Recebido'?`<span class="soft-chip">Baixa automática</span>`:''}
       </div></td>
     </tr>`).join('');
 
@@ -18916,7 +18989,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     const view=window.__lpCardViewV101||'calendar';
     host.innerHTML=heading('Controle de Cartões','Calendário de recebimentos e vendas de cartão com destino no Sicredi Le Pneus.',
       `<div class="actions"><button class="btn ${view==='calendar'?'primary':'ghost'}" onclick="lpCardSetViewV101('calendar')">Calendário Sicredi</button><button class="btn ${view==='agenda'?'primary':'ghost'}" onclick="lpCardSetViewV101('agenda')">Lançamentos</button><button class="btn ghost" onclick="lpNewCardReceivableV96()">+ Recebível</button></div>`)+
-      `<div class="notice"><b>Sicredi fixo:</b> todos os recebíveis futuros de cartão têm destino <b>Sicredi Le Pneus</b>. O calendário soma o relatório importado com as novas vendas na mesma data.</div>
+      `<div class="notice"><b>Sicredi automático:</b> todo cartão vai para <b>Sicredi Le Pneus</b>. Na data prevista, o sistema dá baixa automaticamente, atualiza o saldo do Sicredi e marca como recebido.</div>
       <div class="lp-v96-card-kpis">
         ${metric('Bruto a receber',M(gross),pending.length+' lançamento(s)','green')}
         ${metric('Líquido previsto',M(net),'descontadas as taxas cadastradas','green')}
@@ -18933,7 +19006,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         </div>
       </section>
       <section class="card table-wrap lp-v96-card-table" style="margin-top:16px">
-        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Agenda de recebimentos</h3><small class="cell-sub">Ao marcar recebido, o valor sai de Cartões a Receber e entra no banco escolhido.</small></div></div>
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Agenda de recebimentos</h3><small class="cell-sub">Na data prevista, a baixa é automática: o valor líquido entra no Sicredi e o status muda para Recebido.</small></div></div>
         <table><thead><tr><th>Origem</th><th>Venda</th><th>Tipo</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Previsto</th><th>Destino</th><th>Status</th><th>Ação</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="10" class="empty">Nenhum recebível de cartão registrado.</td></tr>'}</tbody></table>
       </section>`}`;
@@ -18959,7 +19032,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     else if(isCardPayment(payment))ids=['cartoes'];
     else if(p.includes('cheque'))ids=['chequeVista','chequePre'];
     const defs=window.lpCashAccountDefsV82||[];
-    return ids.map(id=>`<option value="${id}" ${selected===id?'selected':''}>${E(defs.find(a=>a.id===id)?.name||id)}</option>`).join('');
+    return ids.map(id=>{
+      const label=(isCardPayment(payment)&&id==='cartoes')?'Sicredi Le Pneus':E(defs.find(a=>a.id===id)?.name||id);
+      return `<option value="${id}" ${selected===id?'selected':''}>${label}</option>`;
+    }).join('');
   }
   function customerId(name,phone){
     name=T(name);phone=T(phone);if(!name&&!phone)return '';
@@ -19005,7 +19081,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <label>Telefone<input id="diphone" placeholder="Opcional"></label>
         <label class="full">Observação<input id="dinote" placeholder="Opcional"></label>
       </div>
-      <div id="diHintV96" class="notice" style="margin-top:12px">Pagamento à vista: entra na conta escolhida. Cartão entra em <b>Cartões a Receber</b>.</div>
+      <div id="diHintV96" class="notice" style="margin-top:12px">Pagamento à vista: entra na conta escolhida. Cartão vai para <b>Sicredi Le Pneus</b> na data prevista e aparece no calendário.</div>
       <div class="modal-actions">
         <button class="btn ghost" onclick="closeModal()">Deixar pendente</button>
         <button class="btn ghost" onclick='lpResolveDifference(${JSON.stringify(T(d.id))},"ajuste")'>Foi ajuste</button>
@@ -19025,7 +19101,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         if(count){count.value='1';count.min='1';count.max='1';count.disabled=true}
         if(acc){acc.innerHTML=accountOptions(pv,'cartoes');acc.disabled=true}
         if(due)due.value=addDays(purchaseEl?.value||today(),Math.max(1,N(data.settings.cardDebitDaysV96)||1));
-        if(hint)hint.innerHTML='Débito: sempre <b>1x</b>. Previsão padrão de crédito em <b>1 dia</b>.';
+        if(hint)hint.innerHTML='Débito: sempre <b>1x</b>. Vai para o <b>Calendário Sicredi</b> com previsão padrão de crédito em <b>1 dia</b>.';
       }else if(isCredit){
         if(status)status.value='Pago';
         if(count){
@@ -19037,7 +19113,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         if(acc){acc.innerHTML=accountOptions(pv,'cartoes');acc.disabled=true}
         const step=Math.max(1,N(data.settings.cardCreditDaysV96)||30);
         if(due)due.value=addDays(purchaseEl?.value||today(),step);
-        if(hint)hint.innerHTML=`Crédito em <b>${n}x</b>: previsão em ${Array.from({length:n},(_,i)=>`${step*(i+1)} dias`).join(', ')}.`;
+        if(hint)hint.innerHTML=`Crédito em <b>${n}x</b>: vai para o <b>Calendário Sicredi</b>, com previsão em ${Array.from({length:n},(_,i)=>`${step*(i+1)} dias`).join(', ')}.`;
       }else{
         if(count){count.disabled=false;count.min='1';count.max='60'}
         const n=Math.max(1,N(count?.value)||1);
@@ -19316,8 +19392,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     };
   }
 
-  // Migração leve e render inicial.
-  try{ensureCards();migrateCards()}catch(e){console.warn(e)}
+  // Migração leve, baixa automática e render inicial.
+  try{ensureCards();migrateCards();lpProcessAutomaticCardReceiptsV102()}catch(e){console.warn(e)}
+  setInterval(()=>{try{lpProcessAutomaticCardReceiptsV102()}catch(e){console.warn(e)}},60*60*1000);
   setTimeout(()=>{
     try{initNav()}catch(e){}
     try{
@@ -19636,6 +19713,105 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 
 <!-- LE PNEUS V100 • 2026-09-25
      Central de Saúde + conciliação automática + fechamento mensal guiado + consolidação segura da interface. -->
+
+
+
+<style id="lp-daily-history-v102-css">
+#historico .lp-hist-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:14px 0 16px}
+#historico .lp-hist-tools label{display:grid;gap:5px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#historico .lp-hist-tools input,#historico .lp-hist-tools select{min-width:180px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);outline:none}
+#historico .lp-hist-day{border:1px solid var(--line);background:var(--panel);border-radius:16px;margin:0 0 14px;overflow:hidden;box-shadow:var(--shadow)}
+#historico .lp-hist-day-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 16px;background:var(--panel2);border-bottom:1px solid var(--line)}
+#historico .lp-hist-day-head b{font-size:15px}.lp-hist-count{font-size:11px;font-weight:800;color:var(--muted)}
+#historico .lp-hist-list{display:grid}
+#historico .lp-hist-row{display:grid;grid-template-columns:110px 150px 1fr 145px;gap:12px;align-items:start;padding:13px 16px;border-bottom:1px solid var(--line)}
+#historico .lp-hist-row:last-child{border-bottom:0}
+#historico .lp-hist-time{font-size:12px;color:var(--muted);font-weight:700}
+#historico .lp-hist-kind{display:inline-flex;width:max-content;max-width:100%;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:900;background:#eef2ff;color:#4338ca}
+#historico .lp-hist-kind.venda{background:#ecfdf5;color:#047857}#historico .lp-hist-kind.servico{background:#eff6ff;color:#1d4ed8}#historico .lp-hist-kind.caixa{background:#fff7ed;color:#c2410c}#historico .lp-hist-kind.cartao{background:#f5f3ff;color:#7c3aed}#historico .lp-hist-kind.financeiro{background:#fef2f2;color:#b91c1c}#historico .lp-hist-kind.estoque{background:#f0fdf4;color:#15803d}
+#historico .lp-hist-main b{display:block;font-size:13px;color:var(--text)}#historico .lp-hist-main small{display:block;margin-top:4px;color:var(--muted);line-height:1.4}
+#historico .lp-hist-value{text-align:right;font-size:13px;font-weight:900;color:var(--text)}
+@media(max-width:850px){#historico .lp-hist-row{grid-template-columns:80px 1fr}#historico .lp-hist-main{grid-column:2}#historico .lp-hist-value{grid-column:2;text-align:left}}
+</style>
+<script id="lp-daily-history-v102-js">
+(function(){
+  if(window.__lpDailyHistoryV102)return;window.__lpDailyHistoryV102=true;
+  const T=v=>String(v??'').trim(), N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m]||m));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const pad=n=>String(n).padStart(2,'0');
+  function parseDate(v){
+    if(v instanceof Date&&!isNaN(v))return v;
+    const s=T(v);if(!s)return null;
+    let m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if(m)return new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0));
+    m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[, ]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if(m)return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0));
+    const d=new Date(s);return isNaN(d)?null:d;
+  }
+  function keyOf(v){const d=parseDate(v);return d?`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`:''}
+  function timeOf(v){const d=parseDate(v);if(!d)return '';const has=/\d{1,2}:\d{2}/.test(T(v))||d.getHours()||d.getMinutes();return has?`${pad(d.getHours())}:${pad(d.getMinutes())}`:'—'}
+  function brKey(k){const m=T(k).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:k}
+  function customerName(id,name=''){if(name)return T(name);try{return typeof findCustomerName==='function'?findCustomerName(id):T(id)}catch(e){return T(id)}}
+  function push(a,kind,date,title,detail='',value=null,id=''){
+    const key=keyOf(date);if(!key)return;
+    a.push({kind,date:T(date),key,time:timeOf(date),title:T(title),detail:T(detail),value:value===null?null:N(value),id:T(id)});
+  }
+  function events(){
+    try{if(typeof ensureData==='function')ensureData()}catch(e){}
+    const a=[];
+    (data.sales||[]).forEach(s=>push(a,'Venda',s.date||s.createdAt,`Venda ${T(s.origin||s.number||('#'+T(s.id).slice(-6)))}`,`${customerName(s.customerId,s.customer)}${s.payment?' • '+T(s.payment):''}${s.status?' • '+T(s.status):''}`,s.total,'sale:'+s.id));
+    (data.serviceOrders||[]).forEach(o=>push(a,'Serviço',o.date||o.createdAt,`${T(o.number||'OS')} • ${T(o.service||'Serviço')}`,`${customerName(o.customerId,o.customerName)} • ${T(o.status||'')}`,o.total,'os:'+o.id));
+    (data.cash||[]).forEach(c=>push(a,'Caixa',c.date||c.createdAt,`${T(c.type||'Movimentação')} • ${T(c.desc||c.description||'Caixa')}`,`${T(c.payment||c.account||'')}`,c.value,'cash:'+c.id));
+    (data.finance||[]).forEach(f=>push(a,'Financeiro',f.date||f.createdAt,`${T(f.type||'Lançamento')} • ${T(f.desc||f.description||f.category||'Financeiro')}`,`${T(f.status||'')} ${f.payment?'• '+T(f.payment):''}`,f.value,'fin:'+f.id));
+    (data.purchases||[]).forEach(c=>push(a,'Compra',c.date||c.createdAt,`Compra ${T(c.number||c.invoice||('#'+T(c.id).slice(-6)))}`,`${T(c.supplier||c.supplierName||'Entrada de pneus')}`,c.total||c.value,'buy:'+c.id));
+    (data.cardReceivablesV96||[]).forEach(r=>{
+      push(a,'Cartão',r.saleDate||r.createdAt,`Cartão registrado • ${T(r.description||r.originNumber||r.payment||'Venda')}`,`${T(r.payment||'Cartão')} • destino Sicredi`,r.gross,'cardreg:'+r.id);
+      if(T(r.status)==='Recebido')push(a,'Cartão',r.receivedAt||r.expectedDate,`Recebido no Sicredi • ${T(r.description||r.originNumber||'Cartão')}`,`${T(r.payment||'Cartão')} • baixa automática`,N(r.receivedNet)||(Math.max(0,N(r.gross)-N(r.gross)*N(r.feePct)/100)),'cardrec:'+r.id);
+    });
+    (data.monthlyClosings||[]).forEach(x=>push(a,'Fechamento',x.closedAt||x.date||x.updatedAt,`Fechamento mensal ${T(x.month||'')}`,T(x.note||x.status||''),x.total||null,'close:'+T(x.id||x.month)));
+    (data.lpCashImportsV68||[]).forEach(x=>push(a,'Importação',x.importedAt||x.date,`Planilha de Caixa importada`,`${T(x.name||x.fileName||x.month||'Movimento de Caixa')}`,null,'import:'+T(x.id||x.hash||x.month)));
+    (data.stockMovements||[]).forEach(x=>push(a,'Estoque',x.date||x.createdAt||x.updatedAt,`${T(x.type||'Movimento')} • ${T(x.name||x.productName||'Estoque')}`,`${T(x.reason||x.desc||'')}${x.qty!==undefined?' • '+N(x.qty)+' un.':''}`,null,'stock:'+T(x.id||x.eventKey)));
+    (data.history||[]).forEach((h,i)=>push(a,'Ação',h.date,`Ação registrada`,`${T(h.action)}${h.user?' • '+T(h.user):''}`,null,'log:'+i+':'+T(h.date)));
+    const seen=new Set();
+    return a.filter(x=>{const sig=[x.kind,x.id,x.key,x.title,x.value].join('|');if(seen.has(sig))return false;seen.add(sig);return true}).sort((x,y)=>{const dx=parseDate(x.date)?.getTime()||0,dy=parseDate(y.date)?.getTime()||0;return dy-dx});
+  }
+  function kindClass(k){const n=T(k).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return n.includes('venda')?'venda':n.includes('serv')?'servico':n.includes('caixa')||n.includes('import')?'caixa':n.includes('cart')?'cartao':n.includes('finan')||n.includes('compra')?'financeiro':n.includes('estoque')?'estoque':''}
+  window.lpRenderDailyHistoryV102=function(){
+    const host=document.getElementById('historico');if(!host)return;
+    const all=events(),date=T(window.__lpHistDateV102||''),q=T(window.__lpHistSearchV102||'').toLowerCase();
+    const filtered=all.filter(x=>(!date||x.key===date)&&(!q||[x.kind,x.title,x.detail,brKey(x.key),x.value===null?'':M(x.value)].join(' ').toLowerCase().includes(q)));
+    const groups={};filtered.forEach(x=>(groups[x.key]||(groups[x.key]=[])).push(x));
+    const keys=Object.keys(groups).sort().reverse();
+    const today=keyOf(new Date());
+    const todayCount=all.filter(x=>x.key===today).length;
+    const salesCount=all.filter(x=>x.kind==='Venda').length, serviceCount=all.filter(x=>x.kind==='Serviço').length;
+    const days=keys.map(k=>`<section class="lp-hist-day"><div class="lp-hist-day-head"><b>${k===today?'Hoje • ':''}${E(brKey(k))}</b><span class="lp-hist-count">${groups[k].length} movimentação(ões)</span></div><div class="lp-hist-list">${groups[k].map(x=>`<div class="lp-hist-row"><div class="lp-hist-time">${E(x.time)}</div><div><span class="lp-hist-kind ${kindClass(x.kind)}">${E(x.kind)}</span></div><div class="lp-hist-main"><b>${E(x.title)}</b>${x.detail?`<small>${E(x.detail)}</small>`:''}</div><div class="lp-hist-value">${x.value===null?'':M(x.value)}</div></div>`).join('')}</div></section>`).join('');
+    host.innerHTML=(typeof heading==='function'?heading('Histórico Diário','Tudo que foi registrado no sistema, organizado por dia.'):'<h1>Histórico Diário</h1>')+
+      `<div class="cards">${typeof metric==='function'?metric('Movimentações',all.length,'registros encontrados','green')+metric('Hoje',todayCount,'movimentações do dia',todayCount?'green':'')+metric('Vendas',salesCount,'registradas','green')+metric('Serviços',serviceCount,'ordens registradas','green'):''}</div>
+      <section class="card" style="margin-top:16px"><div class="lp-hist-tools"><label>Dia<input type="date" value="${E(date)}" onchange="window.__lpHistDateV102=this.value;lpRenderDailyHistoryV102()"></label><label style="flex:1;min-width:240px">Pesquisar<input type="search" placeholder="Cliente, venda, serviço, cartão..." value="${E(window.__lpHistSearchV102||'')}" oninput="window.__lpHistSearchV102=this.value;lpRenderDailyHistoryV102()"></label><button class="btn ghost" onclick="window.__lpHistDateV102='';window.__lpHistSearchV102='';lpRenderDailyHistoryV102()">Limpar filtros</button></div>${days||'<div class="empty">Nenhuma movimentação encontrada.</div>'}</section>`;
+  };
+  function ensurePage(){
+    if(!document.getElementById('historico')){const p=document.createElement('div');p.className='page';p.id='historico';document.querySelector('.content')?.appendChild(p)}
+  }
+  function ensureNav(){
+    const nav=document.getElementById('nav');if(!nav||nav.querySelector('[data-lp-history-v102]'))return;
+    const btn=document.createElement('button');btn.setAttribute('data-lp-history-v102','1');btn.onclick=function(){openPage('historico',this)};
+    let icon='';try{icon=typeof navIcon==='function'?navIcon('calendar'):''}catch(e){}
+    btn.innerHTML=icon+'<span class="nav-text">Histórico Diário</span>';
+    const backup=[...nav.querySelectorAll('button')].find(b=>/Backup/i.test(b.textContent||''));if(backup)nav.insertBefore(btn,backup);else nav.appendChild(btn);
+  }
+  const prevRenderPage=window.renderPageById;
+  window.renderPageById=function(id){if(id==='historico'){window.lpRenderDailyHistoryV102();return}return typeof prevRenderPage==='function'?prevRenderPage.apply(this,arguments):undefined};
+  const prevInitNav=window.initNav;
+  if(typeof prevInitNav==='function')window.initNav=function(){const r=prevInitNav.apply(this,arguments);ensureNav();return r};
+  const prevRenderAll=window.renderAll;
+  if(typeof prevRenderAll==='function')window.renderAll=function(){const r=prevRenderAll.apply(this,arguments);ensurePage();ensureNav();if(document.getElementById('historico')?.classList.contains('active'))window.lpRenderDailyHistoryV102();return r};
+  window.addEventListener('load',()=>setTimeout(()=>{ensurePage();ensureNav();if(document.getElementById('historico')?.classList.contains('active'))window.lpRenderDailyHistoryV102()},700));
+  try{ensurePage();ensureNav()}catch(e){console.warn('Histórico Diário:',e)}
+})();
+</script>
+<!-- LE PNEUS V102 • Histórico Diário consolidado -->
 
 </body>
 </html>
