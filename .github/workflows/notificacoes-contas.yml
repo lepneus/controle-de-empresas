@@ -18,6 +18,7 @@ on:
           - teste
           - 08h
           - 13h30
+          - pagos
 
 permissions:
   contents: read
@@ -48,6 +49,7 @@ jobs:
               teste) echo "value=test" >> "$GITHUB_OUTPUT" ;;
               08h) echo "value=morning" >> "$GITHUB_OUTPUT" ;;
               13h30) echo "value=afternoon" >> "$GITHUB_OUTPUT" ;;
+              pagos) echo "value=paid" >> "$GITHUB_OUTPUT" ;;
             esac
           elif [ "${{ github.event.schedule }}" = "0 8 * * *" ]; then
             echo "value=morning" >> "$GITHUB_OUTPUT"
