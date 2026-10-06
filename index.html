@@ -1454,7 +1454,10 @@ function createIntegratedSale({customerId='',items=[],discount=0,payment='PIX',f
   let normalized=[];let subtotal=0,profit=0;
   for(const it of items){
     let p=data.products.find(x=>String(x.id)===String(it.id));
-    if(!p&&it.kind!=='service')continue;
+    /* V103: vendas detectadas na planilha podem apontar para um produto que já
+       saiu do lote atual (ex.: estoque chegou a zero). Como skipStock=true nesses
+       casos, aceita o snapshot do item sem exigir que ele ainda exista em products. */
+    if(!p&&it.kind!=='service'&&!(skipStock&&it.name))continue;
     let qty=Number(it.qty)||1,price=it.price!==undefined?Number(it.price):(p?Number(p.price):0),cost=it.cost!==undefined?Number(it.cost):(p?Number(p.cost):0);
     if(p&&!skipStock&&qty>Number(p.qty||0)&&!data.settings.allowNegativeStock)return {error:`Estoque insuficiente para ${p.name}.`};
     normalized.push({id:p?.id||it.id||'',name:it.name||p?.name||'Serviço',qty,price,cost,kind:it.kind||'product'}); subtotal+=price*qty;profit+=(price-cost)*qty;
@@ -12715,7 +12718,8 @@ window.__LP_SALES_FIX_VERSION__='v47';
         syncV2:true,
         movementSchema:'summary-v2',
         eventKey:T(m.eventKey)||docId,
-        cloudMovementId:docId
+        cloudMovementId:docId,
+        syncKey:key
       });
     }
 
@@ -19025,6 +19029,50 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   function getDiff(id){
     return (data.pendingImportDifferences||[]).find(x=>T(x.id)===T(id));
   }
+  /* V103: a sincronização pode reconstruir data.products e trocar IDs internos.
+     Localiza a pendência pelo vínculo mais confiável disponível e corrige o ID
+     antes de registrar a venda. */
+  function findProductForDifference(d){
+    const list=Array.isArray(data.products)?data.products:[];
+    if(!d)return null;
+    let p=list.find(x=>T(x.id)===T(d.productId));
+    if(p)return p;
+
+    const type=norm(d.type||d.sourceType);
+    const scoped=type?list.filter(x=>norm(x.sourceType)===type):list;
+    const sync=T(d.syncKey||d.excelSyncKey||d.sourceKey);
+    if(sync){
+      p=scoped.find(x=>T(x.excelSyncKey||x.sourceKey)===sync);
+      if(p)return p;
+    }
+
+    const codeKey=T(d.code).toLowerCase().replace(/[^a-z0-9]/g,'');
+    if(codeKey){
+      p=scoped.find(x=>T(x.code).toLowerCase().replace(/[^a-z0-9]/g,'')===codeKey);
+      if(p)return p;
+    }
+
+    const nameKey=norm(d.name).replace(/[^a-z0-9]/g,'');
+    if(nameKey){
+      p=scoped.find(x=>norm(x.name).replace(/[^a-z0-9]/g,'')===nameKey);
+      if(p)return p;
+    }
+    return null;
+  }
+  function cloudDbForDifference(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    return null;
+  }
+  async function markDifferenceProcessed(d,resolution){
+    try{
+      const db=cloudDbForDifference();
+      if(!db||!d?.cloudMovementId)return;
+      const value={processed:true,resolution:T(resolution),processedAtText:new Date().toLocaleString('pt-BR')};
+      if(window.firebase?.firestore?.FieldValue)value.processedAt=firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('controleMovimentosV2').doc(T(d.cloudMovementId)).set(value,{merge:true});
+    }catch(e){console.warn('Confirmar venda: não foi possível marcar a movimentação como processada.',e)}
+  }
   function accountOptions(payment,selected=''){
     const p=norm(payment);
     let ids=['sicredi','sicoob'];
@@ -19128,7 +19176,17 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 
   window.lpResolveDifference=async function(diffId,action){
     const d=getDiff(diffId);if(!d)return alert('Essa diferença não foi encontrada.');
-    const p=(data.products||[]).find(x=>T(x.id)===T(d.productId));if(!p)return alert('Produto não encontrado.');
+    const liveProduct=findProductForDifference(d);
+    if(liveProduct){
+      d.productId=liveProduct.id;
+      d.syncKey=d.syncKey||liveProduct.excelSyncKey||liveProduct.sourceKey||'';
+    }
+    /* Se o item já saiu completamente do lote atual, usa os dados congelados na
+       própria diferença. O estoque não é alterado novamente (skipStock=true). */
+    const p=liveProduct||{
+      id:T(d.productId),code:T(d.code),name:T(d.name)||'Produto',
+      cost:N(d.cost),price:N(d.price),qty:N(d.newQty),sourceType:T(d.type)
+    };
 
     if(action==='ignorar'){closeModal();return}
     if(action==='ajuste'){
@@ -19136,6 +19194,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       d.adjustReason='Ajuste de estoque confirmado';
       try{save()}catch(e){}
       closeModal();try{renderAll()}catch(e){}
+      await markDifferenceProcessed(d,'ajuste');
       return;
     }
 
@@ -19172,7 +19231,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       try{
         res=createIntegratedSale({
           customerId:cid,
-          items:[{id:p.id,qty:q,price:unit,cost:N(d.cost||p.cost)}],
+          items:[{id:p.id,name:T(d.name)||p.name||'Produto',qty:q,price:unit,cost:N(d.cost||p.cost)}],
           discount:0,payment,financialStatus:'Pendente',
           dueDate:firstDue,originType:'Planilha automática',
           originNumber:'PLANILHA-'+T(d.id),skipStock:true
@@ -19246,6 +19305,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       try{save()}catch(e){console.warn('Save venda V96:',e)}
       closeModal();
       try{if(typeof renderVendas==='function')renderVendas();else renderAll()}catch(e){console.warn(e)}
+      await markDifferenceProcessed(d,'venda');
       alert(`Venda #${sale.id} confirmada com sucesso.`);
     }catch(e){
       console.error('Confirmar venda V96:',e);
@@ -19329,8 +19389,8 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     if(cash.length){title('Caixa');table(['Data','Tipo','Descrição','Pagamento','Valor'],cash);}
 
     const cards=ensureCards().filter(x=>T(x.saleDate).slice(0,7)===T(month)||T(x.receivedAt).slice(0,7)===T(month))
-      .map(x=>[br(x.saleDate),x.description||'',x.payment||'',pdfMoney(x.gross),`${N(x.feePct).toFixed(2)}%`,pdfMoney(x.status==='Recebido'?N(x.receivedNet||cardNet(x)):cardNet(x)),br(x.expectedDate),x.status||'']);
-    if(cards.length){title('Cartões');table(['Venda','Origem','Tipo','Bruto','Taxa','Líquido','Previsto','Status'],cards);}
+      .map(x=>[br(x.saleDate),x.description||'',x.payment||'',pdfMoney(x.gross),pdfMoney(x.status==='Recebido'?N(x.receivedNet||cardNet(x)):cardNet(x)),br(x.expectedDate),x.status||'']);
+    if(cards.length){title('Cartões');table(['Venda','Origem','Tipo','Bruto','Líquido','Previsto','Status'],cards);}
 
     // Rodapé em todas as páginas.
     const pages=doc.getNumberOfPages();
@@ -19812,6 +19872,717 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 })();
 </script>
 <!-- LE PNEUS V102 • Histórico Diário consolidado -->
+<!-- LE PNEUS V103 • Correção: confirmação de venda de pendências com ID antigo/estoque zerado + baixa da movimentação sincronizada -->
+
+
+<style id="lp-v104-cash-watch-css">
+.lp-v104-watch{margin-top:14px}
+.lp-v104-watch-grid{display:grid;grid-template-columns:1.4fr auto;gap:12px;align-items:start}
+.lp-v104-status{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lp-v104-status .soft-chip.ok{color:#059669}.lp-v104-status .soft-chip.warn{color:#d97706}.lp-v104-status .soft-chip.err{color:#dc2626}
+.lp-v104-diff{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.lp-v104-diff table{min-width:700px}
+.lp-v104-pos{color:#dc2626;font-weight:850}.lp-v104-neg{color:#d97706;font-weight:850}
+@media(max-width:760px){.lp-v104-watch-grid{grid-template-columns:1fr}.lp-v104-watch-grid .actions{justify-content:flex-start}}
+</style>
+<script id="lp-v104-cash-watch-js">
+(function(){
+  if(window.__lpCashWatchV104)return;
+  window.__lpCashWatchV104=true;
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const E=v=>typeof window.esc==='function'?window.esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof window.money==='function'?window.money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const FIELDS=[
+    ['cashSales','Vendas à vista'],['cardSales','Vendas no cartão'],['termSales','Vendas a prazo'],
+    ['salesTotal','Total de vendas'],['services','Serviços'],['payments','Pagamentos'],['receipts','Recebimentos']
+  ];
+  const DB='lpCashWatchV104',STORE='handles',KEY='movimento-caixa';
+  let checking=false;
+
+  function ensure(){
+    data.settings=data.settings||{};
+    const s=data.settings.lpCashWatchV104=data.settings.lpCashWatchV104||{};
+    s.alerts=Array.isArray(s.alerts)?s.alerts:[];
+    s.enabled=!!s.enabled;
+    return s;
+  }
+  function saveSafe(){try{if(typeof save==='function')save()}catch(e){console.warn('V104 save',e)}}
+  function norm(v){return T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim()}
+  function guessMonth(name){
+    const s=T(name),m=s.match(/(?:^|\D)(0?[1-9]|1[0-2])[-_ ]?(20\d{2})(?:\D|$)/);
+    if(m)return `${m[2]}-${String(m[1]).padStart(2,'0')}`;
+    const m2=s.match(/(20\d{2})[-_ ]?(0?[1-9]|1[0-2])/);if(m2)return `${m2[1]}-${String(m2[2]).padStart(2,'0')}`;
+    return T(document.getElementById('lpCashMonthV82')?.value)||new Date().toISOString().slice(0,7);
+  }
+  function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
+  async function readSnapshot(file){
+    const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const ws=wb.Sheets['MC']||wb.Sheets[wb.SheetNames.find(n=>norm(n)==='mc')];
+    if(!ws)throw new Error('Não encontrei a aba MC.');
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+    const month=guessMonth(file.name),[year,mon]=month.split('-').map(Number),lastDay=new Date(year,mon,0).getDate(),daily=[];
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]||[],day=Number(row[0]);if(!Number.isInteger(day)||day<1||day>lastDay)continue;
+      const item={day,cashSales:N(row[1]),cardSales:N(row[2]),termSales:N(row[3]),salesTotal:N(row[4]),services:N(row[5]),payments:N(row[6]),receipts:N(row[7])};
+      if(FIELDS.some(([k])=>Math.abs(N(item[k]))>.000001))daily.push(item);
+    }
+    const canonical=JSON.stringify({month,daily});
+    return {month,daily,digest:hash(canonical),fileName:file.name,lastModified:file.lastModified,size:file.size};
+  }
+  function importedDaily(month){
+    return (data.lpDailyFinancial||[]).filter(x=>T(x.month)===month&&(x.manualCashImportV82||x.manualCashImportV68));
+  }
+  function compareToImported(snap){
+    const old=importedDaily(snap.month),byOld=new Map(old.map(x=>[Number(x.day),x])),byNew=new Map(snap.daily.map(x=>[Number(x.day),x]));
+    const days=[...new Set([...byOld.keys(),...byNew.keys()])].sort((a,b)=>a-b),changes=[];
+    for(const day of days){
+      const a=byOld.get(day)||{},b=byNew.get(day)||{};
+      for(const [key,label] of FIELDS){
+        const ov=N(a[key]),nv=N(b[key]),diff=nv-ov;
+        if(Math.abs(diff)>.009)changes.push({day,key,label,imported:ov,sheet:nv,diff});
+      }
+    }
+    return {hasBase:old.length>0,changes};
+  }
+  function latestOpenAlert(){return [...ensure().alerts].filter(a=>!a.resolved).sort((a,b)=>T(b.createdAtIso).localeCompare(T(a.createdAtIso)))[0]||null}
+  function relationText(changes){
+    const pos=changes.filter(x=>x.diff>0),neg=changes.filter(x=>x.diff<0);
+    const added=pos.reduce((s,x)=>s+x.diff,0),reduced=neg.reduce((s,x)=>s+Math.abs(x.diff),0);
+    return `${changes.length} diferença(s) • faltando ${M(added)}${reduced>.009?` • reduções ${M(reduced)}`:''}`;
+  }
+  async function notifyAlert(alertRow){
+    try{
+      if(typeof Notification==='undefined'||Notification.permission!=='granted')return;
+      const body=`${relationText(alertRow.changes)}. Abra o Caixa para conferir.`;
+      const reg=await navigator.serviceWorker?.getRegistration?.();
+      if(reg?.showNotification)await reg.showNotification('Le Pneus • Movimento de Caixa atualizado',{body,icon:'./icon-192.png',badge:'./icon-192.png',tag:'lepneus-caixa-v104',data:{url:'./?open=caixa'}});
+      else new Notification('Le Pneus • Movimento de Caixa atualizado',{body});
+    }catch(e){console.warn('V104 notification',e)}
+  }
+  function addAlert(snap,changes){
+    const s=ensure();
+    s.alerts.forEach(a=>{if(a.month===snap.month&&!a.resolved)a.resolved=true});
+    const row={id:'cash-watch-'+Date.now(),month:snap.month,fileName:snap.fileName,fileLastModified:snap.lastModified,createdAtIso:new Date().toISOString(),changes:changes.slice(0,200),resolved:false};
+    s.alerts.unshift(row);s.alerts=s.alerts.slice(0,30);saveSafe();notifyAlert(row);refreshBell();
+  }
+  async function openDb(){return await new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+  async function setHandle(h){const db=await openDb();await new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(h,KEY);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)});db.close()}
+  async function getHandle(){try{const db=await openDb();const v=await new Promise((res,rej)=>{const tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).get(KEY);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)});db.close();return v}catch(e){return null}}
+  async function permission(h,request=false){if(!h)return false;try{let p=await h.queryPermission({mode:'read'});if(p==='granted')return true;if(request)p=await h.requestPermission({mode:'read'});return p==='granted'}catch(e){return false}}
+
+  async function check(force=false){
+    if(checking)return;checking=true;
+    try{
+      const s=ensure();if(!s.enabled&&!force)return;
+      const h=await getHandle();if(!h){s.connected=false;return}
+      if(!await permission(h,false)){s.connected=false;s.permissionNeeded=true;return}
+      const file=await h.getFile(),snap=await readSnapshot(file);
+      s.connected=true;s.permissionNeeded=false;s.fileName=file.name;s.lastCheckedAtIso=new Date().toISOString();
+      if(!force&&s.lastSeenDigest===snap.digest){refreshWatchCard();return}
+      const cmp=compareToImported(snap);
+      s.lastSeenDigest=snap.digest;s.lastFileModified=snap.lastModified;s.lastMonth=snap.month;
+      if(cmp.hasBase&&cmp.changes.length)addAlert(snap,cmp.changes);
+      else if(cmp.hasBase){s.alerts.forEach(a=>{if(a.month===snap.month&&!a.resolved)a.resolved=true});saveSafe();}
+      else saveSafe();
+      refreshWatchCard();refreshBell();
+    }catch(e){const s=ensure();s.lastError=T(e?.message||e);s.connected=false;console.warn('V104 cash watch',e);refreshWatchCard()}
+    finally{checking=false}
+  }
+
+  window.lpCashWatchConnectV104=async function(){
+    if(!window.showOpenFilePicker){alert('Seu navegador não permite acompanhar um arquivo local automaticamente. Continue usando o botão Importar e conferir.');return}
+    try{
+      const [h]=await showOpenFilePicker({multiple:false,types:[{description:'Planilha Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx'],'application/vnd.ms-excel':['.xls']}}]});
+      if(!await permission(h,true))throw new Error('Permissão de leitura não concedida.');
+      await setHandle(h);const s=ensure();s.enabled=true;s.connected=true;s.fileName=h.name;s.lastSeenDigest='';saveSafe();await check(true);
+      alert('Movimento de Caixa vinculado. Enquanto este site estiver aberto, vou conferir o arquivo automaticamente quando ele for atualizado.');
+    }catch(e){if(T(e?.name)!=='AbortError')alert('Não foi possível vincular a planilha: '+T(e?.message||e))}
+  };
+  window.lpCashWatchCheckV104=()=>check(true);
+  window.lpCashWatchImportNowV104=async function(){
+    try{
+      const h=await getHandle();if(!h||!await permission(h,true))return alert('Vincule novamente a planilha Movimento de Caixa.');
+      const file=await h.getFile(),input=document.getElementById('lpCashFileV82');
+      if(!input)return alert('Abra a tela Caixa e tente novamente.');
+      try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files}catch(e){return alert('O navegador não permitiu preencher o arquivo automaticamente. Use o campo Planilha Movimento de Caixa acima e selecione o arquivo atualizado.');}
+      const month=guessMonth(file.name),m=document.getElementById('lpCashMonthV82');if(m)m.value=month;
+      await window.lpImportCashMovementV82();
+      const snap=await readSnapshot(file),cmp=compareToImported(snap),s=ensure();
+      if(cmp.hasBase&&!cmp.changes.length){s.alerts.forEach(a=>{if(a.month===snap.month&&!a.resolved)a.resolved=true});s.lastSeenDigest=snap.digest;saveSafe();refreshWatchCard();refreshBell()}
+    }catch(e){alert('Não foi possível atualizar pelo arquivo vinculado: '+T(e?.message||e))}
+  };
+
+  function diffRows(a){
+    if(!a?.changes?.length)return '<div class="notice">Nenhuma diferença pendente.</div>';
+    return `<div class="lp-v104-diff"><div class="notice"><b>Planilha alterada:</b> ${E(relationText(a.changes))}. Os valores abaixo são comparados com a última importação feita no sistema.</div><div class="table-wrap"><table><thead><tr><th>Dia</th><th>Campo</th><th>No sistema</th><th>Na planilha</th><th>Diferença</th></tr></thead><tbody>${a.changes.slice(0,30).map(x=>`<tr><td>${x.day}</td><td>${E(x.label)}</td><td>${M(x.imported)}</td><td>${M(x.sheet)}</td><td class="${x.diff>0?'lp-v104-pos':'lp-v104-neg'}">${x.diff>0?'+':''}${M(x.diff)}</td></tr>`).join('')}</tbody></table></div>${a.changes.length>30?`<small class="cell-sub">Mostrando 30 de ${a.changes.length} diferenças.</small>`:''}<div class="actions" style="margin-top:10px"><button class="btn primary" onclick="lpCashWatchImportNowV104()">Atualizar sistema com esta planilha</button></div></div>`;
+  }
+  function watchHtml(){
+    const s=ensure(),a=latestOpenAlert(),status=s.connected?'Vinculado':s.permissionNeeded?'Permissão necessária':s.enabled?'Aguardando arquivo':'Não vinculado';
+    const cls=s.connected?'ok':s.permissionNeeded?'warn':'err';
+    return `<section class="card lp-v104-watch"><div class="lp-v104-watch-grid"><div><div class="panel-head"><div><h3 class="section-title" style="margin:0">Acompanhamento diário do Movimento de Caixa</h3><small class="cell-sub">Detecta alterações no arquivo, compara com a última importação e avisa o que está faltando.</small></div></div><div class="lp-v104-status"><span class="soft-chip ${cls}">${E(status)}</span>${s.fileName?`<span class="soft-chip">${E(s.fileName)}</span>`:''}${s.lastCheckedAtIso?`<small class="cell-sub">Última conferência: ${E(new Date(s.lastCheckedAtIso).toLocaleString('pt-BR'))}</small>`:''}</div><small class="cell-sub">O acompanhamento automático funciona enquanto o Controle estiver aberto neste computador. O arquivo continua no seu computador; o navegador recebe apenas permissão de leitura.</small></div><div class="actions"><button class="btn ghost" onclick="lpCashWatchConnectV104()">${s.enabled?'Trocar arquivo':'Vincular arquivo'}</button><button class="btn ghost" onclick="lpCashWatchCheckV104()">Conferir agora</button></div></div>${a?diffRows(a):(!importedDaily(s.lastMonth||new Date().toISOString().slice(0,7)).length&&s.enabled?'<div class="notice" style="margin-top:12px">Faça uma importação normal primeiro para criar a base de comparação. Depois disso, qualquer alteração diária será relacionada automaticamente.</div>':'')}</section>`;
+  }
+  function refreshWatchCard(){
+    const host=document.getElementById('caixa');if(!host)return;
+    host.querySelectorAll(':scope > .lp-v104-watch').forEach(x=>x.remove());
+    const imp=host.querySelector('.lp-v82-import');if(imp)imp.insertAdjacentHTML('afterend',watchHtml());else host.insertAdjacentHTML('afterbegin',watchHtml());
+  }
+  function baseNotificationCount(){
+    const zero=(data.products||[]).filter(p=>N(p.qty)<1).length;
+    const pending=(data.pendingImportDifferences||[]).filter(x=>x.status==='Pendente').length;
+    const overdue=(data.serviceOrders||[]).filter(o=>{if(!o.dueDate||['Concluída','Entregue','Cancelada'].includes(o.status))return false;const d=new Date(o.dueDate+'T23:59:59');return !isNaN(d)&&d<new Date()}).length;
+    const reminders=(data.reminders||[]).filter(r=>r.status!=='Concluído').length;
+    return zero+pending+overdue+reminders;
+  }
+  function refreshBell(){
+    const wrap=document.querySelector('.lp-bell-wrap');if(!wrap)return;
+    const count=baseNotificationCount()+(latestOpenAlert()?1:0);let dot=wrap.querySelector('.lp-bell-dot');
+    if(count){if(!dot){dot=document.createElement('span');dot.className='lp-bell-dot';wrap.appendChild(dot)}dot.textContent=Math.min(count,99)}else if(dot)dot.remove();
+  }
+
+  const oldBell=window.lpOpenNotifications;
+  if(typeof oldBell==='function')window.lpOpenNotifications=function(){
+    const r=oldBell.apply(this,arguments),a=latestOpenAlert();
+    if(a){
+      const list=document.querySelector('#modal .lp-notification-list');
+      if(list){const el=document.createElement('div');el.className='lp-notification-item';el.innerHTML=`<div class="ico">📊</div><div><b>Movimento de Caixa foi atualizado</b><small>${E(relationText(a.changes))}. Confira a relação antes de fechar o caixa.</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('caixa')">Ver diferenças</button></div></div>`;list.prepend(el)}
+      const notice=document.querySelector('#modal .notice b');if(notice){const n=Number(notice.textContent)||0;notice.textContent=String(n+1)}
+    }
+    return r;
+  };
+
+  // Taxas de maquininha continuam no Controle de Cartões, mas saem do Fechamento Mensal.
+  function isMachineFee(f){
+    const cat=norm(f?.category),desc=norm(f?.desc),pay=norm(f?.payment);
+    return !!(f?.cardFeeV96||cat.includes('taxas de cartao')||cat.includes('taxa de cartao')||desc.startsWith('taxa cartao')||desc.startsWith('taxa de cartao')||pay==='desconto da adquirente');
+  }
+  function sanitizeClosing(c){
+    if(!c?.details||!Array.isArray(c.details.finance))return c;
+    const before=c.details.finance.length,finance=c.details.finance.filter(x=>!isMachineFee(x));
+    if(finance.length===before)return c;
+    c.details.finance=finance;c.summary=c.summary||{};
+    c.summary.financeRevenue=finance.filter(x=>x.type==='Receita').reduce((s,x)=>s+N(x.value),0);
+    c.summary.financeExpense=finance.filter(x=>x.type==='Despesa').reduce((s,x)=>s+N(x.value),0);
+    c.summary.netResult=N(c.summary.financeRevenue)-N(c.summary.financeExpense);
+    c.machineFeesExcludedV104=true;return c;
+  }
+  const oldBuild=window.buildMonthClosing;
+  if(typeof oldBuild==='function')window.buildMonthClosing=function(){return sanitizeClosing(oldBuild.apply(this,arguments))};
+  let migrated=false;(data.monthlyClosings||[]).forEach(c=>{const n=c?.details?.finance?.length||0;sanitizeClosing(c);if((c?.details?.finance?.length||0)!==n)migrated=true});if(migrated)saveSafe();
+
+  const oldCaixa=window.renderCaixa;
+  if(typeof oldCaixa==='function')window.renderCaixa=function(){const r=oldCaixa.apply(this,arguments);refreshWatchCard();refreshBell();return r};
+  const oldAll=window.renderAll;
+  if(typeof oldAll==='function')window.renderAll=function(){const r=oldAll.apply(this,arguments);refreshBell();return r};
+
+  window.addEventListener('load',()=>setTimeout(async()=>{ensure();refreshBell();if(document.getElementById('caixa')?.classList.contains('active'))refreshWatchCard();await check(false)},2200));
+  setInterval(()=>check(false),60000);
+})();
+</script>
+<!-- LE PNEUS V104 • acompanhamento diário do Movimento de Caixa + fechamento sem taxa de maquininha -->
+
+<style id="lp-payment-v105-css">
+.lp-v105-payment-note{grid-column:1/-1;margin:2px 0 4px!important}
+.lp-v105-payment-note b{color:#172033}
+.lp-v105-pay-sub{display:block;margin-top:4px;color:#64748b;font-size:10px;line-height:1.35}
+.lp-v105-card-fee{font-weight:800;color:#7c3aed}
+@media(max-width:700px){.lp-v105-payment-note{grid-column:1/-1}}
+</style>
+
+<script id="lp-payment-v105-js">
+(function(){
+  if(window.__lpPaymentV105)return;
+  window.__lpPaymentV105=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{v=Number(v||0);return Number.isFinite(v)?v:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const today=()=>new Date().toISOString().slice(0,10);
+
+  /* Tabela Cielo enviada em 06/10/2026.
+     Visa / Mastercard: débito 1,27%; crédito 1x 2,25%; 2-6x 2,71%; 7-12x 3,09%
+     Elo: débito 1,82%; crédito 1x 2,80%; 2-6x 3,36%; 7-12x 3,74%
+     Amex: crédito 1x 2,75%; 2-6x 3,31%; 7-12x 3,69%
+     Diners: crédito 1x 2,25%; 2-6x 2,71%; 7-12x 3,09% */
+  const CIELO_RATES={
+    Visa:{debit:1.27,credit1:2.25,credit2to6:2.71,credit7to12:3.09},
+    Mastercard:{debit:1.27,credit1:2.25,credit2to6:2.71,credit7to12:3.09},
+    Elo:{debit:1.82,credit1:2.80,credit2to6:3.36,credit7to12:3.74},
+    Amex:{debit:null,credit1:2.75,credit2to6:3.31,credit7to12:3.69},
+    Diners:{debit:null,credit1:2.25,credit2to6:2.71,credit7to12:3.09}
+  };
+  window.lpCieloRatesV105=CIELO_RATES;
+
+  function isDebit(p){return norm(p).includes('debito')}
+  function isCredit(p){return norm(p).includes('credito')||norm(p).includes('cartao')}
+  function isCard(p){return isDebit(p)||isCredit(p)}
+  function allowedBrands(payment){return isDebit(payment)?['Visa','Mastercard','Elo']:['Visa','Mastercard','Elo','Amex','Diners']}
+  function cardRate(payment,brand,count){
+    if(!isCard(payment))return 0;
+    const b=CIELO_RATES[brand]||CIELO_RATES.Visa;
+    if(isDebit(payment))return N(b.debit);
+    count=Math.max(1,Math.min(12,Math.floor(N(count)||1)));
+    if(count===1)return N(b.credit1);
+    if(count<=6)return N(b.credit2to6);
+    return N(b.credit7to12);
+  }
+  window.lpCardRateV105=cardRate;
+
+  function addDays(iso,days){
+    const a=T(iso).split('-').map(Number);if(a.length!==3||!a[0])return today();
+    const d=new Date(a[0],a[1]-1,a[2],12);d.setDate(d.getDate()+N(days));
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function addMonths(iso,months){
+    const a=T(iso).split('-').map(Number);if(a.length!==3||!a[0])return today();
+    const d=new Date(a[0],a[1]-1+N(months),1,12),last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    d.setDate(Math.min(a[2],last));
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function ensurePaymentOption(select,value){
+    if(!select||[...select.options].some(o=>o.value===value||o.textContent===value))return;
+    const o=document.createElement('option');o.value=value;o.textContent=value;select.appendChild(o);
+  }
+  function setLabelText(input,text){
+    const lab=input?.closest('label');if(!lab)return;
+    [...lab.childNodes].filter(n=>n.nodeType===3).forEach(n=>n.textContent='');
+    lab.insertBefore(document.createTextNode(text),lab.firstChild);
+  }
+  function brandOptions(payment,selected='Visa'){
+    const arr=allowedBrands(payment);if(!arr.includes(selected))selected=arr[0]||'Visa';
+    return arr.map(b=>`<option value="${E(b)}" ${b===selected?'selected':''}>${E(b)}</option>`).join('');
+  }
+  function paymentSummary(x){
+    const payment=T(x?.payment)||'Não informado',count=Math.max(1,N(x?.installmentCount)||1),brand=T(x?.cardBrand),rate=N(x?.cardFeePct);
+    const out=[payment];
+    if(isCard(payment)&&brand)out.push(brand);
+    if(isCard(payment)||count>1)out.push(`${count}x`);
+    if(isCard(payment)&&rate>0)out.push(`taxa ${rate.toFixed(2).replace('.',',')}%`);
+    return out.join(' • ');
+  }
+  window.lpPaymentSummaryV105=paymentSummary;
+
+  function refreshPaymentUI(cfg){
+    const pay=document.getElementById(cfg.paymentId),inst=document.getElementById(cfg.installmentId),brand=document.getElementById(cfg.brandId),brandWrap=document.getElementById(cfg.brandWrapId),note=document.getElementById(cfg.noteId),status=cfg.statusId?document.getElementById(cfg.statusId):null;
+    if(!pay||!inst||!brand)return;
+    const p=T(pay.value),card=isCard(p),debit=isDebit(p),credit=isCredit(p);
+    const currentBrand=T(brand.value)||'Visa';
+    brand.innerHTML=brandOptions(p,currentBrand);
+    if(brandWrap)brandWrap.style.display=card?'grid':'none';
+    if(debit){inst.value='1';inst.min='1';inst.max='1';inst.disabled=true}
+    else if(credit){inst.min='1';inst.max='12';inst.disabled=false;if(N(inst.value)<1)inst.value='1';if(N(inst.value)>12)inst.value='12'}
+    else{inst.min='1';inst.max='60';inst.disabled=false;if(N(inst.value)<1)inst.value='1'}
+    const count=Math.max(1,Math.floor(N(inst.value)||1));
+    if(status){
+      if(card){status.value='Pago';status.disabled=true}
+      else{status.disabled=false;if(count>1)status.value='Pendente'}
+      try{status.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}
+    }
+    const total=Math.max(0,N(cfg.totalGetter?.()));
+    const rate=cardRate(p,T(brand.value)||'Visa',count),fee=total*rate/100,net=Math.max(0,total-fee);
+    if(note){
+      if(card)note.innerHTML=`<b>Taxa Cielo:</b> ${rate.toFixed(2).replace('.',',')}% • taxa estimada <b>${M(fee)}</b> • líquido <b>${M(net)}</b>${credit?` • ${count}x`:''}.`;
+      else note.innerHTML=count>1?`<b>Parcelado em ${count}x:</b> serão criadas ${count} contas a receber mensais.`:'Sem taxa de maquininha.';
+    }
+    if(cfg.dueId){
+      const due=document.getElementById(cfg.dueId);
+      if(due&&card){
+        const base=today();
+        due.value=addDays(base,debit?Math.max(0,N(data.settings?.cardDebitDaysV96)||1):Math.max(1,N(data.settings?.cardCreditDaysV96)||30));
+        setLabelText(due,'1º crédito previsto');
+      }else if(due){setLabelText(due,'Vencimento / 1º vencimento')}
+    }
+  }
+
+  function bindPaymentUI(cfg){
+    const ids=[cfg.paymentId,cfg.installmentId,cfg.brandId,cfg.statusId,cfg.dueId,...(cfg.watchIds||[])].filter(Boolean);
+    const fn=()=>refreshPaymentUI(cfg);
+    ids.forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.lpPayV105){el.dataset.lpPayV105='1';el.addEventListener(id===cfg.paymentId||id===cfg.brandId||id===cfg.statusId?'change':'input',fn);if(id===cfg.dueId)el.addEventListener('change',fn)}});
+    fn();
+  }
+
+  function injectSaleFields(){
+    const pay=document.getElementById('spayment');if(!pay||document.getElementById('sinstallmentsV105'))return;
+    ensurePaymentOption(pay,'Cheque');ensurePaymentOption(pay,'Crediário / Parcelado');
+    const anchor=pay.closest('label');
+    const inst=document.createElement('label');inst.innerHTML='Parcelas<input id="sinstallmentsV105" type="number" min="1" max="60" value="1">';anchor.insertAdjacentElement('afterend',inst);
+    const brand=document.createElement('label');brand.id='sbrandWrapV105';brand.innerHTML=`Bandeira<select id="sbrandV105">${brandOptions(pay.value,'Visa')}</select>`;inst.insertAdjacentElement('afterend',brand);
+    const note=document.createElement('div');note.id='sfeeNoteV105';note.className='notice lp-v105-payment-note';brand.insertAdjacentElement('afterend',note);
+    const total=()=>{const p=(data.products||[]).find(x=>String(x.id)===String(document.getElementById('sproduct')?.value||''));return Math.max(0,N(p?.price)*N(document.getElementById('sqty')?.value)-N(document.getElementById('sdiscount')?.value))};
+    bindPaymentUI({paymentId:'spayment',installmentId:'sinstallmentsV105',brandId:'sbrandV105',brandWrapId:'sbrandWrapV105',noteId:'sfeeNoteV105',statusId:'sfinancial',dueId:'sdue',totalGetter:total,watchIds:['sproduct','sqty','sdiscount']});
+  }
+
+  function injectServiceCreationFields(){
+    const form=document.querySelector('#modalBody .form');if(!form||document.getElementById('ospaymentV105'))return;
+    const anchor=document.getElementById('osdiscount')?.closest('label')||form.lastElementChild;
+    const pay=document.createElement('label');pay.innerHTML=`Forma de pagamento<select id="ospaymentV105"><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option><option>Boleto</option><option>Transferência</option><option>Cheque</option><option>Crediário / Parcelado</option></select>`;anchor.insertAdjacentElement('afterend',pay);
+    const inst=document.createElement('label');inst.innerHTML='Parcelas<input id="osinstallmentsV105" type="number" min="1" max="60" value="1">';pay.insertAdjacentElement('afterend',inst);
+    const brand=document.createElement('label');brand.id='osbrandWrapV105';brand.innerHTML=`Bandeira<select id="osbrandV105">${brandOptions(data.settings?.defaultPayment||'PIX','Visa')}</select>`;inst.insertAdjacentElement('afterend',brand);
+    const note=document.createElement('div');note.id='osfeeNoteV105';note.className='notice lp-v105-payment-note';brand.insertAdjacentElement('afterend',note);
+    const select=document.getElementById('ospaymentV105');if(select&&[...select.options].some(o=>o.value===data.settings?.defaultPayment))select.value=data.settings.defaultPayment;
+    const total=()=>{const p=(data.products||[]).find(x=>String(x.id)===String(document.getElementById('osproduct')?.value||''));return Math.max(0,N(document.getElementById('osservicevalue')?.value)+N(p?.price)*N(document.getElementById('osqty')?.value)-N(document.getElementById('osdiscount')?.value))};
+    bindPaymentUI({paymentId:'ospaymentV105',installmentId:'osinstallmentsV105',brandId:'osbrandV105',brandWrapId:'osbrandWrapV105',noteId:'osfeeNoteV105',totalGetter:total,watchIds:['osproduct','osqty','osservicevalue','osdiscount']});
+  }
+
+  function injectReceiveFields(o){
+    const pay=document.getElementById('ospay');if(!pay||document.getElementById('osinstallmentsV105'))return;
+    ensurePaymentOption(pay,'Cheque');ensurePaymentOption(pay,'Crediário / Parcelado');
+    if(T(o?.payment)&&[...pay.options].some(x=>x.value===o.payment))pay.value=o.payment;
+    const anchor=pay.closest('label');
+    const inst=document.createElement('label');inst.innerHTML=`Parcelas<input id="osinstallmentsV105" type="number" min="1" max="60" value="${Math.max(1,N(o?.installmentCount)||1)}">`;anchor.insertAdjacentElement('afterend',inst);
+    const brand=document.createElement('label');brand.id='osbrandWrapV105';brand.innerHTML=`Bandeira<select id="osbrandV105">${brandOptions(pay.value,T(o?.cardBrand)||'Visa')}</select>`;inst.insertAdjacentElement('afterend',brand);
+    const note=document.createElement('div');note.id='osfeeNoteV105';note.className='notice lp-v105-payment-note';brand.insertAdjacentElement('afterend',note);
+    bindPaymentUI({paymentId:'ospay',installmentId:'osinstallmentsV105',brandId:'osbrandV105',brandWrapId:'osbrandWrapV105',noteId:'osfeeNoteV105',statusId:'osfinstatus',dueId:'osfindue',totalGetter:()=>N(o?.total)});
+  }
+
+  function removeInitialFinance(res){
+    const f=res?.finance;if(!f)return;
+    if(f.reminderId)data.reminders=(data.reminders||[]).filter(r=>String(r.id)!==String(f.reminderId));
+    if(f.cashId){
+      data.cardReceivablesV96=(data.cardReceivablesV96||[]).filter(r=>String(r.cashId)!==String(f.cashId));
+      data.cash=(data.cash||[]).filter(c=>String(c.id)!==String(f.cashId));
+    }
+    data.finance=(data.finance||[]).filter(x=>String(x.id)!==String(f.id));
+    if(res.sale){res.sale.financeId='';res.sale.financeIds=[];res.sale.installments=[]}
+  }
+  function removeAllSaleFinance(saleId){
+    const ids=new Set();
+    (data.finance||[]).filter(f=>f.originType==='Venda'&&String(f.originId)===String(saleId)).forEach(f=>{
+      if(f.reminderId)data.reminders=(data.reminders||[]).filter(r=>String(r.id)!==String(f.reminderId));
+      if(f.cashId)ids.add(String(f.cashId));
+    });
+    if(ids.size){
+      data.cardReceivablesV96=(data.cardReceivablesV96||[]).filter(r=>!ids.has(String(r.cashId)));
+      data.cash=(data.cash||[]).filter(c=>!ids.has(String(c.id)));
+    }
+    data.finance=(data.finance||[]).filter(f=>!(f.originType==='Venda'&&String(f.originId)===String(saleId)));
+  }
+
+  function configureCardReceivable(cashId,opt){
+    const r=(data.cardReceivablesV96||[]).find(x=>String(x.cashId)===String(cashId));if(!r)return;
+    const rate=cardRate(opt.payment,opt.brand,opt.count),gross=N(r.gross),fee=Math.round(gross*rate)/100,net=Math.max(0,Math.round((gross-fee)*100)/100);
+    r.payment=`${opt.payment}${opt.brand?' • '+opt.brand:''}${opt.count>1?' • '+opt.count+'x':''}`;
+    r.brand=opt.brand;r.installmentNumber=opt.number;r.installmentCount=opt.count;r.feePct=rate;r.feeValueExpected=fee;r.netExpected=net;r.expectedDate=opt.due;r.destinationAccount='sicredi';r.rateSourceV105='Cielo 06/10/2026';
+  }
+
+  function buildPaymentPlan(sale,opt){
+    const payment=T(opt.payment)||'PIX',card=isCard(payment),debit=isDebit(payment),credit=isCredit(payment),brand=T(opt.brand)||'Visa';
+    let count=Math.max(1,Math.floor(N(opt.count)||1));if(debit)count=1;if(credit)count=Math.min(12,count);else count=Math.min(60,count);
+    let status=T(opt.status)||'Pago';if(card)status='Pago';else if(count>1)status='Pendente';
+    const rate=cardRate(payment,brand,count),total=Math.round(N(sale.total)*100)/100,base=Math.floor((total/count)*100)/100;
+    const firstDue=T(opt.firstDue)||addDays(today(),card?(debit?Math.max(0,N(data.settings?.cardDebitDaysV96)||1):Math.max(1,N(data.settings?.cardCreditDaysV96)||30)):Math.max(1,N(data.settings?.defaultDueDays)||30));
+    const account=T(opt.account)||'sicredi',step=Math.max(1,N(data.settings?.cardCreditDaysV96)||30);
+    sale.payment=payment;sale.installmentCount=count;sale.cardBrand=card?brand:'';sale.cardFeePct=card?rate:0;sale.financeIds=[];sale.installments=[];sale.cardFeeValue=0;sale.cardNetValue=total;
+    let allocated=0;
+    for(let i=1;i<=count;i++){
+      const value=i===count?Math.round((total-allocated)*100)/100:base;allocated=Math.round((allocated+value)*100)/100;
+      const due=card?(debit?addDays(today(),Math.max(0,N(data.settings?.cardDebitDaysV96)||1)):addDays(firstDue,step*(i-1))):addMonths(firstDue,i-1);
+      if(status==='Pago')window.__lpNextAccountV82=card?'cartoes':account;
+      let f;
+      try{
+        f=makeFinance({type:'Receita',category:opt.category||'Vendas',desc:count>1?`${opt.descBase} • parcela ${i}/${count}`:opt.descBase,value,status,date:today(),dueDate:status==='Pago'?today():due,payment,customerId:sale.customerId||'',originType:'Venda',originId:sale.id,originNumber:count>1?`${opt.originNumber||('VEN-'+sale.id)}-${i}/${count}`:(opt.originNumber||('VEN-'+sale.id))});
+      }finally{window.__lpNextAccountV82=''}
+      sale.financeIds.push(f.id);sale.installments.push({number:i,total:count,value,dueDate:due,financeId:f.id,status});
+      if(card&&f.cashId)configureCardReceivable(f.cashId,{payment,brand,count,number:i,due});
+    }
+    sale.financeId=sale.financeIds[0]||'';sale.financialStatus=status;
+    if(card){sale.cardFeeValue=Math.round(total*rate)/100;sale.cardNetValue=Math.max(0,Math.round((total-sale.cardFeeValue)*100)/100)}
+    return sale;
+  }
+
+  /* ===== VENDA MANUAL ===== */
+  const oldSaleModalV105=window.saleModal;
+  window.saleModal=function(){const r=typeof oldSaleModalV105==='function'?oldSaleModalV105.apply(this,arguments):undefined;injectSaleFields();return r};
+
+  window.finishSale=function(){
+    const p=(data.products||[]).find(x=>String(x.id)===String(document.getElementById('sproduct')?.value||'')),q=N(document.getElementById('sqty')?.value);
+    if(!p||q<=0)return alert('Selecione o produto e informe a quantidade.');
+    const payment=T(document.getElementById('spayment')?.value)||'PIX',count=Math.max(1,N(document.getElementById('sinstallmentsV105')?.value)||1),brand=T(document.getElementById('sbrandV105')?.value)||'Visa',status=T(document.getElementById('sfinancial')?.value)||'Pago',firstDue=T(document.getElementById('sdue')?.value),account=T(document.getElementById('saccountV82')?.value)||'sicredi';
+    const res=createIntegratedSale({customerId:document.getElementById('scustomer')?.value||'',items:[{id:p.id,qty:q}],discount:N(document.getElementById('sdiscount')?.value),payment,financialStatus:'Pendente',dueDate:firstDue,originType:'Venda'});
+    if(res?.error)return alert(res.error);
+    removeInitialFinance(res);
+    buildPaymentPlan(res.sale,{payment,count,brand,status,firstDue,account,category:'Vendas',descBase:`Venda #${res.sale.id}`,originNumber:`VEN-${res.sale.id}`});
+    try{log(`Registrou venda integrada #${res.sale.id} • ${paymentSummary(res.sale)}`)}catch(e){}
+    try{save()}catch(e){}closeModal();try{renderAll()}catch(e){}
+  };
+
+  /* ===== SERVIÇO: pagamento já na criação ===== */
+  const oldOSModalV105=window.osModal;
+  window.osModal=function(){const r=typeof oldOSModalV105==='function'?oldOSModalV105.apply(this,arguments):undefined;injectServiceCreationFields();return r};
+
+  const oldSaveOSV105=window.saveOS;
+  window.saveOS=function(){
+    const plan={payment:T(document.getElementById('ospaymentV105')?.value)||data.settings?.defaultPayment||'PIX',count:Math.max(1,N(document.getElementById('osinstallmentsV105')?.value)||1),brand:T(document.getElementById('osbrandV105')?.value)||'Visa'};
+    const before=new Set((data.serviceOrders||[]).map(o=>String(o.id))),r=typeof oldSaveOSV105==='function'?oldSaveOSV105.apply(this,arguments):undefined;
+    const o=(data.serviceOrders||[]).find(x=>!before.has(String(x.id)));
+    if(o){
+      if(isDebit(plan.payment))plan.count=1;if(isCredit(plan.payment))plan.count=Math.min(12,plan.count);
+      o.payment=plan.payment;o.installmentCount=plan.count;o.cardBrand=isCard(plan.payment)?plan.brand:'';o.cardFeePct=isCard(plan.payment)?cardRate(plan.payment,plan.brand,plan.count):0;
+      o.paymentPlannedV105=true;
+      try{save()}catch(e){}try{if(document.getElementById('os')?.classList.contains('active'))renderOS()}catch(e){}
+    }
+    return r;
+  };
+
+  const oldReceiveOSModalV105=window.receiveOSModal;
+  window.receiveOSModal=function(id){
+    const o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id));
+    const r=typeof oldReceiveOSModalV105==='function'?oldReceiveOSModalV105.apply(this,arguments):undefined;
+    if(o)injectReceiveFields(o);return r;
+  };
+
+  window.receiveOS=function(id){
+    const o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id));if(!o||o.received)return;
+    const payment=T(document.getElementById('ospay')?.value)||T(o.payment)||data.settings?.defaultPayment||'PIX',count=Math.max(1,N(document.getElementById('osinstallmentsV105')?.value)||N(o.installmentCount)||1),brand=T(document.getElementById('osbrandV105')?.value)||T(o.cardBrand)||'Visa',status=T(document.getElementById('osfinstatus')?.value)||'Pago',firstDue=T(document.getElementById('osfindue')?.value),account=T(document.getElementById('osaccountV82')?.value)||'sicredi';
+    const items=[];if(o.productId&&o.qty)items.push({id:o.productId,name:o.productName,qty:o.qty,price:o.qty?N(o.productValue)/N(o.qty):0,cost:(data.products||[]).find(p=>String(p.id)===String(o.productId))?.cost||0});if(N(o.serviceValue))items.push({id:'service-'+o.id,name:o.service,qty:1,price:N(o.serviceValue),cost:0,kind:'service'});
+    const productCost=o.productId?N((data.products||[]).find(p=>String(p.id)===String(o.productId))?.cost)*N(o.qty):0,forcedProfit=N(o.total)-productCost;
+    const res=createIntegratedSale({customerId:o.customerId,items,discount:N(o.discount),payment,financialStatus:'Pendente',dueDate:firstDue,originType:'OS',originId:o.id,originNumber:o.number,skipStock:true,forcedTotal:o.total,forcedProfit});
+    if(res?.error)return alert(res.error);
+    removeInitialFinance(res);
+    buildPaymentPlan(res.sale,{payment,count,brand,status,firstDue,account,category:'Serviços',descBase:`Recebimento ${o.number}`,originNumber:o.number});
+    o.received=true;o.status='Entregue';o.saleId=res.sale.id;o.financeId=res.sale.financeId;o.payment=res.sale.payment;o.installmentCount=res.sale.installmentCount;o.cardBrand=res.sale.cardBrand;o.cardFeePct=res.sale.cardFeePct;o.cardFeeValue=res.sale.cardFeeValue;o.cardNetValue=res.sale.cardNetValue;
+    try{log(`Recebeu ${o.number} • ${paymentSummary(o)}`)}catch(e){}try{save()}catch(e){}closeModal();try{renderAll()}catch(e){}
+  };
+
+  /* ===== STATUS E DETALHES DO SERVIÇO ===== */
+  const oldChangeOSStatusV105=window.changeOSStatus;
+  window.changeOSStatus=function(id){
+    const r=typeof oldChangeOSStatusV105==='function'?oldChangeOSStatusV105.apply(this,arguments):undefined,o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id));
+    const box=document.querySelector('#modalBody .lp-service-info');
+    if(o&&box&&!box.querySelector('[data-lp-pay-v105]')){
+      const fee=isCard(o.payment)?`<small class="lp-v105-pay-sub">Taxa: ${N(o.cardFeePct).toFixed(2).replace('.',',')}%${N(o.cardFeeValue)>0?' • '+M(o.cardFeeValue):''}</small>`:'';
+      box.insertAdjacentHTML('beforeend',`<div data-lp-pay-v105><span>Pagamento</span><b>${E(paymentSummary(o))}</b>${fee}</div>`);
+    }
+    return r;
+  };
+  const oldServiceDetailsV105=window.lpServiceDetails;
+  if(typeof oldServiceDetailsV105==='function')window.lpServiceDetails=function(id){
+    const r=oldServiceDetailsV105.apply(this,arguments),o=(data.serviceOrders||[]).find(x=>String(x.id)===String(id)),box=document.querySelector('#modalBody .lp-service-info');
+    if(o&&box&&!box.querySelector('[data-lp-pay-v105]'))box.insertAdjacentHTML('beforeend',`<div data-lp-pay-v105><span>Pagamento</span><b>${E(paymentSummary(o))}</b>${isCard(o.payment)?`<small class="lp-v105-pay-sub">Taxa Cielo: ${N(o.cardFeePct).toFixed(2).replace('.',',')}%${N(o.cardNetValue)>0?' • líquido '+M(o.cardNetValue):''}</small>`:''}</div>`);
+    return r;
+  };
+
+  /* ===== TABELAS: sempre mostrar forma de pagamento ===== */
+  const oldRenderOSV105=window.renderOS;
+  window.renderOS=function(){
+    const r=typeof oldRenderOSV105==='function'?oldRenderOSV105.apply(this,arguments):undefined,table=document.querySelector('#os table');if(!table)return r;
+    const heads=[...table.querySelectorAll('thead th')],idx=heads.findIndex(h=>/valor/i.test(T(h.textContent)));
+    if(idx>=0)[...table.querySelectorAll('tbody tr')].forEach((tr,i)=>{const o=(data.serviceOrders||[])[i],td=tr.children[idx];if(o&&td&&!td.querySelector('.lp-v105-pay-sub'))td.insertAdjacentHTML('beforeend',`<small class="lp-v105-pay-sub">${E(paymentSummary(o))}${isCard(o.payment)?` • líquido ${M(N(o.cardNetValue)||Math.max(0,N(o.total)-N(o.total)*N(o.cardFeePct)/100))}`:''}</small>`)});
+    return r;
+  };
+  const oldRenderVendasV105=window.renderVendas;
+  window.renderVendas=function(){
+    const r=typeof oldRenderVendasV105==='function'?oldRenderVendasV105.apply(this,arguments):undefined,table=document.querySelector('#vendas table');if(!table)return r;
+    const sales=[...(data.sales||[])].sort((a,b)=>Number(b.id||0)-Number(a.id||0)),heads=[...table.querySelectorAll('thead th')],idx=heads.findIndex(h=>/total/i.test(T(h.textContent)));
+    if(idx>=0)[...table.querySelectorAll('tbody tr')].forEach((tr,i)=>{const s=sales[i],td=tr.children[idx];if(s&&td&&!td.querySelector('.lp-v105-payment-line'))td.insertAdjacentHTML('beforeend',`<small class="cell-sub lp-v105-payment-line">Pagamento: ${E(paymentSummary(s))}${isCard(s.payment)?` • líquido ${M(N(s.cardNetValue)||Math.max(0,N(s.total)-N(s.total)*N(s.cardFeePct)/100))}`:''}</small>`)});
+    return r;
+  };
+
+  /* ===== VENDA DETECTADA NA PLANILHA: aplica a mesma tabela Cielo ===== */
+  const oldDiffModalV105=window.lpDifferenceSaleModal;
+  if(typeof oldDiffModalV105==='function')window.lpDifferenceSaleModal=function(id){
+    const r=oldDiffModalV105.apply(this,arguments),pay=document.getElementById('dipayment'),inst=document.getElementById('diinstallments');
+    if(pay&&inst&&!document.getElementById('dibrandV105')){
+      ensurePaymentOption(pay,'Crediário / Parcelado');
+      const clone=inst.cloneNode(true);inst.replaceWith(clone);clone.max='60';
+      const lab=clone.closest('label'),brand=document.createElement('label');brand.id='dibrandWrapV105';brand.innerHTML=`Bandeira<select id="dibrandV105">${brandOptions(pay.value,'Visa')}</select>`;lab.insertAdjacentElement('afterend',brand);
+      const note=document.createElement('div');note.id='difeeNoteV105';note.className='notice lp-v105-payment-note';brand.insertAdjacentElement('afterend',note);
+      bindPaymentUI({paymentId:'dipayment',installmentId:'diinstallments',brandId:'dibrandV105',brandWrapId:'dibrandWrapV105',noteId:'difeeNoteV105',statusId:'dipaymentstatus',dueId:'difirstdue',totalGetter:()=>N(document.getElementById('diprice')?.value)*Math.abs(N((data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id))?.diff)),watchIds:['diprice']});
+    }
+    return r;
+  };
+  const oldResolveDiffV105=window.lpResolveDifference;
+  if(typeof oldResolveDiffV105==='function')window.lpResolveDifference=async function(id,action){
+    const captured=action==='venda'?{payment:T(document.getElementById('dipayment')?.value),count:Math.max(1,N(document.getElementById('diinstallments')?.value)||1),brand:T(document.getElementById('dibrandV105')?.value)||'Visa',firstDue:T(document.getElementById('difirstdue')?.value),account:T(document.getElementById('diaccountV82')?.value||document.getElementById('diaccountV96')?.value)||'sicredi'}:null;
+    const out=await oldResolveDiffV105.apply(this,arguments);
+    if(captured&&isCard(captured.payment)){
+      const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id)),sale=(data.sales||[]).find(x=>String(x.id)===String(d?.saleId));
+      if(sale){
+        removeAllSaleFinance(sale.id);
+        buildPaymentPlan(sale,{payment:captured.payment,count:captured.count,brand:captured.brand,status:'Pago',firstDue:captured.firstDue,account:captured.account,category:'Vendas',descBase:`Venda #${sale.id}`,originNumber:`VEN-${sale.id}`});
+        try{save()}catch(e){}try{if(document.getElementById('vendas')?.classList.contains('active'))renderVendas()}catch(e){}
+      }
+    }
+    return out;
+  };
+
+  /* Migração visual: registros antigos continuam válidos e recebem 1x quando não tinham parcelas. */
+  (data.sales||[]).forEach(s=>{if(!s.installmentCount)s.installmentCount=1});
+  (data.serviceOrders||[]).forEach(o=>{if(!o.installmentCount)o.installmentCount=1;if(!o.payment)o.payment='Não informado'});
+  try{save()}catch(e){}
+})();
+</script>
+<!-- LE PNEUS V105 • pagamentos/parcelas em vendas e serviços + taxas Cielo por bandeira -->
+
+<style id="lp-boleto-notify-v106-css">
+.lp-notification-item.lp-v106-boleto-paid .ico{background:#ecfdf3;color:#15803d}
+.lp-notification-item.lp-v106-boleto-pending .ico{background:#fff7ed;color:#c2410c}
+.lp-v106-boleto-lines{display:grid;gap:3px;margin-top:6px}
+.lp-v106-boleto-lines span{display:block;font-size:11px;color:#64748b}
+</style>
+<script id="lp-boleto-notify-v106-js">
+(function(){
+  if(window.__lpBoletoNotifyV106)return;
+  window.__lpBoletoNotifyV106=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v||0);return Number.isFinite(n)?n:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const DAY=86400000;
+
+  function ensure(){
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.lpBoletoNotifyV106=data.lpBoletoNotifyV106&&typeof data.lpBoletoNotifyV106==='object'?data.lpBoletoNotifyV106:{};
+    const s=data.lpBoletoNotifyV106;
+    s.events=Array.isArray(s.events)?s.events:[];
+    s.sourceStates=s.sourceStates&&typeof s.sourceStates==='object'?s.sourceStates:{};
+    s.initialized=!!s.initialized;
+    return s;
+  }
+  function saveSafe(){try{if(typeof save==='function')save()}catch(e){console.warn('V106 save',e)}}
+  function todayMs(){const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime()}
+  function dateMs(iso){const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]).getTime():NaN}
+  function daysUntil(iso){const x=dateMs(iso);return Number.isFinite(x)?Math.ceil((x-todayMs())/DAY):null}
+  function fmtDate(iso){const m=T(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(T(iso)||'-')}
+  function settled(x){
+    if(/pago|paga|quitad|recebid|cancelad/i.test(T(x?.status)))return true;
+    if(T(x?.paidDate))return true;
+    const hasRemaining=x?.remaining!==undefined&&x?.remaining!==null&&T(x.remaining)!=='';
+    if(hasRemaining&&N(x.remaining)<=0)return true;
+    const original=N(x?.originalValue||x?.value),paid=N(x?.paymentAmount);
+    return original>0&&paid>=original;
+  }
+  function isBoleto(f){
+    const txt=norm(`${T(f?.payment)} ${T(f?.category)} ${T(f?.sourceFile)} ${T(f?.sourceSheet)} ${T(f?.notes)}`);
+    return T(f?.type)==='Despesa'&&(txt.includes('boleto')||txt.includes('dividas lepneus'));
+  }
+  function activeBoletos(){
+    return (data.finance||[]).filter(f=>isBoleto(f)&&!settled(f)).sort((a,b)=>(T(a.dueDate)||'9999-99-99').localeCompare(T(b.dueDate)||'9999-99-99'));
+  }
+  function eventKey(prefix,key,stamp){return `${prefix}:${T(key)}:${T(stamp)}`}
+  function addPaidEvent({key,desc,value,paidDate='',source='Sistema',eventId=''}){
+    const s=ensure(),id=eventId||eventKey('paid',key,paidDate||new Date().toISOString().slice(0,16));
+    if(s.events.some(x=>x.id===id))return false;
+    const ev={id,key:T(key),kind:'paid',desc:T(desc)||'Boleto',value:N(value),paidDate:T(paidDate)||new Date().toISOString().slice(0,10),source:T(source)||'Sistema',createdAt:new Date().toISOString(),read:false};
+    s.events.unshift(ev);s.events=s.events.slice(0,60);saveSafe();
+    try{
+      if(data.settings?.browserNotifications&&'Notification'in window&&Notification.permission==='granted'){
+        new Notification('Boleto pago',{body:`${ev.desc} • ${M(ev.value)}`});
+      }
+    }catch(e){}
+    refreshBell();
+    return true;
+  }
+  function unreadPaid(){return ensure().events.filter(x=>x.kind==='paid'&&!x.read)}
+  function extraCount(){return activeBoletos().length+unreadPaid().length}
+  function baseDotCount(){
+    const dot=document.querySelector('.lp-bell-wrap .lp-bell-dot');
+    if(!dot)return 0;
+    const current=N(dot.textContent);
+    const prevExtra=N(dot.dataset.v106Extra);
+    return Math.max(0,current-prevExtra);
+  }
+  function refreshBell(){
+    const wrap=document.querySelector('.lp-bell-wrap');if(!wrap)return;
+    let dot=wrap.querySelector('.lp-bell-dot');
+    const total=baseDotCount()+extraCount();
+    if(total){if(!dot){dot=document.createElement('span');dot.className='lp-bell-dot';wrap.appendChild(dot)}dot.textContent=Math.min(total,99);dot.dataset.v106Extra=String(extraCount())}
+    else if(dot)dot.remove();
+  }
+  function pendingHtml(rows){
+    if(!rows.length)return '';
+    const overdue=rows.filter(x=>{const d=daysUntil(x.dueDate);return d!==null&&d<0}).length;
+    const today=rows.filter(x=>daysUntil(x.dueDate)===0).length;
+    const soon=rows.filter(x=>{const d=daysUntil(x.dueDate);return d!==null&&d>0&&d<=3}).length;
+    const lines=rows.slice(0,4).map(x=>`<span>• ${E(x.desc||'Fornecedor')} — ${M(x.value)}${x.dueDate?` • ${fmtDate(x.dueDate)}`:''}</span>`).join('');
+    return `<div class="lp-notification-item lp-v106-boleto-pending"><div class="ico">🧾</div><div><b>${rows.length} boleto(s) pendente(s)</b><small>${overdue?`${overdue} atrasado(s) • `:''}${today?`${today} vence(m) hoje • `:''}${soon?`${soon} vence(m) em até 3 dias`:''}${!overdue&&!today&&!soon?'Aguardando pagamento.':''}</small><div class="lp-v106-boleto-lines">${lines}</div><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('financeiro')">Ver boletos</button></div></div></div>`;
+  }
+  function paidHtml(events){
+    return events.slice(0,6).map(x=>`<div class="lp-notification-item lp-v106-boleto-paid"><div class="ico">✅</div><div><b>Boleto pago • ${E(x.desc)}</b><small>${M(x.value)}${x.paidDate?` • pago em ${fmtDate(x.paidDate)}`:''} • ${E(x.source)}</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('financeiro')">Abrir Financeiro</button></div></div></div>`).join('');
+  }
+
+  const oldBell=window.lpOpenNotifications;
+  if(typeof oldBell==='function')window.lpOpenNotifications=function(){
+    const pending=activeBoletos(),paid=unreadPaid(),extra=pending.length+paid.length;
+    const r=oldBell.apply(this,arguments);
+    const list=document.querySelector('#modal .lp-notification-list');
+    if(list){
+      const html=paidHtml(paid)+pendingHtml(pending);
+      if(html)list.insertAdjacentHTML('afterbegin',html);
+    }
+    const notice=document.querySelector('#modal .notice b');
+    if(notice&&extra)notice.textContent=String((N(notice.textContent)||0)+extra);
+    if(paid.length){
+      const ids=new Set(paid.map(x=>x.id));ensure().events.forEach(x=>{if(ids.has(x.id))x.read=true});saveSafe();
+      setTimeout(refreshBell,100);
+    }
+    return r;
+  };
+
+  const oldConfirm=window.lpConfirmFinancePaidV82;
+  if(typeof oldConfirm==='function'&&!oldConfirm.__lpV106){
+    const fn=function(id){
+      const before=(data.finance||[]).find(x=>String(x.id)===String(id));
+      const snap=before?{key:before.sourceKey||before.id,desc:before.desc,value:before.value,isBoleto:isBoleto(before),wasOpen:!settled(before)}:null;
+      const r=oldConfirm.apply(this,arguments);
+      const after=(data.finance||[]).find(x=>String(x.id)===String(id));
+      if(snap?.isBoleto&&snap.wasOpen&&after&&settled(after))addPaidEvent({key:snap.key,desc:snap.desc,value:snap.value,source:'Baixa no sistema',eventId:eventKey('manual',snap.key,new Date().toISOString().slice(0,16))});
+      return r;
+    };
+    fn.__lpV106=true;window.lpConfirmFinancePaidV82=fn;
+  }
+
+  /* Acompanha a fonte Dívidas LEPNEUS para reconhecer a transição aberta -> paga. */
+  const cloud={started:false,chunks:new Map(),meta:null,lastSignature:''};
+  function db(){
+    try{if(window.lpDb)return window.lpDb}catch(e){}
+    try{if(typeof lpDb!=='undefined'&&lpDb)return lpDb}catch(e){}
+    try{if(window.firebase){if(!firebase.apps.length)firebase.initializeApp(LEPNEUS_FIREBASE_CONFIG);return firebase.firestore()}}catch(e){}
+    return null;
+  }
+  function sourceKey(x,i){return T(x?.sourceKey)||`${norm(x?.name||x?.desc||'boleto')}|${T(x?.dueDate)}|${norm(x?.sourceSheet)}|${N(x?.originalValue||x?.value).toFixed(2)}|${i}`}
+  function applyCloudPaidWatch(){
+    const m=cloud.meta;if(!m)return;
+    const syncId=T(m.syncId),count=Math.max(0,N(m.chunkCount));
+    const docs=[...cloud.chunks.values()].filter(x=>T(x.sourceType)==='pagar'&&T(x.syncId)===syncId&&N(x.chunkIndex)<count).sort((a,b)=>N(a.chunkIndex)-N(b.chunkIndex));
+    if(count>0&&docs.length!==count)return;
+    const sig=`${syncId}:${T(m.updatedAtText)}:${docs.length}/${count}`;if(sig===cloud.lastSignature)return;cloud.lastSignature=sig;
+    const items=[];docs.forEach(d=>{try{const a=JSON.parse(T(d.json)||'[]');if(Array.isArray(a))items.push(...a)}catch(e){}});
+    const s=ensure(),next={};
+    items.forEach((x,i)=>{const k=sourceKey(x,i);next[k]=settled(x)?'paid':'open'});
+    if(!s.initialized){s.sourceStates=next;s.initialized=true;s.lastSourceSyncId=syncId;saveSafe();return}
+    items.forEach((x,i)=>{
+      const k=sourceKey(x,i),now=next[k],prev=s.sourceStates[k];
+      if(prev==='open'&&now==='paid')addPaidEvent({key:k,desc:x.name||x.desc||'Fornecedor',value:N(x.originalValue||x.value||x.paymentAmount),paidDate:x.paidDate||new Date().toISOString().slice(0,10),source:'Dívidas LEPNEUS',eventId:eventKey('sheet',k,x.paidDate||syncId)});
+    });
+    s.sourceStates={...s.sourceStates,...next};s.lastSourceSyncId=syncId;saveSafe();refreshBell();
+  }
+  function startCloud(){
+    if(cloud.started)return;const d=db();let u=null;try{u=window.lpFirebaseUser||firebase.auth().currentUser}catch(e){}
+    if(!d||!u){setTimeout(startCloud,1500);return}
+    cloud.started=true;
+    try{
+      d.collection('controleFinanceiroV2').where('sourceType','==','pagar').onSnapshot(s=>{s.docChanges().forEach(ch=>{if(ch.type==='removed')cloud.chunks.delete(ch.doc.id);else cloud.chunks.set(ch.doc.id,{id:ch.doc.id,...ch.doc.data()})});applyCloudPaidWatch()},()=>{});
+      d.collection('controleFinanceiroV2Meta').where('sourceType','==','pagar').onSnapshot(s=>{let latest=null;s.forEach(doc=>{const v=doc.data()||{};if(!latest||T(v.updatedAtText)>T(latest.updatedAtText))latest=v});cloud.meta=latest;applyCloudPaidWatch()},()=>{});
+    }catch(e){cloud.started=false;setTimeout(startCloud,3000)}
+  }
+
+  const oldRenderAll=window.renderAll;
+  if(typeof oldRenderAll==='function'&&!oldRenderAll.__lpBoletoV106){
+    const fn=function(){const r=oldRenderAll.apply(this,arguments);setTimeout(refreshBell,0);return r};fn.__lpBoletoV106=true;window.renderAll=fn;
+  }
+  window.lpRefreshBoletoNotificationsV106=refreshBell;
+  window.addEventListener('load',()=>setTimeout(()=>{ensure();refreshBell();startCloud()},1800));
+  setInterval(refreshBell,5000);
+})();
+</script>
+<!-- LE PNEUS V106 • notificações de boletos pendentes e pagos -->
+
 
 </body>
 </html>

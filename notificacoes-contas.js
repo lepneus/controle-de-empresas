@@ -138,7 +138,6 @@ function rowKey(x) {
     x.name,
     x.dueDate,
     cents(x.value),
-    cents(x.remaining),
   ].join("|");
 }
 
@@ -173,6 +172,62 @@ function heartbeatAgeMinutes(status) {
   const epoch = Number(status?.checkedAtEpoch || 0);
   if (!Number.isFinite(epoch) || epoch <= 0) return Infinity;
   return Date.now() / 1000 / 60 - epoch / 60;
+}
+
+async function loadAllSupplierBoletoRows() {
+  const metaSnap = await db.doc("controleFinanceiroV2Meta/pagar").get();
+
+  if (!metaSnap.exists) {
+    console.log("Meta de Contas a Pagar não encontrada.");
+    return { rows: [], meta: {} };
+  }
+
+  const meta = metaSnap.data() || {};
+  const count = Math.max(0, Number(meta.chunkCount || 0));
+  const syncId = String(meta.syncId || "");
+  const out = [];
+
+  for (let i = 0; i < count; i++) {
+    const id = `pagar_${String(i).padStart(3, "0")}`;
+    const snap = await db.doc(`controleFinanceiroV2/${id}`).get();
+    if (!snap.exists) continue;
+    const d = snap.data() || {};
+    if (syncId && String(d.syncId || "") !== syncId) continue;
+    try {
+      const rows = JSON.parse(String(d.json || "[]"));
+      if (Array.isArray(rows)) out.push(...rows);
+    } catch (e) {
+      console.error(`JSON inválido no bloco ${id}:`, e.message);
+    }
+  }
+
+  const map = new Map();
+  for (const x of out) {
+    if (!isSupplierBoleto(x)) continue;
+    map.set(rowKey(x), x);
+  }
+  return { rows: [...map.values()], meta };
+}
+
+function explicitlyPaid(x) {
+  const status = norm(x?.status);
+  if (/cancelad/.test(status)) return false;
+  if (/pago|paga|quitad|recebid/.test(status)) return true;
+  if (String(x?.paidDate || "").trim()) return true;
+
+  const hasRemaining =
+    x?.remaining !== undefined &&
+    x?.remaining !== null &&
+    String(x.remaining).trim() !== "";
+  if (hasRemaining && cents(x.remaining) <= 0) return true;
+
+  const original = cents(
+    x?.originalValue !== undefined && x?.originalValue !== null
+      ? x.originalValue
+      : x?.value
+  );
+  const paid = cents(x?.paymentAmount);
+  return original > 0 && paid >= original;
 }
 
 async function loadOpenPayables() {
@@ -307,6 +362,94 @@ async function ensureFreshPayables(devices) {
   return false;
 }
 
+async function checkPaidTransitions(devices) {
+  const status = await loadSyncHeartbeat();
+  const age = heartbeatAgeMinutes(status);
+  if (age > 30) {
+    console.log("Verificação de pagos ignorada: sincronizador sem sinal recente.");
+    return;
+  }
+
+  const { rows, meta } = await loadAllSupplierBoletoRows();
+  const currentOpen = rows.filter((x) => payableOpenCents(x) > 0);
+  const currentOpenKeys = currentOpen.map(rowKey);
+  const stateRef = db.doc("controleNotificationState/boletoPayments");
+  const snap = await stateRef.get();
+  const state = snap.exists ? snap.data() || {} : {};
+
+  if (!state.initialized) {
+    await stateRef.set(
+      {
+        initialized: true,
+        openKeys: currentOpenKeys,
+        sourceSyncId: String(meta.syncId || ""),
+        sourceUpdatedAt: String(meta.updatedAtText || ""),
+        checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    console.log(
+      `Linha de base criada: ${currentOpenKeys.length} boleto(s) atualmente aberto(s).`
+    );
+    return;
+  }
+
+  const previousOpen = new Set(
+    Array.isArray(state.openKeys) ? state.openKeys.map(String) : []
+  );
+  const justPaid = rows.filter(
+    (x) => previousOpen.has(rowKey(x)) && explicitlyPaid(x)
+  );
+
+  if (justPaid.length) {
+    const total = justPaid.reduce(
+      (sum, x) =>
+        sum +
+        Number(
+          x?.originalValue !== undefined && x?.originalValue !== null
+            ? x.originalValue
+            : x?.value || x?.paymentAmount || 0
+        ),
+      0
+    );
+    const names = justPaid
+      .slice(0, 3)
+      .map((x) => x.name || x.desc || "Fornecedor")
+      .join(", ");
+    const extra = justPaid.length > 3 ? ` +${justPaid.length - 3}` : "";
+
+    await sendToDevices(devices, {
+      title: `Le Pneus • ${justPaid.length} boleto(s) pago(s)`,
+      body: `${money(total)} • ${names}${extra}. Baixa confirmada pela planilha.`,
+      tag: `lepneus-pagos-${String(meta.syncId || todayIso())}`,
+      kind: "paidBoleto",
+    });
+
+    console.log("Boletos que passaram de aberto para pago:");
+    justPaid.forEach((x) =>
+      console.log(
+        `${x.name || "Fornecedor"} | ${money(
+          Number(x.originalValue ?? x.value ?? x.paymentAmount ?? 0)
+        )} | pago em ${x.paidDate || "data não informada"}`
+      )
+    );
+  } else {
+    console.log("Nenhum boleto mudou de aberto para pago nesta verificação.");
+  }
+
+  await stateRef.set(
+    {
+      initialized: true,
+      openKeys: currentOpenKeys,
+      sourceSyncId: String(meta.syncId || ""),
+      sourceUpdatedAt: String(meta.updatedAtText || ""),
+      checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastPaidCount: justPaid.length,
+    },
+    { merge: true }
+  );
+}
+
 async function sendTest(devices) {
   await sendToDevices(devices, {
     title: "Le Pneus • Teste de notificação",
@@ -381,6 +524,19 @@ async function main() {
   if (MODE === "test") {
     await sendTest(devices);
     return;
+  }
+
+  if (MODE === "paid") {
+    // Execução manual: mantém a opção de conferir pagamentos sob demanda.
+    await checkPaidTransitions(devices);
+    return;
+  }
+
+  // Nas execuções automáticas (08:00 e 13:30), confira também se algum
+  // boleto que estava aberto passou para pago. Assim todos os avisos
+  // automáticos ficam concentrados somente nesses dois horários.
+  if (MODE === "morning" || MODE === "afternoon") {
+    await checkPaidTransitions(devices);
   }
 
   const fresh = await ensureFreshPayables(devices);
