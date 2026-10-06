@@ -20993,5 +20993,277 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 })();
 </script>
 
+<!-- LE PNEUS V111 • controle de despesas + reconciliação de boletos pagos + auditoria financeira final -->
+<style id="lp-v111-css">
+.lp-v111-toolbar{display:flex;gap:10px;align-items:end;justify-content:space-between;flex-wrap:wrap;margin:12px 0 16px}
+.lp-v111-toolbar .left,.lp-v111-toolbar .right{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.lp-v111-toolbar label{display:grid;gap:5px;font-size:10px;font-weight:800;color:var(--muted)}
+.lp-v111-toolbar input,.lp-v111-toolbar select{min-height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 10px}
+.lp-v111-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 16px}
+.lp-v111-kpi{padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.lp-v111-kpi span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
+.lp-v111-kpi b{display:block;margin-top:6px;font-size:20px}
+.lp-v111-source{font-size:9px;color:var(--muted);display:block;margin-top:3px}
+.lp-v111-actions{display:flex;gap:6px;flex-wrap:wrap}
+.lp-v111-paid{color:#059669;font-weight:900}.lp-v111-pending{color:#d97706;font-weight:900}.lp-v111-cancel{color:#64748b;font-weight:900}
+.lp-v111-note{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);font-size:10px;line-height:1.55;color:var(--muted);margin-top:10px}
+@media(max-width:850px){.lp-v111-kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.lp-v111-kpis{grid-template-columns:1fr}.lp-v111-toolbar,.lp-v111-toolbar .left,.lp-v111-toolbar .right{display:grid;grid-template-columns:1fr;width:100%}}
+</style>
+<script id="lp-v111-js">
+(function(){
+  if(window.__lpV111)return;window.__lpV111=true;
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const nowIso=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const currentMonth=()=>nowIso().slice(0,7);
+
+  function ensure(){
+    data.finance=Array.isArray(data.finance)?data.finance:[];
+    data.cash=Array.isArray(data.cash)?data.cash:[];
+    data.lpExpenseControlV111=data.lpExpenseControlV111&&typeof data.lpExpenseControlV111==='object'?data.lpExpenseControlV111:{};
+    if(!data.lpExpenseControlV111.filterMonth)data.lpExpenseControlV111.filterMonth=currentMonth();
+    data.lpExpenseControlV111.paidFingerprints=data.lpExpenseControlV111.paidFingerprints&&typeof data.lpExpenseControlV111.paidFingerprints==='object'?data.lpExpenseControlV111.paidFingerprints:{};
+    return data.lpExpenseControlV111;
+  }
+  function saveSafe(){try{if(typeof save==='function')save();else localStorage.setItem('gestaoData',JSON.stringify(data))}catch(e){console.warn('V111 save',e)}}
+  function parseDate(v){
+    if(!v)return null;if(v instanceof Date&&!isNaN(v))return v;
+    const s=T(v);let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+    m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+    const d=new Date(s);return isNaN(d)?null:d;
+  }
+  function monthOf(v){const d=parseDate(v);return d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`:''}
+  function fmtDate(v){const d=parseDate(v);return d?d.toLocaleDateString('pt-BR'):(T(v)||'-')}
+  function paid(f){return /pago|paga|quitad|recebid/i.test(T(f?.status))||!!T(f?.paidAtIso)||!!T(f?.paidDate)}
+  function cancelled(f){return /cancelad/i.test(T(f?.status))}
+  function machineFee(f){
+    const x=norm(`${T(f?.category)} ${T(f?.desc)} ${T(f?.notes)} ${T(f?.originType)}`);
+    return x.includes('taxa')&&(x.includes('maquininha')||x.includes('cartao')||x.includes('cielo')||x.includes('operadora'));
+  }
+  function debtSource(f){
+    const x=norm(`${T(f?.sourceFile)} ${T(f?.sourceSheet)} ${T(f?.notes)}`);
+    return f?.cloudManagedFinance===true||x.includes('dividas lepneus');
+  }
+  function effectivePaidDate(f){
+    if(T(f?.paidAtIso))return f.paidAtIso;
+    if(T(f?.paidDate))return f.paidDate;
+    if(T(f?.paymentDate))return f.paymentDate;
+    if(f?.cashId){const c=(data.cash||[]).find(x=>String(x.id)===String(f.cashId));if(c?.date)return c.date}
+    return f?.date||'';
+  }
+  function payableOriginalValue(f){return N(f?.originalValue||f?.value||f?.paymentAmount)}
+  function payableFingerprint(f){
+    const name=norm(f?.desc||f?.name||f?.supplier||'');const due=T(f?.dueDate);const value=payableOriginalValue(f);
+    return name&&due&&value>0?`${name}|${due}|${value.toFixed(2)}`:'';
+  }
+  function dayKey(v){const d=parseDate(v);return d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:''}
+  function sourcePaidInfo(){
+    const s=data.lpBoletoNotifyV106&&typeof data.lpBoletoNotifyV106==='object'?data.lpBoletoNotifyV106:{};
+    const events=Array.isArray(s.events)?s.events.filter(x=>x&&x.kind==='paid'):[];
+    const states=s.sourceStates&&typeof s.sourceStates==='object'?s.sourceStates:{};
+    const eventByKey=new Map();events.forEach(ev=>{const k=T(ev.key);if(k&&!eventByKey.has(k))eventByKey.set(k,ev)});
+    const keys=new Set(events.map(x=>T(x.key)).filter(Boolean));Object.entries(states).forEach(([k,v])=>{if(v==='paid')keys.add(T(k))});
+    return {keys,eventByKey,events};
+  }
+  function eventMatchesPayable(ev,f){
+    if(!ev||!f)return false;
+    if(norm(ev.desc)!==norm(f.desc||f.name))return false;
+    const a=N(ev.value),b=payableOriginalValue(f);if(a<=0||b<=0||Math.abs(a-b)>.01)return false;
+    const due=parseDate(f.dueDate),paidAt=parseDate(ev.paidDate);
+    if(due&&paidAt&&due.getTime()>paidAt.getTime())return false;
+    return true;
+  }
+  function knownPaidSourceRow(f,info){
+    const key=T(f?.sourceKey);if(key&&info.keys.has(key))return true;
+    const fp=payableFingerprint(f);if(fp&&ensure().paidFingerprints[fp])return true;
+    const ev=info.events.find(x=>eventMatchesPayable(x,f));
+    if(ev){if(fp)ensure().paidFingerprints[fp]=T(ev.paidDate)||nowIso();return true}
+    return false;
+  }
+  function stableHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
+  function samePaidExpense(ev){
+    const evDate=dayKey(ev?.paidDate),evName=norm(ev?.desc),evValue=N(ev?.value);
+    return (data.finance||[]).find(f=>T(f.type)==='Despesa'&&!f.cloudManagedFinance&&paid(f)&&!machineFee(f)&&norm(f.desc)===evName&&Math.abs(N(f.value)-evValue)<0.01&&dayKey(effectivePaidDate(f))===evDate);
+  }
+  function reconcilePaidSourceExpenses(){
+    ensure();const info=sourcePaidInfo();if(!info.keys.size)return 0;
+    let changed=0;
+    // Primeiro transforma transições realmente pagas em histórico de despesa, sem criar saída de caixa duplicada.
+    info.eventByKey.forEach((ev,key)=>{
+      if(!key)return;
+      const already=(data.finance||[]).find(f=>f?.sourcePaidArchiveV111&&T(f.sourceKey)===key);
+      if(already)return;
+      const sourceRow=(data.finance||[]).find(f=>debtSource(f)&&T(f.sourceKey)===key);
+      const fp=payableFingerprint(sourceRow);if(fp)ensure().paidFingerprints[fp]=T(ev.paidDate)||nowIso();
+      const linked=samePaidExpense(ev);
+      if(linked){linked.sourceKey=linked.sourceKey||key;linked.sourcePaidLinkedV111=true;if(fp)linked.payableFingerprintV111=fp;changed++;return}
+      const val=N(ev.value);if(val<=0)return;
+      data.finance.unshift({
+        id:`paid_src_${stableHash(key)}`,type:'Despesa',category:'Fornecedor / Boleto',desc:T(ev.desc)||T(sourceRow?.desc)||'Fornecedor',value:val,
+        status:'Pago',date:T(ev.paidDate)||nowIso(),paidAtIso:T(ev.paidDate)||nowIso(),dueDate:T(sourceRow?.dueDate),payment:'Boleto',
+        sourceKey:key,payableFingerprintV111:fp,sourcePaidArchiveV111:true,originType:'PagamentoFornecedorSincronizado',
+        notes:'Pagamento confirmado pela sincronização',skipCashSyncV111:true
+      });changed++;
+    });
+    // Depois remove somente a cópia aberta sincronizada que já tem confirmação de pagamento.
+    const before=data.finance.length;
+    data.finance=data.finance.filter(f=>{
+      if(T(f.type)!=='Despesa'||!debtSource(f))return true;
+      if(f?.sourcePaidArchiveV111)return true;
+      return !knownPaidSourceRow(f,info);
+    });
+    changed+=before-data.finance.length;
+    if(data.lpFinanceReview?.payables&&Array.isArray(data.lpFinanceReview.payables)){
+      const b=data.lpFinanceReview.payables.length;
+      data.lpFinanceReview.payables=data.lpFinanceReview.payables.filter(f=>!knownPaidSourceRow(f,info));
+      changed+=b-data.lpFinanceReview.payables.length;
+    }
+    if(changed){saveSafe();try{window.lpRefreshBoletoNotificationsV106?.()}catch(e){}}
+    return changed;
+  }
+  window.lpReconcilePaidPayablesV111=reconcilePaidSourceExpenses;
+
+  function expenseRows(){
+    reconcilePaidSourceExpenses();
+    return (data.finance||[]).filter(f=>{
+      if(T(f?.type)!=='Despesa'||machineFee(f))return false;
+      if(f?.sourcePaidArchiveV111)return true;
+      // Dívida sincronizada ainda aberta pertence a Contas a Pagar, não ao histórico de despesas realizadas/manuais.
+      if(debtSource(f))return false;
+      return true;
+    });
+  }
+  function paidForMonth(month){return expenseRows().filter(f=>paid(f)&&!cancelled(f)&&monthOf(effectivePaidDate(f))===month)}
+  function total(arr){return arr.reduce((a,x)=>a+N(x.value),0)}
+  function statusText(f){if(cancelled(f))return '<span class="lp-v111-cancel">Cancelada</span>';if(paid(f))return '<span class="lp-v111-paid">Paga</span>';return '<span class="lp-v111-pending">Pendente</span>'}
+  function sourceLabel(f){if(f.sourcePaidArchiveV111)return 'Boleto sincronizado';if(f.manualExpenseV111||f.originType==='DespesaManual')return 'Manual';if(f.originType==='Compra'||norm(f.category).includes('compra'))return 'Compra / estoque';return T(f.originType||f.category||'Sistema')}
+
+  function ensureUi(){
+    ensure();
+    const content=document.querySelector('.content');if(content&&!document.getElementById('despesas')){const p=document.createElement('div');p.className='page';p.id='despesas';content.appendChild(p)}
+    const nav=document.getElementById('nav');if(nav){
+      [...nav.querySelectorAll('button')].forEach(b=>{const tx=norm(b.textContent);if(tx==='financeiro / despesas')b.querySelector('.nav-text')&&(b.querySelector('.nav-text').textContent='Contas a pagar')});
+      if(!nav.querySelector('[data-lp-v111="despesas"]')){
+        const btn=document.createElement('button');btn.dataset.lpV111='despesas';btn.setAttribute('onclick',"openPage('despesas',this)");
+        btn.innerHTML=`${typeof navIcon==='function'?navIcon('wallet'):'<span class="nav-svg">$</span>'}<span class="nav-text">Controle de Despesas</span>`;
+        const finance=[...nav.querySelectorAll('button')].find(b=>String(b.getAttribute('onclick')||'').includes("'financeiro'"));
+        finance?.insertAdjacentElement('afterend',btn)||nav.appendChild(btn);
+      }
+    }
+  }
+
+  function renderExpenses(){
+    ensureUi();const host=document.getElementById('despesas');if(!host)return;
+    const st=ensure(),filter=T(st.filterMonth)||currentMonth();
+    const all=expenseRows().sort((a,b)=>(parseDate(effectivePaidDate(b)||b.dueDate)?.getTime()||0)-(parseDate(effectivePaidDate(a)||a.dueDate)?.getTime()||0));
+    const shown=filter==='all'?all:all.filter(f=>monthOf(effectivePaidDate(f)||f.dueDate||f.date)===filter);
+    const paidMonth=filter==='all'?all.filter(f=>paid(f)&&!cancelled(f)):all.filter(f=>paid(f)&&!cancelled(f)&&monthOf(effectivePaidDate(f))===filter);
+    const pending=shown.filter(f=>!paid(f)&&!cancelled(f));
+    const categories=new Set(shown.map(x=>T(x.category)||'Geral'));
+    const rows=shown.map(f=>{
+      const manual=!!(f.manualExpenseV111||f.originType==='DespesaManual');
+      const actions=[];
+      if(!paid(f)&&!cancelled(f))actions.push(`<button class="btn primary small" onclick='lpMarkExpensePaidV111(${JSON.stringify(String(f.id))})'>Dar baixa</button>`);
+      if(manual)actions.push(`<button class="btn ghost small" onclick='lpDeleteExpenseV111(${JSON.stringify(String(f.id))})'>Excluir</button>`);
+      return `<tr><td><b>${E(f.desc||'Despesa')}</b><small class="cell-sub">${E(f.category||'Geral')}</small><span class="lp-v111-source">${E(sourceLabel(f))}</span></td><td>${M(f.value)}</td><td>${fmtDate(effectivePaidDate(f)||f.date)}</td><td>${E(f.payment||'-')}</td><td>${statusText(f)}</td><td>${E(f.notes||'-')}</td><td><div class="lp-v111-actions">${actions.join('')||'<span class="cell-sub">—</span>'}</div></td></tr>`;
+    }).join('');
+    host.innerHTML=heading('Controle de Despesas','Histórico das despesas, baixas e novos lançamentos',`<button class="btn primary" onclick="lpOpenExpenseModalV111()">+ Nova despesa</button>`)+
+      `<div class="lp-v111-toolbar"><div class="left"><label>Mês do histórico<input id="lpExpenseMonthV111" type="month" value="${filter==='all'?currentMonth():E(filter)}" onchange="lpSetExpenseMonthV111(this.value)"></label><button class="btn ghost" onclick="lpSetExpenseMonthV111('all')">Todo histórico</button></div><div class="right"><span class="soft-chip">${filter==='all'?'Todos os períodos':E(filter.split('-').reverse().join('/'))}</span></div></div>`+
+      `<div class="lp-v111-kpis"><div class="lp-v111-kpi"><span>Despesas pagas</span><b>${M(total(paidMonth))}</b></div><div class="lp-v111-kpi"><span>Qtd. pagas</span><b>${paidMonth.length}</b></div><div class="lp-v111-kpi"><span>Pendentes</span><b>${M(total(pending))}</b></div><div class="lp-v111-kpi"><span>Categorias</span><b>${categories.size}</b></div></div>`+
+      `<section class="card table-wrap"><table><thead><tr><th>Despesa</th><th>Valor</th><th>Data</th><th>Pagamento</th><th>Status</th><th>Observação</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhuma despesa nesse período.</td></tr>'}</tbody></table></section>`+
+      `<div class="lp-v111-note">Taxas da maquininha continuam fora deste total e fora do Fechamento Mensal. Contas da planilha <b>Dívidas LEPNEUS</b> aparecem em <b>Contas a pagar</b> enquanto estiverem abertas; quando a sincronização confirmar o pagamento, passam para o histórico de despesas e deixam de aparecer como vencidas.</div>`;
+  }
+  window.lpRenderDespesasV111=renderExpenses;
+  window.lpSetExpenseMonthV111=function(v){ensure().filterMonth=T(v)||currentMonth();saveSafe();renderExpenses()};
+  window.lpOpenExpenseModalV111=function(){
+    const html=`<h2>Nova despesa</h2><div class="form">
+      <label>Categoria<select id="lpExCategory"><option>Fornecedor</option><option>Compra / Estoque</option><option>Aluguel</option><option>Energia</option><option>Água</option><option>Internet</option><option>Salários</option><option>Impostos</option><option>Manutenção</option><option>Combustível</option><option>Outros</option></select></label>
+      <label>Data<input id="lpExDate" type="date" value="${nowIso()}"></label>
+      <label class="full">Descrição<input id="lpExDesc" placeholder="Ex.: conta de energia, manutenção, fornecedor..."></label>
+      <label>Valor<input id="lpExValue" type="number" step="0.01" min="0" placeholder="0,00"></label>
+      <label>Pagamento<select id="lpExPayment"><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option><option>Boleto</option><option>Transferência</option></select></label>
+      <label>Status<select id="lpExStatus"><option>Pago</option><option>Pendente</option></select></label>
+      <label>Vencimento<input id="lpExDue" type="date"></label>
+      <label class="full">Observação<textarea id="lpExNotes" rows="2"></textarea></label>
+    </div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="lpSaveExpenseV111()">Salvar despesa</button></div>`;
+    if(typeof showModal==='function')showModal(html);
+  };
+  window.lpSaveExpenseV111=function(){
+    ensure();const desc=T(document.getElementById('lpExDesc')?.value),value=N(document.getElementById('lpExValue')?.value);if(!desc||value<=0)return alert('Informe a descrição e o valor da despesa.');
+    const status=T(document.getElementById('lpExStatus')?.value)||'Pago',date=T(document.getElementById('lpExDate')?.value)||nowIso();
+    const f={id:`exp_${Date.now()}`,type:'Despesa',category:T(document.getElementById('lpExCategory')?.value)||'Outros',desc,value,date,status,dueDate:T(document.getElementById('lpExDue')?.value),payment:T(document.getElementById('lpExPayment')?.value)||'PIX',notes:T(document.getElementById('lpExNotes')?.value),originType:'DespesaManual',manualExpenseV111:true};
+    if(paid(f)){f.paidAtIso=date;try{if(typeof addCashMovement==='function'){const c=addCashMovement('Saída',f.desc,f.value,f.payment,'DespesaManual',f.id,f.desc);if(c?.id)f.cashId=c.id}else{const c={id:Date.now()+1,type:'Saída',desc:f.desc,value:f.value,payment:f.payment,date};data.cash.unshift(c);f.cashId=c.id}}catch(e){console.warn('V111 caixa',e)}}
+    data.finance.unshift(f);try{if(typeof log==='function')log('Registrou despesa: '+f.desc)}catch(e){}saveSafe();try{closeModal()}catch(e){}try{renderAll()}catch(e){renderExpenses()}
+  };
+  window.lpMarkExpensePaidV111=function(id){
+    const f=(data.finance||[]).find(x=>String(x.id)===String(id));if(!f||paid(f)||cancelled(f))return;
+    f.status='Pago';f.paidAtIso=nowIso();if(!f.cashId){try{if(typeof addCashMovement==='function'){const c=addCashMovement('Saída',f.desc,N(f.value),f.payment||'Manual',f.originType||'Despesa',f.id,f.desc);if(c?.id)f.cashId=c.id}else{const c={id:Date.now()+1,type:'Saída',desc:f.desc,value:N(f.value),payment:f.payment||'Manual',date:nowIso()};data.cash.unshift(c);f.cashId=c.id}}catch(e){console.warn('V111 baixa',e)}}
+    try{if(typeof log==='function')log('Deu baixa na despesa: '+f.desc)}catch(e){}saveSafe();try{renderAll()}catch(e){renderExpenses()}
+  };
+  window.lpDeleteExpenseV111=function(id){
+    const f=(data.finance||[]).find(x=>String(x.id)===String(id));if(!f||!(f.manualExpenseV111||f.originType==='DespesaManual'))return;
+    if(!confirm('Excluir esta despesa? Se ela já estava paga, a saída correspondente também será retirada do caixa.'))return;
+    data.finance=data.finance.filter(x=>String(x.id)!==String(id));if(f.cashId)data.cash=data.cash.filter(c=>String(c.id)!==String(f.cashId));saveSafe();try{renderAll()}catch(e){renderExpenses()}
+  };
+
+  // Reforço da correção V103: se o ID do produto mudou após nova importação, reencontra por código/nome antes de confirmar venda/ajuste.
+  const oldResolveDiffV111=window.lpResolveDifference;
+  if(typeof oldResolveDiffV111==='function')window.lpResolveDifference=async function(id,action){
+    try{
+      const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id));
+      if(d&&!data.products?.some(p=>String(p.id)===String(d.productId))){
+        const code=norm(d.code||d.sourceCode),name=norm(d.name);
+        let p=(data.products||[]).find(x=>code&&[x.code,x.sourceCode,x.sku].some(v=>norm(v)===code));
+        if(!p&&name)p=(data.products||[]).find(x=>norm(x.name)===name);
+        if(!p&&name){const candidates=(data.products||[]).filter(x=>norm(x.name).includes(name)||name.includes(norm(x.name)));if(candidates.length===1)p=candidates[0]}
+        if(p){d.productId=p.id;if(!N(d.price)&&N(p.price))d.price=N(p.price);if(!N(d.cost)&&N(p.cost))d.cost=N(p.cost);try{saveSafe()}catch(e){}}
+        else if(action==='venda'||action==='ajuste')return alert(`Produto não encontrado no estoque atual: ${T(d.name||d.code||'item')}. Importe a planilha de estoque novamente e tente de novo.`);
+      }
+    }catch(e){console.warn('V111 localizar produto',e)}
+    return oldResolveDiffV111.apply(this,arguments);
+  };
+
+  // Regra final do Dashboard: somente despesas efetivamente pagas no mês, sem taxa da maquininha e sem contas ainda abertas.
+  const oldDash=window.renderDashboard;
+  if(typeof oldDash==='function')window.renderDashboard=function(){
+    reconcilePaidSourceExpenses();const r=oldDash.apply(this,arguments);try{
+      const month=currentMonth(),rows=paidForMonth(month),val=total(rows),host=document.getElementById('dashboard');
+      if(host)[...host.querySelectorAll('.card.metric')].forEach(card=>{const label=card.querySelector('.label');if(!label)return;const txt=norm(label.textContent);if(txt==='despesas'||txt==='despesas do mes'){label.textContent='Despesas do mês';const v=card.querySelector('.value'),d=card.querySelector('.delta');if(v)v.textContent=M(val);if(d)d.textContent=`${rows.length} paga(s) • ver Controle de Despesas`}});
+    }catch(e){console.warn('V111 dashboard',e)}return r;
+  };
+
+  // Regra final do fechamento: caixa-base para despesas/receitas quitadas, excluindo taxa da maquininha e duplicações óbvias.
+  function financeMonthRows(month,type){
+    const seen=new Set(),out=[];(data.finance||[]).forEach(f=>{
+      if(T(f.type)!==type||cancelled(f)||!paid(f))return;if(type==='Despesa'&&machineFee(f))return;
+      if(monthOf(effectivePaidDate(f))!==month)return;
+      const key=T(f.sourceKey)?`s:${T(f.sourceKey)}`:T(f.originType)&&T(f.originId)?`o:${T(f.originType)}:${T(f.originId)}`:`i:${T(f.id)}`;
+      if(seen.has(key))return;seen.add(key);out.push(f);
+    });return out;
+  }
+  const oldBuild=window.buildMonthClosing;
+  if(typeof oldBuild==='function')window.buildMonthClosing=function(month){
+    reconcilePaidSourceExpenses();const c=oldBuild.apply(this,arguments);if(!c)return c;try{const exp=financeMonthRows(month,'Despesa'),rec=financeMonthRows(month,'Receita');c.summary=c.summary||{};c.details=c.details||{};c.summary.financeExpense=total(exp);c.summary.financeRevenue=total(rec);c.summary.netResult=c.summary.financeRevenue-c.summary.financeExpense;c.details.finance=[...rec,...exp].map(f=>({id:f.id,date:effectivePaidDate(f),type:f.type,category:f.category,desc:f.desc,value:N(f.value),status:f.status,payment:f.payment||''}));c.financialRuleV111=true}catch(e){console.warn('V111 fechamento',e)}return c;
+  };
+
+  // Contas a pagar: reconcilia antes de renderizar para impedir que uma conta já confirmada como paga volte como vencida.
+  const oldFinance=window.renderFinanceiro;
+  if(typeof oldFinance==='function')window.renderFinanceiro=function(){reconcilePaidSourceExpenses();return oldFinance.apply(this,arguments)};
+
+  const oldInitNav=window.initNav;
+  if(typeof oldInitNav==='function')window.initNav=function(){const r=oldInitNav.apply(this,arguments);ensureUi();return r};
+  const oldRenderAll=window.renderAll;
+  if(typeof oldRenderAll==='function')window.renderAll=function(){reconcilePaidSourceExpenses();const r=oldRenderAll.apply(this,arguments);ensureUi();renderExpenses();return r};
+
+  ensureUi();
+  window.addEventListener('load',()=>setTimeout(()=>{ensureUi();reconcilePaidSourceExpenses();try{renderExpenses();window.renderDashboard?.();window.renderFinanceiro?.()}catch(e){console.warn('V111 load',e)}},1200));
+  setInterval(()=>{try{const n=reconcilePaidSourceExpenses();if(n){window.renderFinanceiro?.();if(document.getElementById('despesas')?.classList.contains('active'))renderExpenses();window.renderDashboard?.()}}catch(e){}},3000);
+})();
+</script>
+
 </body>
 </html>
