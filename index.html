@@ -20222,6 +20222,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
     const inst=document.createElement('label');inst.innerHTML='Parcelas<input id="osinstallmentsV105" type="number" min="1" max="60" value="1">';pay.insertAdjacentElement('afterend',inst);
     const brand=document.createElement('label');brand.id='osbrandWrapV105';brand.innerHTML=`Bandeira<select id="osbrandV105">${brandOptions(data.settings?.defaultPayment||'PIX','Visa')}</select>`;inst.insertAdjacentElement('afterend',brand);
     const note=document.createElement('div');note.id='osfeeNoteV105';note.className='notice lp-v105-payment-note';brand.insertAdjacentElement('afterend',note);
+    const cardInfo=document.createElement('small');cardInfo.className='cell-sub';cardInfo.style.gridColumn='1/-1';cardInfo.textContent='Débito/Crédito: ao salvar a OS, o recebível entra automaticamente no Calendário Sicredi.';note.insertAdjacentElement('afterend',cardInfo);
     const select=document.getElementById('ospaymentV105');if(select&&[...select.options].some(o=>o.value===data.settings?.defaultPayment))select.value=data.settings.defaultPayment;
     const total=()=>{const p=(data.products||[]).find(x=>String(x.id)===String(document.getElementById('osproduct')?.value||''));return Math.max(0,N(document.getElementById('osservicevalue')?.value)+N(p?.price)*N(document.getElementById('osqty')?.value)-N(document.getElementById('osdiscount')?.value))};
     bindPaymentUI({paymentId:'ospaymentV105',installmentId:'osinstallmentsV105',brandId:'osbrandV105',brandWrapId:'osbrandWrapV105',noteId:'osfeeNoteV105',totalGetter:total,watchIds:['osproduct','osqty','osservicevalue','osdiscount']});
@@ -20314,6 +20315,28 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
   window.osModal=function(){const r=typeof oldOSModalV105==='function'?oldOSModalV105.apply(this,arguments):undefined;injectServiceCreationFields();return r};
 
   const oldSaveOSV105=window.saveOS;
+  function registerServiceCardPaymentV109(o,plan){
+    if(!o||o.received||!isCard(plan.payment))return null;
+    const items=[];
+    if(o.productId&&o.qty)items.push({id:o.productId,name:o.productName,qty:o.qty,price:o.qty?N(o.productValue)/N(o.qty):0,cost:(data.products||[]).find(p=>String(p.id)===String(o.productId))?.cost||0});
+    if(N(o.serviceValue))items.push({id:'service-'+o.id,name:o.service,qty:1,price:N(o.serviceValue),cost:0,kind:'service'});
+    const productCost=o.productId?N((data.products||[]).find(p=>String(p.id)===String(o.productId))?.cost)*N(o.qty):0;
+    const forcedProfit=N(o.total)-productCost;
+    const res=createIntegratedSale({customerId:o.customerId,items,discount:N(o.discount),payment:plan.payment,financialStatus:'Pendente',dueDate:'',originType:'OS',originId:o.id,originNumber:o.number,skipStock:true,forcedTotal:o.total,forcedProfit});
+    if(res?.error){console.warn('Pagamento cartão OS V109:',res.error);return null}
+    removeInitialFinance(res);
+    const firstDue=addDays(today(),isDebit(plan.payment)?Math.max(0,N(data.settings?.cardDebitDaysV96)||1):Math.max(1,N(data.settings?.cardCreditDaysV96)||30));
+    buildPaymentPlan(res.sale,{payment:plan.payment,count:plan.count,brand:plan.brand,status:'Pago',firstDue,account:'sicredi',category:'Serviços',descBase:`Recebimento ${o.number}`,originNumber:o.number});
+    /* Ao abrir Cartões depois do lançamento, mostra o mês em que o 1º crédito vai cair. */
+    window.__lpCardCalendarMonthV101=firstDue.slice(0,7);
+    o.received=true;
+    o.saleId=res.sale.id;o.financeId=res.sale.financeId;
+    o.payment=res.sale.payment;o.installmentCount=res.sale.installmentCount;o.cardBrand=res.sale.cardBrand;o.cardFeePct=res.sale.cardFeePct;o.cardFeeValue=res.sale.cardFeeValue;o.cardNetValue=res.sale.cardNetValue;
+    o.cardRegisteredAtV109=new Date().toISOString();
+    try{log(`Pagamento cartão de ${o.number} registrado automaticamente • ${paymentSummary(o)}`)}catch(e){}
+    return res;
+  }
+
   window.saveOS=function(){
     const plan={payment:T(document.getElementById('ospaymentV105')?.value)||data.settings?.defaultPayment||'PIX',count:Math.max(1,N(document.getElementById('osinstallmentsV105')?.value)||1),brand:T(document.getElementById('osbrandV105')?.value)||'Visa'};
     const before=new Set((data.serviceOrders||[]).map(o=>String(o.id))),r=typeof oldSaveOSV105==='function'?oldSaveOSV105.apply(this,arguments):undefined;
@@ -20322,7 +20345,10 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
       if(isDebit(plan.payment))plan.count=1;if(isCredit(plan.payment))plan.count=Math.min(12,plan.count);
       o.payment=plan.payment;o.installmentCount=plan.count;o.cardBrand=isCard(plan.payment)?plan.brand:'';o.cardFeePct=isCard(plan.payment)?cardRate(plan.payment,plan.brand,plan.count):0;
       o.paymentPlannedV105=true;
-      try{save()}catch(e){}try{if(document.getElementById('os')?.classList.contains('active'))renderOS()}catch(e){}
+      /* V109: cartão informado na criação da OS já representa pagamento feito na maquininha.
+         O recebível é criado imediatamente no Calendário Sicredi, sem esperar o botão Receber. */
+      if(isCard(plan.payment))registerServiceCardPaymentV109(o,plan);
+      try{save()}catch(e){}try{renderAll()}catch(e){}
     }
     return r;
   };
@@ -20407,6 +20433,30 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
       }
     }
     return out;
+  };
+
+  function repairExistingServiceCardsV109(){
+    if(window.__lpRepairingServiceCardsV109)return 0;
+    window.__lpRepairingServiceCardsV109=true;
+    let changed=0;
+    try{
+      (data.serviceOrders||[]).forEach(o=>{
+        if(!o||o.received||o.saleId||norm(o.status).includes('cancelad'))return;
+        if(!o.paymentPlannedV105||!isCard(o.payment))return;
+        const plan={payment:T(o.payment),count:Math.max(1,N(o.installmentCount)||1),brand:T(o.cardBrand)||'Visa'};
+        if(registerServiceCardPaymentV109(o,plan))changed++;
+      });
+      if(changed){try{save()}catch(e){}}
+    }finally{window.__lpRepairingServiceCardsV109=false}
+    return changed;
+  }
+  window.lpRepairExistingServiceCardsV109=repairExistingServiceCardsV109;
+
+  /* Se existir OS de cartão criada na V105-V108 sem recebível, corrige ao abrir o calendário. */
+  const oldRenderCartoesV109=window.renderCartoes;
+  if(typeof oldRenderCartoesV109==='function')window.renderCartoes=function(){
+    try{repairExistingServiceCardsV109()}catch(e){console.warn('Reparo cartão OS V109:',e)}
+    return oldRenderCartoesV109.apply(this,arguments);
   };
 
   /* Migração visual: registros antigos continuam válidos e recebem 1x quando não tinham parcelas. */
@@ -20583,6 +20633,231 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 </script>
 <!-- LE PNEUS V106 • notificações de boletos pendentes e pagos -->
 
+
+
+<style id="lp-v108-annual-watch-css">
+.lp-v108-annual-watch{margin:0 0 16px}
+.lp-v108-watch-grid{display:grid;grid-template-columns:minmax(0,1.5fr) auto;gap:14px;align-items:start}
+.lp-v108-watch-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.lp-v108-watch-status .ok{color:#059669}.lp-v108-watch-status .warn{color:#d97706}.lp-v108-watch-status .err{color:#dc2626}
+.lp-v108-rollover{margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);font-size:11px;line-height:1.55}
+.lp-v108-rollover b{font-weight:900}
+@media(max-width:760px){.lp-v108-watch-grid{grid-template-columns:1fr}.lp-v108-watch-grid .actions{justify-content:flex-start}.lp-v108-watch-grid .actions .btn{flex:1}}
+</style>
+<script id="lp-v108-annual-watch-js">
+(function(){
+  if(window.__lpAnnualWatchV108)return;
+  window.__lpAnnualWatchV108=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const E=v=>typeof window.esc==='function'?window.esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const DB='lpAnnualWatchV108',STORE='handles';
+  const FILE_KEY='annual-file',DIR_KEY='annual-dir';
+  const MONTH_NAMES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const MONTH_FULL=['janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const MONTH_NUMS=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  let checking=false;
+
+  function ensure(){
+    data.settings=data.settings||{};
+    const s=data.settings.lpAnnualWatchV108=data.settings.lpAnnualWatchV108||{};
+    s.enabled=!!s.enabled;
+    s.mode=T(s.mode)||'file';
+    s.alerts=Array.isArray(s.alerts)?s.alerts:[];
+    return s;
+  }
+  function saveSafe(){try{if(typeof window.saveNow==='function')window.saveNow();else if(typeof window.save==='function')window.save()}catch(e){console.warn('V108 save',e)}}
+  function monthKey(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+  function monthLabel(k){const [y,m]=T(k).split('-');return `${MONTH_NAMES[Math.max(0,Number(m)-1)]||m}/${y}`}
+  function nextMonthKey(k){const [y,m]=T(k).split('-').map(Number),d=new Date(y,m,1);return monthKey(d)}
+  function rowNumber(v){
+    if(v===null||v===undefined||T(v)==='')return null;
+    if(typeof v==='number')return Number.isFinite(v)?v:null;
+    let s=T(v).replace(/R\$\s*/gi,'').replace(/\s/g,'');
+    if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+    else if(s.includes(','))s=s.replace(',','.');
+    s=s.replace(/[^0-9.-]/g,'');const n=Number(s);return Number.isFinite(n)?n:null;
+  }
+  function metricFrom(rows,aliases){
+    for(const a of aliases){for(let i=rows.length-1;i>=0;i--){if(norm(rows[i].label)===norm(a))return N(rows[i].value)}}
+    return null;
+  }
+  function simpleHash(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
+  async function contentDigest(file){
+    try{const buf=await file.arrayBuffer();if(crypto?.subtle){const d=await crypto.subtle.digest('SHA-256',buf);return Array.from(new Uint8Array(d)).map(b=>b.toString(16).padStart(2,'0')).join('')}return simpleHash(String(file.lastModified)+'|'+file.size+'|'+file.name)}catch(e){return simpleHash(String(file.lastModified)+'|'+file.size+'|'+file.name)}
+  }
+  async function openDb(){return await new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+  async function setHandle(key,h){const db=await openDb();await new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(h,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)});db.close()}
+  async function getHandle(key){try{const db=await openDb();const v=await new Promise((res,rej)=>{const tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).get(key);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)});db.close();return v}catch(e){return null}}
+  async function permission(h,request=false,mode='read'){
+    if(!h)return false;try{let p=await h.queryPermission({mode});if(p==='granted')return true;if(request)p=await h.requestPermission({mode});return p==='granted'}catch(e){return false}
+  }
+  function excelName(n){return /\.(xlsx|xls)$/i.test(T(n))&&!/^~\$/.test(T(n))}
+  function scoreFileName(name,current){
+    const n=norm(name),[year,mm]=current.split('-'),mi=Math.max(0,Number(mm)-1),full=MONTH_FULL[mi],abbr=norm(MONTH_NAMES[mi]);let s=0;
+    if(n.includes(year))s+=80;
+    if(n.includes(full)||new RegExp(`(^|[^a-z])${abbr}([^a-z]|$)`,'i').test(n))s+=110;
+    if(new RegExp(`(^|[^0-9])${Number(mm)}([^0-9]|$)`).test(n))s+=35;
+    if(n.includes('balanco')||n.includes('fechamento'))s+=25;
+    return s;
+  }
+  async function fileFromFolder(dir){
+    const current=monthKey(),rows=[];
+    for await(const [name,h] of dir.entries()){
+      if(h.kind!=='file'||!excelName(name))continue;
+      try{const f=await h.getFile();rows.push({h,f,score:scoreFileName(name,current)})}catch(e){}
+    }
+    if(!rows.length)throw new Error('Não encontrei nenhuma planilha Excel nesta pasta.');
+    rows.sort((a,b)=>(b.score-a.score)||(b.f.lastModified-a.f.lastModified));
+    return rows[0].f;
+  }
+  async function currentFile(request=false){
+    const s=ensure();
+    if(s.mode==='folder'){
+      const h=await getHandle(DIR_KEY);if(!h)throw new Error('Pasta não vinculada.');
+      if(!await permission(h,request))throw new Error('Permissão da pasta necessária.');
+      return await fileFromFolder(h);
+    }
+    const h=await getHandle(FILE_KEY);if(!h)throw new Error('Arquivo não vinculado.');
+    if(!await permission(h,request))throw new Error('Permissão do arquivo necessária.');
+    return await h.getFile();
+  }
+
+  async function parseAnnualFile(file){
+    if(typeof XLSX==='undefined')throw new Error('O leitor de Excel ainda não carregou.');
+    const ab=await file.arrayBuffer(),wb=XLSX.read(ab,{type:'array',cellDates:true});
+    const years=wb.SheetNames.filter(n=>/^20\d{2}$/.test(T(n)));
+    if(!years.length)throw new Error('Não encontrei abas de ano como 2025, 2026...');
+    const imported=[];
+    years.forEach(sn=>{
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+      for(let mi=0;mi<12;mi++){
+        const detailsRows=[];
+        rows.forEach(row=>{
+          const label=T(row?.[0]);if(!label)return;
+          const helper=norm(label)==='despesa variavel'&&Array.from({length:12},(_,j)=>Number(row?.[j+1])===j+1).every(Boolean);
+          if(helper)return;
+          const value=rowNumber(row?.[mi+1]);if(value===null)return;
+          detailsRows.push({label,value});
+        });
+        const metrics={
+          car:metricFrom(detailsRows,['Carro']),moto:metricFrom(detailsRows,['Moto']),accessories:metricFrom(detailsRows,['Acessorios','Acessórios']),
+          purchases:metricFrom(detailsRows,['Compras']),payments:metricFrom(detailsRows,['Pagamento']),receipts:metricFrom(detailsRows,['Recebimento']),
+          cashSales:metricFrom(detailsRows,['Venda a Vista']),cardSales:metricFrom(detailsRows,['Cartão','Cartao']),termSales:metricFrom(detailsRows,['Prazo']),
+          grossSales:metricFrom(detailsRows,['Vl Bruto Venda']),cost:metricFrom(detailsRows,['Custo Total']),grossProfit:metricFrom(detailsRows,['Lucro Estimado Brut']),
+          services:metricFrom(detailsRows,['Prestação Serviços','Prestacao Servicos']),totalGross:metricFrom(detailsRows,['Total Lucro Bruto']),
+          fixedExpense:metricFrom(detailsRows,['Despesa Fixa']),variableExpense:metricFrom(detailsRows,['Despesa Variavel','Despesa Variável']),
+          totalExpense:metricFrom(detailsRows,['Despesa Total']),profitFixed:metricFrom(detailsRows,['Lucro - Fixa']),profitTotal:metricFrom(detailsRows,['Lucro - Total'])
+        };
+        const present=['grossSales','services','purchases','payments','receipts','totalExpense','profitTotal'].some(k=>metrics[k]!==null&&metrics[k]!==0);
+        if(!present)continue;
+        const month=`${sn}-${MONTH_NUMS[mi]}`,payMap={};
+        if(metrics.cashSales!==null)payMap['À vista']=N(metrics.cashSales);
+        if(metrics.cardSales!==null)payMap['Cartão']=N(metrics.cardSales);
+        if(metrics.termSales!==null)payMap['A prazo']=N(metrics.termSales);
+        imported.push({
+          id:'FM-'+month,month,label:`${MONTH_NAMES[mi]}/${sn}`,imported:true,automatic:true,annualBalanceV72:true,annualBalanceV108:true,sourceFile:file.name,
+          summary:{salesCount:'—',itemsSold:0,revenue:N(metrics.grossSales),productCost:N(metrics.cost),profit:N(metrics.totalGross!==null?metrics.totalGross:metrics.grossProfit),serviceCount:'—',serviceRevenue:N(metrics.services),purchaseCount:'—',purchaseTotal:N(metrics.purchases),financeRevenue:N(metrics.receipts),financeExpense:N(metrics.totalExpense),cashIn:0,cashOut:0,cashBalance:0,netResult:N(metrics.profitTotal),payments:payMap},
+          details:{sales:[],services:[],purchases:[],finance:[],cash:[],mercadoLivre:[],annualBalance:detailsRows},annualMetrics:metrics
+        });
+      }
+    });
+    return imported;
+  }
+  function coreOf(c){return JSON.stringify({month:c.month,summary:c.summary,annualMetrics:c.annualMetrics,annualBalance:c.details?.annualBalance||[]})}
+  function applyImported(imported,file){
+    data.monthlyClosings=Array.isArray(data.monthlyClosings)?data.monthlyClosings:[];
+    const changed=[];const now=new Date().toLocaleString('pt-BR');
+    imported.forEach(c=>{
+      const i=data.monthlyClosings.findIndex(x=>x.month===c.month),old=i>=0?data.monthlyClosings[i]:null;
+      if(old&&coreOf(old)===coreOf(c))return;
+      c.closedAt=`Sincronizado do Balanço Anual • ${now}`;c.importedAt=now;c.syncV108=true;
+      if(i>=0)data.monthlyClosings[i]=c;else data.monthlyClosings.push(c);
+      changed.push(c.month);
+    });
+    data.monthlyClosings.sort((a,b)=>T(b.month).localeCompare(T(a.month)));
+    data.lpAnnualBalanceV70=imported.map(c=>({id:'annual-v108-'+c.month,month:c.month,year:Number(c.month.slice(0,4)),label:c.label,metrics:c.annualMetrics,detailsRows:c.details.annualBalance,sourceFile:file.name,manualBalanceV70:true,autoBalanceV108:true,importedAt:now}));
+    return changed;
+  }
+  function addAlert(file,months,type='sync'){
+    const s=ensure(),id=`${type}|${file?.name||''}|${months.join(',')}|${Date.now()}`;
+    s.alerts.unshift({id,type,fileName:file?.name||s.fileName||'',months:[...months],createdAtIso:new Date().toISOString(),seen:false});
+    s.alerts=s.alerts.slice(0,20);
+  }
+  async function browserNotify(file,months){
+    try{if(!months.length||typeof Notification==='undefined'||Notification.permission!=='granted')return;const title='Le Pneus • Fechamento atualizado';const body=`${months.map(monthLabel).join(', ')} atualizado(s) pela planilha ${file.name}.`;const reg=await navigator.serviceWorker?.getRegistration?.();if(reg?.showNotification)await reg.showNotification(title,{body,icon:'./icon-192.png',badge:'./icon-192.png',tag:'lepneus-fechamento-v108',data:{url:'./?open=fechamento'}});else new Notification(title,{body})}catch(e){console.warn('V108 notify',e)}
+  }
+  function unread(){return ensure().alerts.filter(a=>!a.seen).length}
+  function refreshBell(){
+    const wrap=document.querySelector('.lp-bell-wrap');if(!wrap)return;let dot=wrap.querySelector('.lp-bell-dot');const extra=unread();
+    if(!dot&&extra){dot=document.createElement('span');dot.className='lp-bell-dot';dot.textContent=String(extra);dot.dataset.v108=String(extra);wrap.appendChild(dot);return}
+    if(!dot)return;
+    const prev=Number(dot.dataset.v108||0),current=Number(dot.textContent)||0,base=Math.max(0,current-prev),total=base+extra;
+    if(total){dot.textContent=String(Math.min(99,total));dot.dataset.v108=String(extra)}else dot.remove();
+  }
+  function rolloverCheck(){
+    const s=ensure(),cur=monthKey();
+    if(!s.lastActiveMonth){s.lastActiveMonth=cur;saveSafe();return false}
+    if(s.lastActiveMonth===cur)return false;
+    const old=s.lastActiveMonth;s.lastActiveMonth=cur;s.lastSignature='';addAlert({name:s.fileName||''},[cur],'rollover');saveSafe();return old;
+  }
+  async function check(force=false){
+    if(checking)return;checking=true;
+    try{
+      const s=ensure();if(!s.enabled&&!force)return;
+      rolloverCheck();
+      const file=await currentFile(false);s.connected=true;s.permissionNeeded=false;s.fileName=file.name;s.lastCheckedAtIso=new Date().toISOString();
+      const digest=await contentDigest(file),signature=`${file.name}|${file.size}|${file.lastModified}|${digest}`;
+      if(!force&&s.lastSignature===signature){renderPanel();return}
+      const imported=await parseAnnualFile(file),changed=applyImported(imported,file);
+      s.lastSignature=signature;s.lastSyncAtIso=new Date().toISOString();s.lastError='';
+      if(changed.length){addAlert(file,changed,'sync');await browserNotify(file,changed)}
+      saveSafe();renderPanel();refreshBell();
+      if(document.getElementById('fechamento')?.classList.contains('active')){try{window.renderFechamento()}catch(e){}}
+    }catch(e){const s=ensure();s.connected=false;s.lastError=T(e?.message||e);if(/permiss/i.test(s.lastError))s.permissionNeeded=true;console.warn('V108 annual watch',e);renderPanel()}
+    finally{checking=false}
+  }
+
+  window.lpAnnualWatchFileV108=async function(){
+    if(!window.showOpenFilePicker)return alert('Este navegador não permite vincular um arquivo local. Use Chrome ou Edge no computador.');
+    try{const [h]=await showOpenFilePicker({multiple:false,types:[{description:'Planilha Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx'],'application/vnd.ms-excel':['.xls']}}]});if(!await permission(h,true))throw new Error('Permissão de leitura não concedida.');await setHandle(FILE_KEY,h);const s=ensure();s.enabled=true;s.mode='file';s.connected=true;s.fileName=h.name;s.lastSignature='';s.lastActiveMonth=monthKey();saveSafe();await check(true);alert('Balanço vinculado. Enquanto o Controle estiver aberto, qualquer alteração nesse Excel será detectada automaticamente.');}catch(e){if(T(e?.name)!=='AbortError')alert('Não foi possível vincular o Balanço: '+T(e?.message||e))}
+  };
+  window.lpAnnualWatchFolderV108=async function(){
+    if(!window.showDirectoryPicker)return alert('Este navegador não permite vincular uma pasta local. Use Chrome ou Edge no computador.');
+    try{const h=await showDirectoryPicker({mode:'read'});if(!await permission(h,true))throw new Error('Permissão de leitura não concedida.');await setHandle(DIR_KEY,h);const s=ensure();s.enabled=true;s.mode='folder';s.connected=true;s.lastSignature='';s.lastActiveMonth=monthKey();saveSafe();await check(true);alert('Pasta vinculada. Quando o mês virar e aparecer o novo Excel com o mesmo template e outro nome, o sistema procura o arquivo do mês novo automaticamente.');}catch(e){if(T(e?.name)!=='AbortError')alert('Não foi possível vincular a pasta: '+T(e?.message||e))}
+  };
+  window.lpAnnualWatchCheckV108=async function(){try{const s=ensure();if(!s.enabled)return alert('Primeiro vincule o arquivo ou a pasta do Balanço Anual.');const h=s.mode==='folder'?await getHandle(DIR_KEY):await getHandle(FILE_KEY);if(!h||!await permission(h,true))return alert('Permissão necessária. Vincule novamente o arquivo/pasta.');await check(true)}catch(e){alert(T(e?.message||e))}};
+
+  function panelHtml(){
+    const s=ensure(),cur=monthKey(),next=nextMonthKey(cur),status=s.connected?'Sincronizado':s.permissionNeeded?'Permissão necessária':s.enabled?'Aguardando arquivo':'Não vinculado',cls=s.connected?'ok':s.permissionNeeded?'warn':'err';
+    const mode=s.mode==='folder'?'Pasta vinculada (troca de nome automática)':'Arquivo vinculado';
+    return `<section class="card lp-v108-annual-watch"><div class="lp-v108-watch-grid"><div><div class="panel-head"><div><h3 class="section-title" style="margin:0">Sincronização automática do Fechamento Mensal</h3><small class="cell-sub">Detecta mudanças no Balanço e atualiza o fechamento sem precisar importar de novo.</small></div></div><div class="lp-v108-watch-status"><span class="soft-chip ${cls}">${E(status)}</span>${s.enabled?`<span class="soft-chip">${E(mode)}</span>`:''}${s.fileName?`<span class="soft-chip">${E(s.fileName)}</span>`:''}</div>${s.lastSyncAtIso?`<small class="cell-sub">Última sincronização: ${E(new Date(s.lastSyncAtIso).toLocaleString('pt-BR'))}</small>`:''}${s.lastError?`<div class="notice" style="margin-top:9px"><b>Atenção:</b> ${E(s.lastError)}</div>`:''}<div class="lp-v108-rollover"><b>Virada de mês automática:</b> mês atual <b>${E(monthLabel(cur))}</b>. Na virada para <b>${E(monthLabel(next))}</b>, o histórico anterior é mantido e o sistema passa a trabalhar no novo mês com a mesma estrutura. Se você cria um novo arquivo com o mesmo template e muda apenas o nome, use <b>Vincular pasta</b> uma única vez.</div><small class="cell-sub">A detecção automática funciona enquanto este Controle estiver aberto no Chrome/Edge. O sistema recebe somente permissão de leitura da planilha.</small></div><div class="actions"><button class="btn primary" onclick="lpAnnualWatchFileV108()">Vincular arquivo</button><button class="btn ghost" onclick="lpAnnualWatchFolderV108()">Vincular pasta</button><button class="btn ghost" onclick="lpAnnualWatchCheckV108()">Conferir agora</button></div></div></section>`;
+  }
+  function renderPanel(){
+    const host=document.getElementById('fechamento');if(!host)return;
+    host.querySelectorAll(':scope > .lp-v108-annual-watch').forEach(x=>x.remove());
+    const annual=host.querySelector(':scope > .lp-v72-annual');
+    if(annual){annual.insertAdjacentHTML('beforebegin',panelHtml());const t=annual.querySelector('.section-title');if(t)t.textContent='Importação manual (opcional)';const sm=annual.querySelector('.cell-sub');if(sm)sm.textContent='Use somente se quiser selecionar o Excel manualmente. A sincronização automática acima é a opção recomendada.'}
+    else{const h=host.querySelector('.heading');if(h)h.insertAdjacentHTML('afterend',panelHtml());else host.insertAdjacentHTML('afterbegin',panelHtml())}
+  }
+
+  const oldClosing=window.renderFechamento;
+  if(typeof oldClosing==='function')window.renderFechamento=function(){const r=oldClosing.apply(this,arguments);renderPanel();refreshBell();return r};
+
+  const oldBell=window.lpOpenNotifications;
+  if(typeof oldBell==='function')window.lpOpenNotifications=function(){
+    const r=oldBell.apply(this,arguments),s=ensure(),alerts=s.alerts.slice(0,6);
+    const list=document.querySelector('#modal .lp-notification-list');
+    if(list&&alerts.length){alerts.slice().reverse().forEach(a=>{const el=document.createElement('div');el.className='lp-notification-item';const isRoll=a.type==='rollover';el.innerHTML=`<div class="ico">${isRoll?'📅':'📊'}</div><div><b>${isRoll?'Novo mês iniciado':'Fechamento sincronizado'}</b><small>${isRoll?`O Controle passou para ${E(monthLabel(a.months?.[0]||monthKey()))} mantendo o mesmo modelo e o histórico anterior.`:`${E((a.months||[]).map(monthLabel).join(', '))} atualizado pela planilha ${E(a.fileName||'Balanço Anual')}.`}</small><div class="actions" style="margin-top:7px"><button class="btn ghost small" onclick="closeModal();openPage('fechamento')">Ver fechamento</button></div></div>`;list.prepend(el)});const n=document.querySelector('#modal .notice b');if(n){const base=Number(n.textContent)||0;n.textContent=String(base+alerts.length)}s.alerts.forEach(a=>a.seen=true);saveSafe();setTimeout(refreshBell,0)}
+    return r;
+  };
+
+  window.addEventListener('load',()=>setTimeout(async()=>{ensure();rolloverCheck();refreshBell();if(document.getElementById('fechamento')?.classList.contains('active'))renderPanel();await check(false)},2600));
+  setInterval(()=>check(false),60000);
+})();
+</script>
 
 </body>
 </html>
