@@ -20859,5 +20859,139 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 })();
 </script>
 
+
+<!-- LE PNEUS V110 • correção dos totais financeiros do Dashboard/Fechamento -->
+<script id="lp-v110-financial-totals-fix">
+(function(){
+  if(window.__lpV110FinancialTotalsFix)return;
+  window.__lpV110FinancialTotalsFix=true;
+
+  const T=v=>String(v??'').trim();
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const M=v=>typeof money==='function'?money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+  function localMonthKey(d=new Date()){
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  function monthOf(v){
+    if(!v)return '';
+    if(v instanceof Date&&!isNaN(v))return localMonthKey(v);
+    const s=T(v);
+    let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return `${m[1]}-${m[2]}`;
+    m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return `${m[3]}-${String(Number(m[2])).padStart(2,'0')}`;
+    const d=new Date(s);return isNaN(d)?'':localMonthKey(d);
+  }
+  function isPaid(f){
+    return /^(pago|paga|quitado|quitada|recebido|recebida)$/i.test(T(f?.status));
+  }
+  function isMachineFee(f){
+    const cat=norm(f?.category),desc=norm(f?.desc),pay=norm(f?.payment);
+    return !!(f?.cardFeeV96||f?.autoCardSettlementV102||cat.includes('taxas de cartao')||cat.includes('taxa de cartao')||desc.startsWith('taxa cartao')||desc.startsWith('taxa de cartao')||pay==='desconto da adquirente');
+  }
+  function cashForFinance(f){
+    if(!f?.cashId)return null;
+    return (data.cash||[]).find(c=>T(c.id)===T(f.cashId))||null;
+  }
+  function effectivePaidMonth(f){
+    const c=cashForFinance(f);
+    return monthOf(c?.date||c?.createdAt||c?.createdAtIso||f?.paidAtIso||f?.paidAt||f?.paymentDate||f?.paidDate||f?.date||f?.dueDate);
+  }
+  function dedupe(rows){
+    const out=[],seen=new Set();
+    rows.forEach((f,i)=>{
+      let key='';
+      if(T(f?.sourceKey))key='src:'+T(f.sourceKey);
+      else if(T(f?.originId))key=['origin',T(f.originType),T(f.originId),T(f.type),N(f.value).toFixed(2),T(f.dueDate),norm(f.desc)].join('|');
+      else key='id:'+(T(f?.id)||String(i));
+      if(seen.has(key))return;
+      seen.add(key);out.push(f);
+    });
+    return out;
+  }
+  function realized(month,type){
+    const rows=dedupe((data.finance||[]).filter(f=>
+      T(f?.type)===type &&
+      T(f?.status)!=='Cancelado' &&
+      isPaid(f) &&
+      !isMachineFee(f) &&
+      effectivePaidMonth(f)===month
+    ));
+    return rows;
+  }
+  function sum(rows){return rows.reduce((a,x)=>a+N(x?.value),0)}
+
+  window.lpFinancialAuditV110=function(month=localMonthKey()){
+    const expenses=realized(month,'Despesa'),revenues=realized(month,'Receita');
+    const openPayables=dedupe((data.finance||[]).filter(f=>T(f?.type)==='Despesa'&&!isPaid(f)&&T(f?.status)!=='Cancelado'&&!isMachineFee(f)));
+    return {
+      month,
+      expenseCount:expenses.length,
+      expenses:sum(expenses),
+      revenueCount:revenues.length,
+      revenues:sum(revenues),
+      openPayables:sum(openPayables),
+      machineFeesExcluded:(data.finance||[]).filter(isMachineFee).reduce((a,f)=>a+N(f.value),0)
+    };
+  };
+
+  function fixDashboardCards(){
+    const host=document.getElementById('dashboard');if(!host)return;
+    const a=window.lpFinancialAuditV110(localMonthKey());
+    [...host.querySelectorAll('.card.metric')].forEach(card=>{
+      const label=card.querySelector('.label'),value=card.querySelector('.value'),delta=card.querySelector('.delta');
+      if(!label)return;
+      if(/^Despesas$/i.test(T(label.textContent))||/^Despesas do mês$/i.test(T(label.textContent))){
+        label.textContent='Despesas do mês';
+        if(value)value.textContent=M(a.expenses);
+        if(delta){delta.textContent=`${a.expenseCount} paga(s) • sem taxa da maquininha`;delta.classList.remove('green');delta.classList.add('red')}
+      }
+    });
+  }
+
+  const oldDashboard=window.renderDashboard;
+  if(typeof oldDashboard==='function')window.renderDashboard=function(){
+    const r=oldDashboard.apply(this,arguments);
+    try{fixDashboardCards()}catch(e){console.warn('Dashboard V110:',e)}
+    return r;
+  };
+
+  // O fechamento passa a considerar no bloco Financeiro somente valores efetivamente pagos/recebidos no mês.
+  // Contas ainda pendentes continuam em Contas a Pagar/Receber, não como despesa/receita realizada.
+  const oldBuild=window.buildMonthClosing;
+  if(typeof oldBuild==='function')window.buildMonthClosing=function(key){
+    const c=oldBuild.apply(this,arguments);if(!c)return c;
+    try{
+      const exp=realized(key,'Despesa'),rec=realized(key,'Receita');
+      c.summary=c.summary||{};c.details=c.details||{};
+      c.summary.financeExpense=sum(exp);
+      c.summary.financeRevenue=sum(rec);
+      c.summary.netResult=c.summary.financeRevenue-c.summary.financeExpense;
+      c.details.finance=[...rec,...exp].map(f=>({
+        id:f.id,date:(cashForFinance(f)?.date||f.paidAtIso||f.paidAt||f.paymentDate||f.paidDate||f.date||''),
+        type:f.type,category:f.category,desc:f.desc,value:N(f.value),status:f.status,payment:f.payment||''
+      }));
+      c.realizedFinanceV110=true;
+    }catch(e){console.warn('Fechamento V110:',e)}
+    return c;
+  };
+
+  // Guarda a data real da baixa feita pelo sistema para os próximos fechamentos.
+  const oldConfirmPaid=window.lpConfirmFinancePaidV82;
+  if(typeof oldConfirmPaid==='function')window.lpConfirmFinancePaidV82=function(id){
+    const r=oldConfirmPaid.apply(this,arguments);
+    try{
+      const f=(data.finance||[]).find(x=>T(x.id)===T(id));
+      if(f&&isPaid(f)&&!f.paidAtIso){f.paidAtIso=new Date().toISOString();if(typeof save==='function')save()}
+    }catch(e){console.warn('Baixa V110:',e)}
+    return r;
+  };
+
+  window.addEventListener('load',()=>setTimeout(()=>{
+    try{if(document.getElementById('dashboard')?.classList.contains('active'))fixDashboardCards()}catch(e){}
+  },1800));
+})();
+</script>
+
 </body>
 </html>
