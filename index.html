@@ -10284,7 +10284,7 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
   const txt=v=>String(v??'').trim();
   const escV=v=>typeof esc==='function'?esc(v):txt(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const moneyV=v=>typeof money==='function'?money(v):num(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-  const today=()=>new Date().toISOString().slice(0,10);
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 
   function brDate(iso){
     if(!iso)return typeof nowBR==='function'?nowBR():new Date().toLocaleString('pt-BR');
@@ -18727,6 +18727,41 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
 .lp-v101-calendar-card{margin-top:16px}.lp-v101-calendar-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.lp-v101-week,.lp-v101-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.lp-v101-week{margin:10px 0 6px;color:var(--muted,#64748b);font-size:12px;font-weight:700;text-align:center}.lp-v101-cal-day{min-height:106px;border:1px solid rgba(148,163,184,.28);border-radius:14px;background:rgba(248,250,252,.7);padding:10px;text-align:left;display:flex;flex-direction:column;gap:5px;color:inherit}.lp-v101-cal-day.empty{visibility:hidden}.lp-v101-cal-day.has-value{cursor:pointer}.lp-v101-cal-day.received-day{background:rgba(236,253,245,.88);border-color:rgba(16,185,129,.42)}.lp-v101-cal-day.future-day{background:rgba(254,242,242,.92);border-color:rgba(239,68,68,.34)}.lp-v101-cal-day.received-day b{color:#047857}.lp-v101-cal-day.future-day b{color:#b91c1c}.lp-v101-cal-day.has-value:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(15,23,42,.08)}.lp-v101-cal-day.today{outline:2px solid rgba(37,99,235,.34)}.lp-v101-cal-num{font-size:12px;font-weight:800;color:var(--muted,#64748b)}.lp-v101-cal-day b{font-size:14px}.lp-v101-cal-day small{font-size:10px;color:var(--muted,#64748b)}.lp-v101-cal-day .new-sale{font-weight:700}.lp-v101-cal-day.received-day .new-sale{color:#047857}.lp-v101-cal-day.future-day .new-sale{color:#b91c1c}.lp-v101-calendar-legend{display:flex;gap:14px;align-items:center;margin:8px 0 4px;font-size:11px;color:var(--muted,#64748b)}.lp-v101-calendar-legend span{display:inline-flex;align-items:center;gap:6px}.lp-v101-calendar-legend i{width:10px;height:10px;border-radius:999px;display:inline-block}.lp-v101-calendar-legend .received i{background:#10b981}.lp-v101-calendar-legend .future i{background:#ef4444}.lp-v101-month-label{min-width:145px;text-align:center;text-transform:capitalize}.lp-v101-calendar-card .panel-head>.actions{align-items:center}@media(max-width:850px){.lp-v101-calendar-kpis{grid-template-columns:1fr}.lp-v101-week,.lp-v101-calendar{gap:4px}.lp-v101-cal-day{min-height:82px;padding:6px}.lp-v101-cal-day b{font-size:11px}.lp-v101-cal-day small{display:none}.lp-v101-month-label{min-width:100px;font-size:12px}}
 </style>
 
+<!-- V118: ajuste bancário de previsões; feriados locais podem exigir edição manual. -->
+<script id="lp-v118-bank-calendar-js">
+(function(){
+  if(window.lpCardNextBusinessDayV118)return;
+  const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  function easter(year){
+    const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4;
+    const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30;
+    const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k+7)%7;
+    const m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31);
+    return new Date(year,month-1,(h+l-7*m+114)%31+1,12);
+  }
+  function offset(date,days){const d=new Date(date.getTime());d.setDate(d.getDate()+days);return iso(d)}
+  function bankHoliday(date){
+    const y=date.getFullYear(),day=iso(date),mmdd=day.slice(5);
+    const fixed=new Set(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25','12-31']);
+    if(fixed.has(mmdd))return true;
+    const pascoa=easter(y);
+    return day===offset(pascoa,-48)||day===offset(pascoa,-47)||day===offset(pascoa,-2)||day===offset(pascoa,60);
+  }
+  window.lpCardNextBusinessDayV118=function(raw){
+    const value=String(raw||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return value;
+    const [y,m,d]=value.split('-').map(Number),date=new Date(y,m-1,d,12);
+    if(iso(date)!==value)return value;
+    for(let tries=0;tries<15;tries++){
+      if(date.getDay()!==0&&date.getDay()!==6&&!bankHoliday(date))return iso(date);
+      date.setDate(date.getDate()+1);
+    }
+    return value;
+  };
+  window.lpCardIsBankBusinessDayV118=value=>window.lpCardNextBusinessDayV118(value)===value;
+})();
+</script>
+
 <script id="lp-v101-sales-cards-calendar-js">
 (function(){
   if(window.__lpV101Cards)return;
@@ -18737,7 +18772,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   const E=v=>typeof window.esc==='function'?window.esc(v):T(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const M=v=>typeof window.money==='function'?window.money(v):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const today=()=>new Date().toISOString().slice(0,10);
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 
   function addDays(iso,days){
     const a=T(iso).split('-').map(Number);
@@ -18800,7 +18835,17 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     // Todos os recebíveis futuros de cartão entram no Sicredi Le Pneus.
     data.settings.cardDefaultBankV96='sicredi';
     seedPdfCardsV101();
-    data.cardReceivablesV96.forEach(r=>{if(T(r.status)!=='Recebido')r.destinationAccount='sicredi'});
+    let adjusted=0;
+    data.cardReceivablesV96.forEach(r=>{
+      if(T(r.status)==='Recebido')return; // Não reescrever liquidações históricas.
+      r.destinationAccount='sicredi';
+      const raw=T(r.expectedDate),date=window.lpCardNextBusinessDayV118(raw);
+      if(raw&&date!==raw){
+        if(!r.originalExpectedDateV118)r.originalExpectedDateV118=raw;
+        r.expectedDate=date;r.businessDayAdjustedV118=true;adjusted++;
+      }
+    });
+    if(adjusted)try{save()}catch(e){console.warn('Calendário bancário V118:',e)}
     return data.cardReceivablesV96;
   }
   window.lpEnsureCardsV96=ensureCards;
@@ -18845,7 +18890,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       saleDate,
       gross:N(c.value),
       feePct:0,
-      expectedDate:addDays(saleDate,cardDays(c.payment)),
+      expectedDate:window.lpCardNextBusinessDayV118(addDays(saleDate,cardDays(c.payment))),
       destinationAccount:T(data.settings.cardDefaultBankV96)||'sicredi',
       status:'Pendente',
       receivedAt:'',
@@ -18893,7 +18938,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         <label>Tipo<select id="lpCardNewPayV96"><option>Débito</option><option selected>Crédito</option></select></label>
         <label>Valor bruto<input id="lpCardNewGrossV96" type="number" min="0" step="0.01"></label>
         <label>Taxa %<input id="lpCardNewFeeV96" type="number" min="0" step="0.01" value="0"></label>
-        <label>Previsão de crédito<input id="lpCardNewExpectedV96" type="date" value="${addDays(today(),N(data.settings.cardCreditDaysV96))}"></label>
+        <label>Previsão de crédito<input id="lpCardNewExpectedV96" type="date" value="${window.lpCardNextBusinessDayV118(addDays(today(),N(data.settings.cardCreditDaysV96)))}"></label>
         <label>Destino<input value="Sicredi Le Pneus" disabled></label>
         <label class="full">Descrição<input id="lpCardNewDescV96" placeholder="Ex.: Venda balcão"></label>
       </div>
@@ -18904,7 +18949,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       const days=norm(pv).includes('debito')
         ? Math.max(1,N(data.settings.cardDebitDaysV96)||1)
         : Math.max(1,N(data.settings.cardCreditDaysV96)||30);
-      if(e)e.value=addDays(d?.value||today(),days);
+      if(e)e.value=window.lpCardNextBusinessDayV118(addDays(d?.value||today(),days));
     };
     p?.addEventListener('change',refresh);d?.addEventListener('change',refresh);
   };
@@ -18918,7 +18963,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       description:T(document.getElementById('lpCardNewDescV96')?.value)||'Recebível manual',
       payment:T(document.getElementById('lpCardNewPayV96')?.value)||'Crédito',
       saleDate,gross,feePct:Math.max(0,N(document.getElementById('lpCardNewFeeV96')?.value)),
-      expectedDate:T(document.getElementById('lpCardNewExpectedV96')?.value)||addDays(saleDate,30),
+      expectedDate:window.lpCardNextBusinessDayV118(T(document.getElementById('lpCardNewExpectedV96')?.value)||addDays(saleDate,30)),
       destinationAccount:'sicredi',
       status:'Pendente',receivedAt:'',createdAtIso:new Date().toISOString(),source:'manual-v96'
     });
@@ -18941,7 +18986,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   window.lpSaveCardEditV96=function(id){
     const r=ensureCards().find(x=>T(x.id)===T(id));if(!r)return;
     r.feePct=Math.max(0,N(document.getElementById('lpCardEditFeeV96')?.value));
-    r.expectedDate=T(document.getElementById('lpCardEditExpectedV96')?.value)||r.expectedDate;
+    const enteredDate=T(document.getElementById('lpCardEditExpectedV96')?.value)||r.expectedDate;
+    r.expectedDate=window.lpCardNextBusinessDayV118(enteredDate);
+    r.originalExpectedDateV118=enteredDate;
+    r.businessDayAdjustedV118=r.expectedDate!==enteredDate;
     r.destinationAccount='sicredi';
     r.description=T(document.getElementById('lpCardEditDescV96')?.value)||r.description;
     try{save()}catch(e){}
@@ -18951,18 +18999,23 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   window.lpReceiveCardV96=function(id){
     const r=ensureCards().find(x=>T(x.id)===T(id));if(!r||r.status==='Recebido')return;
     showModal(`<h2>Confirmar crédito do cartão</h2>
-      <div class="notice">Bruto: <b>${M(r.gross)}</b> • Taxa: <b>${M(cardFee(r))}</b> • Líquido previsto: <b>${M(cardNet(r))}</b></div>
+      <div class="notice">Confirme somente após conferir o <b>extrato do Sicredi</b>. Bruto: <b>${M(r.gross)}</b> • Taxa: <b>${M(cardFee(r))}</b> • Líquido previsto: <b>${M(cardNet(r))}</b></div>
       <div class="form">
         <label>Data que caiu<input id="lpCardReceiveDateV96" type="date" value="${today()}"></label>
         <label>Conta de destino<input value="Sicredi Le Pneus" disabled></label>
         <label>Valor líquido recebido<input id="lpCardReceiveNetV96" type="number" min="0" step="0.01" value="${cardNet(r).toFixed(2)}"></label>
+        <label class="full" style="display:flex;align-items:center;gap:9px;font-weight:700;color:var(--text)"><input id="lpCardBankConfirmedV118" type="checkbox" style="width:18px;height:18px"> Conferi no extrato do Sicredi: o valor realmente entrou.</label>
       </div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick='lpConfirmReceiveCardV96(${JSON.stringify(T(id))})'>Confirmar recebimento</button></div>`);
   };
 
   window.lpConfirmReceiveCardV96=function(id){
     const r=ensureCards().find(x=>T(x.id)===T(id));if(!r||r.status==='Recebido')return;
-    const net=Math.max(0,N(document.getElementById('lpCardReceiveNetV96')?.value));
+    if(!document.getElementById('lpCardBankConfirmedV118')?.checked)return alert('Confirme primeiro que o dinheiro realmente entrou no extrato do Sicredi.');
+    const netInput=document.getElementById('lpCardReceiveNetV96');
+    const net=Number(netInput?.value);
+    if(!Number.isFinite(net)||net<0||!T(netInput?.value))return alert('Informe o valor líquido efetivamente recebido.');
+    if((data.cash||[]).some(x=>T(x.originId)===T(r.id)&&T(x.accountId)==='sicredi'&&x.type==='Entrada'))return alert('Já existe crédito desse recebível no caixa. Confira o histórico antes de lançar novamente.');
     const bank='sicredi';
     const receiveDate=T(document.getElementById('lpCardReceiveDateV96')?.value)||today();
     const gross=N(r.gross),fee=Math.max(0,gross-net);
@@ -18979,7 +19032,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       value:net,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),
       originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:bank,accountName,accountSchema:'v96'
     };
-    data.cash.unshift(inc,out);
+    // A baixa em Cartões a Receber só existe se houve entrada original nessa conta.
+    const originalCardEntry=T(r.cashId)&&data.cash.some(x=>T(x.id)===T(r.cashId)&&T(x.accountId)==='cartoes'&&x.type==='Entrada');
+    data.cash.unshift(inc);
+    if(originalCardEntry)data.cash.unshift(out);
 
     if(fee>.009){
       data.finance.unshift({
@@ -18992,7 +19048,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     }
 
     r.status='Recebido';r.receivedAt=receiveDate;r.receivedNet=net;r.feeValue=fee;
-    r.destinationAccount=bank;r.cardCashOutId=out.id;r.bankCashId=inc.id;
+    r.destinationAccount=bank;r.cardCashOutId=originalCardEntry?out.id:(r.cardCashOutId||'');r.bankCashId=inc.id;r.confirmedBankV118=true;
     try{save()}catch(e){}
     closeModal();renderCartoes();
     try{if(typeof renderCaixa==='function'&&document.getElementById('caixa')?.classList.contains('active'))renderCaixa()}catch(e){}
@@ -19024,77 +19080,20 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     if(!list.length)return;
     const pending=list.filter(r=>T(r.status)!=='Recebido');
     const total=list.reduce((a,r)=>a+cardNet(r),0),pdf=list.filter(r=>r.source==='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),sales=list.filter(r=>r.source!=='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0);
-    const rows=list.map(r=>`<tr><td><b>${E(r.description)}</b><small>${E(r.source==='pdf-calendar-v101'?'PDF 05/10/2026':'Venda do sistema')}</small></td><td>${M(r.gross)}</td><td>${M(cardFee(r))}</td><td><b>${M(cardNet(r))}</b></td><td>${E(r.status||'Pendente')}</td></tr>`).join('');
+    const rows=list.map(r=>`<tr><td><b>${E(r.description)}</b><small>${E(r.source==='pdf-calendar-v101'?'PDF 05/10/2026':'Venda do sistema')}</small></td><td>${M(r.gross)}</td><td>${M(cardFee(r))}</td><td><b>${M(cardNet(r))}</b></td><td>${E(r.status||'Pendente')}${r.autoReceivedV102&&!r.confirmedBankV118?'<small style="color:#b45309">Baixa antiga automática: conferir</small>':''}</td><td>${T(r.status)!=='Recebido'?`<button class="btn ghost small" onclick='lpReceiveCardV96(${JSON.stringify(T(r.id))})'>Confirmar no Sicredi</button>`:'-'}</td></tr>`).join('');
     showModal(`<h2>Recebimentos de ${br(date)}</h2>
-      <div class="notice">PDF: <b>${M(pdf)}</b> • Novas vendas: <b>${M(sales)}</b> • Total do dia no Sicredi: <b>${M(total)}</b></div>
-      <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="notice">PDF previsto: <b>${M(pdf)}</b> • Novas vendas: <b>${M(sales)}</b> • Total previsto no Sicredi: <b>${M(total)}</b>. <b>Previsão não é confirmação bancária.</b></div>
+      <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Status</th><th>Conferência</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Fechar</button></div>`);
   };
-  function lpAutoSettleCardV102(r,receiveDate){
-    if(!r||T(r.status)==='Recebido')return false;
-    const date=T(receiveDate)||T(r.expectedDate)||today();
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>today())return false;
-
-    data.cash=Array.isArray(data.cash)?data.cash:[];
-    data.finance=Array.isArray(data.finance)?data.finance:[];
-
-    const net=cardNet(r),gross=N(r.gross),fee=Math.max(0,gross-net),dateBR=br(date),bank='sicredi';
-    const hasBank=(data.cash||[]).find(x=>T(x.originId)===T(r.id)&&T(x.accountId)==='sicredi'&&(x.autoCardSettlementV102||T(x.payment)==='Liquidação cartão'));
-    let inc=hasBank||null;
-
-    // Só retira de "Cartões a Receber" quando a venda original realmente criou
-    // uma entrada nessa conta. Registros vindos do PDF/manual não têm cashId.
-    let out=null;
-    if(T(r.cashId)){
-      const hasOut=(data.cash||[]).find(x=>T(x.originId)===T(r.id)&&T(x.accountId)==='cartoes'&&x.type==='Saída'&&(x.autoCardSettlementV102||T(x.payment)==='Liquidação cartão'));
-      if(!hasOut){
-        out={id:idNow96('CARD-OUT-AUTO'),type:'Saída',desc:`Liquidação automática cartão • ${r.description}`,value:gross,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:'cartoes',accountName:'Cartões a Receber',accountSchema:'v102',autoCardSettlementV102:true};
-        data.cash.unshift(out);
-      }else out=hasOut;
-    }
-
-    if(!inc){
-      inc={id:idNow96('CARD-IN-AUTO'),type:'Entrada',desc:`Crédito automático cartão • ${r.description}`,value:net,payment:'Liquidação cartão',date:dateBR,createdAtIso:new Date().toISOString(),originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',accountId:bank,accountName:'Sicredi Le Pneus',accountSchema:'v102',autoCardSettlementV102:true};
-      data.cash.unshift(inc);
-    }
-
-    if(fee>.009){
-      const hasFee=(data.finance||[]).some(x=>T(x.originId)===T(r.id)&&x.cardFeeV96);
-      if(!hasFee)data.finance.unshift({id:idNow96('CARD-FEE-AUTO'),type:'Despesa',category:'Taxas de cartão',desc:`Taxa cartão • ${r.description}`,value:fee,status:'Pago',date,dueDate:date,payment:'Desconto da adquirente',originType:'Cartão',originId:r.id,originNumber:r.originNumber||'',cardFeeV96:true,noCashMovementV96:true,autoCardSettlementV102:true});
-    }
-
-    r.status='Recebido';r.receivedAt=date;r.receivedNet=net;r.feeValue=fee;
-    r.destinationAccount='sicredi';r.cardCashOutId=out?.id||r.cardCashOutId||'';r.bankCashId=inc.id;
-    r.autoReceivedV102=true;
-    return true;
-  }
-
-  function lpProcessAutomaticCardReceiptsV102(){
-    const arr=ensureCards();
-    let changed=false;
-    arr.forEach(r=>{
-      const due=T(r.expectedDate);
-      if(T(r.status)!=='Recebido'&&/^\d{4}-\d{2}-\d{2}$/.test(due)&&due<=today()){
-        if(lpAutoSettleCardV102(r,due))changed=true;
-      }
-    });
-    if(changed){
-      try{save()}catch(e){console.warn('Baixa automática de cartões:',e)}
-      try{if(typeof renderCaixa==='function'&&document.getElementById('caixa')?.classList.contains('active'))renderCaixa()}catch(e){}
-    }
-    return changed;
-  }
+  // V118: SEM integração com extrato bancário, a data prevista nunca é prova de pagamento.
+  // A rotina antiga baixava automaticamente no Sicredi e foi desativada.
+  function lpAutoSettleCardV102(){return false}
+  function lpProcessAutomaticCardReceiptsV102(){return false}
   window.lpProcessAutomaticCardReceiptsV102=lpProcessAutomaticCardReceiptsV102;
 
-  // Mantida apenas por compatibilidade com chamadas antigas: agora é automática.
-  window.lpReceiveCardDayV101=function(date){
-    const list=ensureCards().filter(r=>T(r.expectedDate)===T(date)&&T(r.status)!=='Recebido');
-    let changed=false;
-    list.forEach(r=>{if(lpAutoSettleCardV102(r,date))changed=true});
-    if(changed){try{save()}catch(e){}}
-    try{closeModal()}catch(e){}
-    try{renderCartoes()}catch(e){}
-  };
+  // Compatibilidade: clique em dia não pode mais gerar liquidação silenciosa.
+  window.lpReceiveCardDayV101=function(date){return window.lpCardDayV101(date)};
   function renderCardCalendarV101(arr){
     const ym=window.__lpCardCalendarMonthV101||today().slice(0,7);window.__lpCardCalendarMonthV101=ym;
     const [y,m]=ym.split('-').map(Number),first=new Date(y,m-1,1,12),days=new Date(y,m,0).getDate(),start=first.getDay();
@@ -19103,15 +19102,16 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     for(let day=1;day<=days;day++){
       const iso=`${ym}-${String(day).padStart(2,'0')}`,list=groups.get(iso)||[];
       const total=list.reduce((a,r)=>a+cardNet(r),0),pdf=list.filter(r=>r.source==='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),sales=list.filter(r=>r.source!=='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),received=list.filter(r=>T(r.status)==='Recebido').reduce((a,r)=>a+N(r.receivedNet||cardNet(r)),0);
-      const dayState=list.length?(iso<=today()?'received-day':'future-day'):'';
-      cells+=`<button class="lp-v101-cal-day ${list.length?'has-value':''} ${dayState} ${iso===today()?'today':''}" ${list.length?`onclick='lpCardDayV101(${JSON.stringify(iso)})'`:''}><span class="lp-v101-cal-num">${day}</span>${list.length?`<b>${M(total)}</b><small>${list.length} lançamento(s)</small>${sales>.009?`<small class="new-sale">+ ${M(sales)} vendas</small>`:''}${iso<=today()?`<small style="color:#047857;font-weight:700">✓ Já caiu</small>`:`<small style="color:#b91c1c;font-weight:700">● Vai cair</small>`}`:''}</button>`;
+      const fullyReceived=list.length&&list.every(r=>T(r.status)==='Recebido');
+      const dayState=list.length?(fullyReceived?'received-day':'future-day'):'';
+      cells+=`<button class="lp-v101-cal-day ${list.length?'has-value':''} ${dayState} ${iso===today()?'today':''}" ${list.length?`onclick='lpCardDayV101(${JSON.stringify(iso)})'`:''}><span class="lp-v101-cal-num">${day}</span>${list.length?`<b>${M(total)}</b><small>${list.length} lançamento(s)</small>${sales>.009?`<small class="new-sale">+ ${M(sales)} vendas</small>`:''}${fullyReceived?`<small style="color:#047857;font-weight:700">✓ Confirmado</small>`:`<small style="color:#b91c1c;font-weight:700">● ${iso<today()?'A conferir':'Previsto'}</small>`}`:''}</button>`;
     }
     const monthItems=arr.filter(r=>T(r.expectedDate).slice(0,7)===ym),monthNet=monthItems.reduce((a,r)=>a+cardNet(r),0),monthPdf=monthItems.filter(r=>r.source==='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0),monthSales=monthItems.filter(r=>r.source!=='pdf-calendar-v101').reduce((a,r)=>a+cardNet(r),0);
-    return `<section class="card lp-v101-calendar-card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Calendário Sicredi</h3><small class="cell-sub">PDF + novas vendas de cartão somadas automaticamente pela data prevista.</small></div><div class="actions"><button class="btn ghost small" onclick="lpCardCalendarMoveV101(-1)">←</button><b class="lp-v101-month-label">${E(monthLabelV101(ym))}</b><button class="btn ghost small" onclick="lpCardCalendarMoveV101(1)">→</button></div></div><div class="lp-v101-calendar-kpis">${metric('PDF no mês',M(monthPdf),'relatório importado','green')}${metric('Novas vendas',M(monthSales),'somadas às datas previstas','green')}${metric('Total previsto',M(monthNet),'destino: Sicredi Le Pneus','green')}</div><div class="lp-v101-calendar-legend"><span class="received"><i></i> Verde = já caiu</span><span class="future"><i></i> Vermelho = ainda vai cair</span></div><div class="lp-v101-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div><div class="lp-v101-calendar">${cells}</div></section>`;
+    return `<section class="card lp-v101-calendar-card"><div class="panel-head"><div><h3 class="section-title" style="margin:0">Calendário Sicredi</h3><small class="cell-sub">Previsões ajustadas para dias úteis bancários; depósitos somente após conferência.</small></div><div class="actions"><button class="btn ghost small" onclick="lpCardCalendarMoveV101(-1)">←</button><b class="lp-v101-month-label">${E(monthLabelV101(ym))}</b><button class="btn ghost small" onclick="lpCardCalendarMoveV101(1)">→</button></div></div><div class="lp-v101-calendar-kpis">${metric('PDF no mês',M(monthPdf),'relatório importado','green')}${metric('Novas vendas',M(monthSales),'somadas às datas previstas','green')}${metric('Total previsto',M(monthNet),'não é saldo bancário confirmado','green')}</div><div class="lp-v101-calendar-legend"><span class="received"><i></i> Verde = confirmado no Sicredi</span><span class="future"><i></i> Vermelho = previsto / a conferir</span></div><div class="lp-v101-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div><div class="lp-v101-calendar">${cells}</div></section>`;
   }
 
   window.renderCartoes=function(){
-    ensureCards();migrateCards();lpProcessAutomaticCardReceiptsV102();
+    ensureCards();migrateCards(); // V118: nenhuma baixa bancária por passagem de data.
     const now=today(),in7=addDays(now,7),ym=now.slice(0,7);
     const arr=[...data.cardReceivablesV96].sort((a,b)=>T(a.expectedDate).localeCompare(T(b.expectedDate)));
     const pending=arr.filter(x=>x.status!=='Recebido');
@@ -19132,10 +19132,10 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
       <td><b>${M(r.status==='Recebido'?N(r.receivedNet||cardNet(r)):cardNet(r))}</b></td>
       <td>${br(r.expectedDate)}</td>
       <td>${E(accName(r.destinationAccount))}</td>
-      <td><span class="lp-v96-card-status ${r.status==='Recebido'?'received':'pending'}">${E(r.status||'Pendente')}</span>${r.receivedAt?`<small>${br(r.receivedAt)}</small>`:''}</td>
+      <td><span class="lp-v96-card-status ${r.status==='Recebido'?'received':'pending'}">${E(r.status||'Pendente')}</span>${r.receivedAt?`<small>${br(r.receivedAt)}</small>`:''}${r.autoReceivedV102&&!r.confirmedBankV118?'<small style="color:#b45309">Baixa automática antiga: confira</small>':''}</td>
       <td><div class="actions">
         <button class="btn ghost small" onclick='lpEditCardV96(${JSON.stringify(T(r.id))})'>Editar</button>
-        ${r.status!=='Recebido'?`<span class="soft-chip">Baixa automática</span>`:''}
+        ${r.status!=='Recebido'?`<button class="btn primary small" onclick='lpReceiveCardV96(${JSON.stringify(T(r.id))})'>Confirmar depósito</button>`:''}
       </div></td>
     </tr>`).join('');
 
@@ -19143,7 +19143,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     const view=window.__lpCardViewV101||'calendar';
     host.innerHTML=heading('Controle de Cartões','Calendário de recebimentos e vendas de cartão com destino no Sicredi Le Pneus.',
       `<div class="actions"><button class="btn ${view==='calendar'?'primary':'ghost'}" onclick="lpCardSetViewV101('calendar')">Calendário Sicredi</button><button class="btn ${view==='agenda'?'primary':'ghost'}" onclick="lpCardSetViewV101('agenda')">Lançamentos</button><button class="btn ghost" onclick="lpNewCardReceivableV96()">+ Recebível</button></div>`)+
-      `<div class="notice"><b>Sicredi automático:</b> todo cartão vai para <b>Sicredi Le Pneus</b>. Na data prevista, o sistema dá baixa automaticamente, atualiza o saldo do Sicredi e marca como recebido.</div>
+      `<div class="notice"><b>Previsão Cielo → Sicredi:</b> fins de semana e feriados bancários nacionais passam para o próximo dia útil. <b>O sistema não consulta extrato bancário:</b> o valor só entra no saldo Sicredi após clicar em <b>Confirmar depósito</b> e informar a baixa real. Feriados locais exigem ajuste manual. Baixas automáticas antigas devem ser conferidas.</div>
       <div class="lp-v96-card-kpis">
         ${metric('Bruto a receber',M(gross),pending.length+' lançamento(s)','green')}
         ${metric('Líquido previsto',M(net),'descontadas as taxas cadastradas','green')}
@@ -19160,7 +19160,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         </div>
       </section>
       <section class="card table-wrap lp-v96-card-table" style="margin-top:16px">
-        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Agenda de recebimentos</h3><small class="cell-sub">Na data prevista, a baixa é automática: o valor líquido entra no Sicredi e o status muda para Recebido.</small></div></div>
+        <div class="panel-head"><div><h3 class="section-title" style="margin:0">Agenda de recebimentos</h3><small class="cell-sub">Previsão ≠ depósito. Confirme somente depois de encontrar o crédito no extrato do Sicredi.</small></div></div>
         <table><thead><tr><th>Origem</th><th>Venda</th><th>Tipo</th><th>Bruto</th><th>Taxa</th><th>Líquido</th><th>Previsto</th><th>Destino</th><th>Status</th><th>Ação</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="10" class="empty">Nenhum recebível de cartão registrado.</td></tr>'}</tbody></table>
       </section>`}`;
@@ -19405,7 +19405,7 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
         allocated=Math.round((allocated+value)*100)/100;
         const cardStep=Math.max(1,N(data.settings.cardCreditDaysV96)||30);
         const due=isCardPayment(payment)
-          ? (debitCard
+          ? window.lpCardNextBusinessDayV118(debitCard
               ? firstDue
               : addDays(firstDue,cardStep*(i-1)))
           : addMonths(firstDue,i-1);
@@ -19428,9 +19428,9 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
           const c=(data.cash||[]).find(x=>T(x.id)===T(f.cashId));
           const r=c?ensureCardFromCash(c):null;
           if(r){
-            r.expectedDate=debitCard
+            r.expectedDate=window.lpCardNextBusinessDayV118(debitCard
               ? firstDue
-              : addDays(firstDue,cardStep*(i-1));
+              : addDays(firstDue,cardStep*(i-1)));
             r.description=count>1?`Venda #${sale.id} • parcela ${i}/${count}`:`Venda #${sale.id}`;
             r.originNumber=count>1?`VEN-${sale.id}-${i}/${count}`:`VEN-${sale.id}`;
             r.destinationAccount=T(data.settings.cardDefaultBankV96)||'sicredi';
@@ -19600,9 +19600,8 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     };
   }
 
-  // Migração leve, baixa automática e render inicial.
-  try{ensureCards();migrateCards();lpProcessAutomaticCardReceiptsV102()}catch(e){console.warn(e)}
-  setInterval(()=>{try{lpProcessAutomaticCardReceiptsV102()}catch(e){console.warn(e)}},60*60*1000);
+  // Migração leve, sem baixar no banco por data (V118).
+  try{ensureCards();migrateCards()}catch(e){console.warn(e)}
   setTimeout(()=>{
     try{initNav()}catch(e){}
     try{
@@ -20247,7 +20246,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
   const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const E=v=>typeof esc==='function'?esc(v):T(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
   const M=v=>typeof money==='function'?money(N(v)):N(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-  const today=()=>new Date().toISOString().slice(0,10);
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 
   /* Tabela Cielo enviada em 06/10/2026.
      Visa / Mastercard: débito 1,27%; crédito 1x 2,25%; 2-6x 2,71%; 7-12x 3,09%
@@ -20414,7 +20413,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
     const r=(data.cardReceivablesV96||[]).find(x=>String(x.cashId)===String(cashId));if(!r)return;
     const rate=cardRate(opt.payment,opt.brand,opt.count),gross=N(r.gross),fee=Math.round(gross*rate)/100,net=Math.max(0,Math.round((gross-fee)*100)/100);
     r.payment=`${opt.payment}${opt.brand?' • '+opt.brand:''}${opt.count>1?' • '+opt.count+'x':''}`;
-    r.brand=opt.brand;r.installmentNumber=opt.number;r.installmentCount=opt.count;r.feePct=rate;r.feeValueExpected=fee;r.netExpected=net;r.expectedDate=opt.due;r.destinationAccount='sicredi';r.rateSourceV105='Cielo 06/10/2026';
+    r.brand=opt.brand;r.installmentNumber=opt.number;r.installmentCount=opt.count;r.feePct=rate;r.feeValueExpected=fee;r.netExpected=net;r.expectedDate=window.lpCardNextBusinessDayV118(opt.due);r.destinationAccount='sicredi';r.rateSourceV105='Cielo 06/10/2026';
   }
 
   function buildPaymentPlan(sale,opt){
@@ -20428,7 +20427,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
     let allocated=0;
     for(let i=1;i<=count;i++){
       const value=i===count?Math.round((total-allocated)*100)/100:base;allocated=Math.round((allocated+value)*100)/100;
-      const due=card?(debit?addDays(today(),Math.max(0,N(data.settings?.cardDebitDaysV96)||1)):addDays(firstDue,step*(i-1))):addMonths(firstDue,i-1);
+      const due=card?window.lpCardNextBusinessDayV118(debit?addDays(today(),Math.max(0,N(data.settings?.cardDebitDaysV96)||1)):addDays(firstDue,step*(i-1))):addMonths(firstDue,i-1);
       if(status==='Pago')window.__lpNextAccountV82=card?'cartoes':account;
       let f;
       try{
@@ -20613,7 +20612,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
   try{save()}catch(e){}
 })();
 </script>
-<!-- LE PNEUS V105 • pagamentos/parcelas em vendas e serviços + taxas Cielo por bandeira -->
+<!-- LE PNEUS V118 • previsões em dias úteis + baixa manual confirmada no Sicredi -->
 
 <style id="lp-boleto-notify-v106-css">
 .lp-notification-item.lp-v106-boleto-paid .ico{background:#ecfdf3;color:#15803d}
@@ -21561,7 +21560,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 #fechamento[data-lp-v117-tab="resumo"]>.cards[data-lp-v117-group="resumo"]{display:grid!important}
 #fechamento .lp-v117-nav{display:flex;gap:8px;flex-wrap:wrap;padding:6px;background:var(--panel2,#f7f8fc);border:1px solid var(--line);border-radius:13px}
 #fechamento .lp-v117-tab{border:1px solid transparent;border-radius:9px;padding:12px 15px;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:750;cursor:pointer;min-height:44px;transition:background .15s ease,color .15s ease,border-color .15s ease}
-#fechamento .lp-v117-tab[aria-pressed="true"]{color:var(--text);background:var(--panel);border-color:var(--line);box-shadow:0 2px 9px rgba(25,35,55,.07)}
+#fechamento .lp-v117-tab[aria-selected="true"]{color:var(--text);background:var(--panel);border-color:var(--line);box-shadow:0 2px 9px rgba(25,35,55,.07)}
 #fechamento .lp-v117-tab:focus-visible,#fechamento .lp-v117-jump:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 #fechamento .lp-v117-context{padding:16px 18px;border:1px solid var(--line);background:var(--panel);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 #fechamento .lp-v117-context strong{display:block;color:var(--text);font-size:15px;margin-bottom:3px}
@@ -21611,7 +21610,8 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
     host.dataset.lpV117Tab=next;
     host.querySelectorAll('.lp-v117-tab').forEach(b=>{
       const selected=b.dataset.tab===next;
-      b.setAttribute('aria-pressed',String(selected));
+      b.setAttribute('aria-selected',String(selected));
+      b.tabIndex=selected?0:-1;
     });
     const heading=host.querySelector('.lp-v117-context strong');
     const subtitle=host.querySelector('.lp-v117-context p');
@@ -21663,7 +21663,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
     if(!host.querySelector('.lp-v117-nav')){
       const nav=document.createElement('nav');nav.className='lp-v117-nav';nav.setAttribute('aria-label','Seções do Fechamento Mensal');
       for(const [key,label] of Object.entries(sections)){
-        const b=document.createElement('button');b.type='button';b.className='lp-v117-tab';b.dataset.tab=key;b.textContent=label;
+        const b=document.createElement('button');b.type='button';b.className='lp-v117-tab';b.dataset.tab=key;b.setAttribute('role','tab');b.textContent=label;
         b.addEventListener('click',()=>go(key));nav.appendChild(b);
       }
       host.querySelector('.heading').insertAdjacentElement('afterend',nav);
