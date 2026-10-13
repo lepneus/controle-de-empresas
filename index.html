@@ -10325,10 +10325,8 @@ Atualizadas no Firebase: ${r.cloud}`);return r;};
     name=txt(name); phone=txt(phone);
     if(!name && !phone)return '';
     const digits=phone.replace(/\D/g,'');
-    let c=data.customers.find(x=>
-      (digits && txt(x.phone).replace(/\D/g,'')===digits) ||
-      (name && txt(x.name).toLowerCase()===name.toLowerCase())
-    );
+    let c=data.customers.find(x=>name && txt(x.name).localeCompare(name,'pt-BR',{sensitivity:'base'})===0);
+    if(!c&&!name&&digits)c=data.customers.find(x=>txt(x.phone).replace(/\D/g,'')===digits);
     if(!c){
       c={id:(typeof idNow==='function'?idNow():Date.now()+Math.random()),
          name:name||('Cliente '+phone),phone,email:'',doc:'',address:'',city:'',
@@ -15756,6 +15754,10 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return r;
   };
   window.lpSaveServiceV76=function(){
+    if(!T(document.getElementById('osservice')?.value)){
+      alert('Informe a descrição do serviço antes de cadastrar o cliente.');
+      return;
+    }
     const id=prepareSelectSave('oscustomer','oscustomernameV76','Serviço','osphone',true);
     if(id===null)return;
     return typeof window.saveOS==='function'?window.saveOS():undefined;
@@ -15771,6 +15773,12 @@ window.__LP_PERSISTENCE_VERSION__='v60';
     return r;
   };
   window.lpFinishSaleV76=function(){
+    const productId=document.getElementById('sproduct')?.value;
+    const qty=Number(document.getElementById('sqty')?.value);
+    if(!productId||!(qty>0)||(data.products||[]).every(p=>String(p.id)!==String(productId))){
+      alert('Selecione um produto válido e informe a quantidade antes de cadastrar o cliente.');
+      return;
+    }
     const id=prepareSelectSave('scustomer','scustomernameV76','Venda','',false);
     if(id===null)return;
     return typeof window.finishSale==='function'?window.finishSale():undefined;
@@ -17792,6 +17800,44 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     return {title,detail};
   }
 
+  /* V116: mostra o cliente também nas vendas e receitas vinculadas,
+     sem atribuir liquidações agrupadas de cartões a uma pessoa específica. */
+  function lpCashClientLabelV116(c){
+    const service=lpServiceCashLabelV115(c);
+    if(service)return service;
+    if(!c||T(c.type)!=='Entrada')return null;
+    const list=data.sales||[],customers=data.customers||[],finances=data.finance||[];
+    const finance=finances.find(f=>T(f.cashId)&&T(f.cashId)===T(c.id));
+    let sale=null;
+    if(finance&&T(finance.originType)==='Venda')sale=list.find(s=>T(s.id)===T(finance.originId));
+    if(!sale&&T(c.originType)==='Venda')sale=list.find(s=>T(s.id)===T(c.originId));
+    if(!sale&&finance){
+      const linked=list.filter(s=>T(s.financeId)===T(finance.id)||(s.financeIds||[]).some(x=>T(x)===T(finance.id)));
+      if(linked.length===1)sale=linked[0];
+    }
+    if(sale){
+      // Vendas geradas por OS são atendidas pela identificação da própria OS.
+      if(T(sale.originType)==='OS')return null;
+      const registered=customers.find(x=>T(x.id)===T(sale.customerId));
+      const name=T(registered?.name||sale.customer||finance?.customerName);
+      if(!name||/^(consumidor|n[aã]o informado|cliente n[aã]o informado|cliente exemplo)$/i.test(name))return null;
+      const items=(sale.items||[]).map(i=>T(i.name)).filter(Boolean);
+      const reference=T(sale.origin)||('Venda #'+T(sale.id));
+      const detail=[reference,items.slice(0,2).join(' + ')].filter(Boolean).join(' • ');
+      const card=/^cr[eé]dito autom[aá]tico cart[aã]o/i.test(T(c.desc));
+      return {title:(card?'Crédito cartão':'Venda')+' • '+name,detail};
+    }
+    // Receitas manuais vinculadas explicitamente a um cliente cadastrado.
+    if(finance&&T(finance.type)==='Receita'&&T(finance.originType)!=='Venda'){
+      const customer=customers.find(x=>T(x.id)===T(finance.customerId));
+      const name=T(customer?.name||finance.customerName);
+      if(name&&!/^(consumidor|n[aã]o informado|cliente n[aã]o informado|cliente exemplo)$/i.test(name)){
+        return {title:'Recebimento • '+name,detail:T(finance.desc||c.desc)};
+      }
+    }
+    return null;
+  }
+
   window.renderCaixa=function(){
     ensure();
     const b=balances(),snap=latestSnapshot();
@@ -17806,14 +17852,14 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     let lastDay=null;
     const rows=latestCash.map(({c,day})=>{
       const acc=accountDef(c.accountId);
-      const serviceLabel=lpServiceCashLabelV115(c);
+      const clientLabel=lpCashClientLabelV116(c);
       const heading=lastDay!==day.key
         ?`<tr class="lp-cash-day-v114"><td colspan="6"><strong>${E(day.label)}</strong><span>${counts.get(day.key)} movimentação(ões)</span></td></tr>`:'';
       lastDay=day.key;
       return heading+`<tr>
         <td>${E(day.valid?day.label+(day.show?' · '+day.show:''):(c.date||'-'))}</td>
         <td>${typeof statusBadge==='function'?statusBadge(c.type):E(c.type)}</td>
-        <td><b>${E(serviceLabel?.title||c.desc||'')}</b>${serviceLabel?`<small class="cell-sub">${E(serviceLabel.detail)}</small>`:(c.internalTransferV82?'<small class="cell-sub">Transferência interna</small>':'')}</td>
+        <td><b>${E(clientLabel?.title||c.desc||'')}</b>${clientLabel?`<small class="cell-sub">${E(clientLabel.detail)}</small>`:(c.internalTransferV82?'<small class="cell-sub">Transferência interna</small>':'')}</td>
         <td>${E(acc?.name||c.accountName||'-')}</td>
         <td>${E(c.payment||'-')}</td>
         <td><b>${M(c.value)}</b></td>
@@ -19189,11 +19235,12 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   function customerId(name,phone){
     name=T(name);phone=T(phone);if(!name&&!phone)return '';
     const digits=phone.replace(/\D/g,'');
-    let c=(data.customers||[]).find(x=>(digits&&T(x.phone).replace(/\D/g,'')===digits)||(name&&norm(x.name)===norm(name)));
+    let c=(data.customers||[]).find(x=>name&&norm(x.name)===norm(name));
+    if(!c&&!name&&digits)c=(data.customers||[]).find(x=>T(x.phone).replace(/\D/g,'')===digits);
     if(!c){
       c={id:Date.now()+Math.floor(Math.random()*9999),name:name||('Cliente '+phone),phone,email:'',doc:'',address:'',city:'',notes:'Cadastrado pela confirmação de venda'};
       data.customers.unshift(c);
-    }
+    }else if(phone&&!T(c.phone))c.phone=phone;
     return c.id;
   }
   function removeInitialSaleFinance(res){
@@ -21444,6 +21491,219 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 (function(){
   if(window.__lpV112)return; window.__lpV112=true;
   window.lpV112={version:'113',stabilizedAt:'2026-10-13',mainDuplicatesRemoved:37,saleSnapshotFix:true};
+})();
+</script>
+
+
+<script id="lp-v116-customer-links">
+(function(){
+  if(window.__lpCustomersV116)return;
+  window.__lpCustomersV116=true;
+  const T=v=>String(v??'').trim();
+  const previousModal=window.lpNewCardReceivableV96;
+  if(typeof previousModal==='function')window.lpNewCardReceivableV96=function(){
+    const result=previousModal.apply(this,arguments);
+    const field=document.getElementById('lpCardNewDescV96');
+    if(!field||document.getElementById('lpCardNewCustomerV116'))return result;
+    const label=document.createElement('label');
+    label.className='full';label.textContent='Cliente (opcional)';
+    const input=document.createElement('input');
+    input.id='lpCardNewCustomerV116';input.placeholder='Buscar ou cadastrar cliente';
+    input.setAttribute('list','lpCardCustomersListV116');input.autocomplete='off';
+    const datalist=document.createElement('datalist');datalist.id='lpCardCustomersListV116';
+    const names=new Set();
+    (data.customers||[]).forEach(c=>{
+      const name=T(c.name);const key=name.toLocaleLowerCase('pt-BR');
+      if(!name||names.has(key))return;
+      names.add(key);const opt=document.createElement('option');opt.value=name;datalist.appendChild(opt);
+    });
+    label.appendChild(input);label.appendChild(datalist);
+    field.closest('label')?.insertAdjacentElement('beforebegin',label);
+    return result;
+  };
+  const previousSave=window.lpSaveNewCardV96;
+  if(typeof previousSave==='function')window.lpSaveNewCardV96=function(){
+    const input=document.getElementById('lpCardNewCustomerV116');
+    const name=T(input?.value);
+    const before=new Set((data.cardReceivablesV96||[]).map(r=>String(r.id)));
+    const result=previousSave.apply(this,arguments);
+    const added=(data.cardReceivablesV96||[]).find(r=>!before.has(String(r.id))&&r.source==='manual-v96');
+    if(added&&name){
+      const id=typeof window.lpCreateOrGetClientV76==='function'
+        ?window.lpCreateOrGetClientV76(name,'','Cartão manual'):'';
+      added.customerName=name;if(id)added.customerId=id;
+      added.description=name+' • '+T(added.description||'Recebível manual');
+      try{if(typeof save==='function')save()}catch(e){console.warn('V116 cadastro cliente',e)}
+      try{window.renderCartoes?.()}catch(e){}
+    }
+    return result;
+  };
+  window.lpCustomerLinksVersion='116';
+})();
+</script>
+
+
+<style id="lp-v117-fechamento-ui">
+/* V117: navegação visual do Fechamento Mensal. Não altera dados financeiros. */
+#fechamento.page.active{display:flex!important;flex-direction:column;gap:14px}
+#fechamento>.heading{order:0;margin-bottom:2px}
+#fechamento>.lp-v117-nav{order:1}
+#fechamento>.lp-v117-context{order:2}
+#fechamento>[data-lp-v117-group="resumo"]{order:10}
+#fechamento>[data-lp-v117-group="conferencia"]{order:20}
+#fechamento>[data-lp-v117-group="historico"]{order:30}
+#fechamento>[data-lp-v117-group="planilhas"]{order:40}
+#fechamento[data-lp-v117-tab] > [data-lp-v117-group]{display:none!important}
+#fechamento[data-lp-v117-tab="resumo"] > [data-lp-v117-group="resumo"],
+#fechamento[data-lp-v117-tab="conferencia"] > [data-lp-v117-group="conferencia"],
+#fechamento[data-lp-v117-tab="historico"] > [data-lp-v117-group="historico"],
+#fechamento[data-lp-v117-tab="planilhas"] > [data-lp-v117-group="planilhas"]{display:block!important}
+#fechamento[data-lp-v117-tab="resumo"]>.cards[data-lp-v117-group="resumo"]{display:grid!important}
+#fechamento .lp-v117-nav{display:flex;gap:8px;flex-wrap:wrap;padding:6px;background:var(--panel2,#f7f8fc);border:1px solid var(--line);border-radius:13px}
+#fechamento .lp-v117-tab{border:1px solid transparent;border-radius:9px;padding:12px 15px;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:750;cursor:pointer;min-height:44px;transition:background .15s ease,color .15s ease,border-color .15s ease}
+#fechamento .lp-v117-tab[aria-pressed="true"]{color:var(--text);background:var(--panel);border-color:var(--line);box-shadow:0 2px 9px rgba(25,35,55,.07)}
+#fechamento .lp-v117-tab:focus-visible,#fechamento .lp-v117-jump:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+#fechamento .lp-v117-context{padding:16px 18px;border:1px solid var(--line);background:var(--panel);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#fechamento .lp-v117-context strong{display:block;color:var(--text);font-size:15px;margin-bottom:3px}
+#fechamento .lp-v117-context p{font-size:12px;margin:0;color:var(--muted);line-height:1.55;max-width:800px}
+#fechamento .lp-v117-context .lp-v117-links{display:flex;gap:7px;flex-wrap:wrap}
+#fechamento .lp-v117-jump{border:1px solid var(--line);border-radius:9px;padding:9px 12px;background:var(--panel2);color:var(--text);font:inherit;font-size:12px;font-weight:700;cursor:pointer;min-height:40px}
+#fechamento .lp-v117-jump.primary{background:var(--primary);border-color:var(--primary);color:white}
+#fechamento>.lp-v117-history-filter{order:29;display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+#fechamento[data-lp-v117-tab="historico"]>.lp-v117-history-filter{display:flex}
+#fechamento .lp-v117-history-filter label{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:750;color:var(--text)}
+#fechamento .lp-v117-history-filter input{min-height:38px;padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--text)}
+#fechamento .lp-v117-history-filter small{font-size:11px;color:var(--muted)}
+#fechamento>.card.table-wrap[data-lp-v117-group="historico"]{overflow-x:auto}
+#fechamento .lp-v117-planilha-hint{display:block;font-size:11px;color:var(--muted);margin-top:6px}
+#fechamento .lp-v100-guided,#fechamento .lp-v108-annual-watch,#fechamento .lp-v82-closing{margin-top:0!important}
+#fechamento .lp-v72-annual,#fechamento .lp-v108-annual-watch{scroll-margin-top:90px}
+@media(max-width:720px){
+  #fechamento .lp-v117-nav{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  #fechamento .lp-v117-tab{padding:10px 7px;font-size:11px;min-height:46px}
+  #fechamento .lp-v117-context{padding:13px 14px}
+  #fechamento .lp-v117-context .lp-v117-links{width:100%}
+  #fechamento .lp-v117-jump{flex:1}
+  #fechamento .lp-v117-history-filter label{width:100%;justify-content:space-between}
+}
+</style>
+
+
+<script id="lp-v117-fechamento-organizado">
+(function(){
+  if(window.__lpV117Fechamento)return;
+  window.__lpV117Fechamento=true;
+  let tab='resumo',filterMonth='';
+  const descriptions={
+    resumo:['Visão geral','Veja o desempenho do mês e os saldos da Le Pneus. Os valores abaixo são do sistema; confira os pagamentos antes de fechar.'],
+    conferencia:['Conferir e fechar','Selecione o mês, verifique as pendências e só então gere ou atualize o fechamento.'],
+    historico:['Histórico e relatórios','Consulte os meses registrados, abra os detalhes ou baixe o PDF de cada fechamento.'],
+    planilhas:['Sincronização das planilhas','Vincule a pasta do Balanço Anual para detectar alterações com o site aberto. A importação manual continua opcional.']
+  };
+  const sections={
+    resumo:'Resumo',conferencia:'Conferência',historico:'Histórico e PDF',planilhas:'Planilhas'
+  };
+  function go(next){
+    if(!sections[next])return;
+    tab=next;
+    const host=document.getElementById('fechamento');
+    if(!host)return;
+    host.dataset.lpV117Tab=next;
+    host.querySelectorAll('.lp-v117-tab').forEach(b=>{
+      const selected=b.dataset.tab===next;
+      b.setAttribute('aria-pressed',String(selected));
+    });
+    const heading=host.querySelector('.lp-v117-context strong');
+    const subtitle=host.querySelector('.lp-v117-context p');
+    if(heading)heading.textContent=descriptions[next][0];
+    if(subtitle)subtitle.textContent=descriptions[next][1];
+    const links=host.querySelector('.lp-v117-links');
+    if(links){
+      links.replaceChildren();
+      const items=next==='resumo'?[['historico','Ver histórico e PDF',true],['conferencia','Conferir mês',false]]:
+        next==='conferencia'?[['historico','Consultar fechamentos',false]]:
+        next==='historico'?[['conferencia','Conferir outro mês',false]]:[['historico','Ver fechamento importado',false]];
+      for(const [id,label,primary] of items){
+        const btn=document.createElement('button');
+        btn.type='button';btn.className='lp-v117-jump'+(primary?' primary':'');btn.textContent=label;
+        btn.addEventListener('click',()=>go(id));links.appendChild(btn);
+      }
+    }
+    if(next==='historico')applyHistoryFilter(host);
+  }
+  function classify(el){
+    if(el.matches('.heading,.lp-v117-nav,.lp-v117-context,.lp-v117-history-filter'))return null;
+    if(el.matches('.lp-v100-guided'))return 'conferencia';
+    if(el.matches('.lp-v108-annual-watch,.lp-v72-annual,.lp-annual-v68,.lp-v70-annual'))return 'planilhas';
+    if(el.matches('.lp-v82-closing,.cards'))return 'resumo';
+    if(el.matches('.lp-fin-v63,.lp-dashboard-v63,.lp-v63-history'))return 'historico';
+    if(el.matches('.card.table-wrap')&&!!el.querySelector('table'))return 'historico';
+    if(el.matches('.notice')||el.querySelector('#closingImportMonth,#closingMonth'))return 'conferencia';
+    if(el.classList.contains('card')&&/fechamento gerado pelo sistema|importar fechamento do per[ií]odo/i.test(el.textContent||''))return 'conferencia';
+    return 'resumo';
+  }
+  function mainHistoryTable(host){
+    return [...host.children].find(el=>el.dataset.lpV117Group==='historico'&&el.matches('.card.table-wrap')&&el.querySelector('button[onclick*="closingDetail"]')) ||
+           [...host.children].find(el=>el.dataset.lpV117Group==='historico'&&el.matches('.card.table-wrap'));
+  }
+  function applyHistoryFilter(host){
+    const table=mainHistoryTable(host);
+    if(!table)return;
+    table.querySelectorAll('tbody tr').forEach(tr=>{
+      if(!filterMonth){tr.style.removeProperty('display');return}
+      const txt=[...tr.querySelectorAll('button[onclick]')].map(b=>b.getAttribute('onclick')||'').join(' ');
+      const m=txt.match(/closingDetail\(['"](\d{4}-\d{2})['"]\)/);
+      tr.style.display=(!m||m[1]===filterMonth)?'':'none';
+    });
+  }
+  function enhance(){
+    const host=document.getElementById('fechamento');if(!host||!host.querySelector('.heading'))return;
+    const heading=host.querySelector('.heading p');
+    if(heading)heading.textContent='Resumo, conferência, histórico e planilhas em um só lugar.';
+    if(!host.querySelector('.lp-v117-nav')){
+      const nav=document.createElement('nav');nav.className='lp-v117-nav';nav.setAttribute('aria-label','Seções do Fechamento Mensal');
+      for(const [key,label] of Object.entries(sections)){
+        const b=document.createElement('button');b.type='button';b.className='lp-v117-tab';b.dataset.tab=key;b.textContent=label;
+        b.addEventListener('click',()=>go(key));nav.appendChild(b);
+      }
+      host.querySelector('.heading').insertAdjacentElement('afterend',nav);
+    }
+    if(!host.querySelector('.lp-v117-context')){
+      const section=document.createElement('div');section.className='lp-v117-context';
+      const copy=document.createElement('div'),h=document.createElement('strong'),p=document.createElement('p'),links=document.createElement('div');
+      links.className='lp-v117-links';copy.append(h,p);section.append(copy,links);host.querySelector('.lp-v117-nav').insertAdjacentElement('afterend',section);
+    }
+    if(!host.querySelector('.lp-v117-history-filter')){
+      const controls=document.createElement('div');controls.className='lp-v117-history-filter';
+      const label=document.createElement('label');label.textContent='Filtrar histórico por mês';
+      const input=document.createElement('input');input.type='month';input.value=filterMonth;input.setAttribute('aria-label','Filtrar histórico por mês');
+      input.addEventListener('input',()=>{filterMonth=input.value;applyHistoryFilter(host)});
+      label.appendChild(input);
+      const clear=document.createElement('button');clear.type='button';clear.className='lp-v117-jump';clear.textContent='Mostrar todos';clear.addEventListener('click',()=>{filterMonth='';input.value='';applyHistoryFilter(host)});
+      const right=document.createElement('div');right.appendChild(clear);const info=document.createElement('small');info.textContent='Os dados e relatórios originais foram preservados.';
+      controls.append(label,right,info);host.appendChild(controls);
+    }
+    for(const el of [...host.children]){
+      const group=classify(el);
+      if(group)el.dataset.lpV117Group=group;
+    }
+    go(tab);
+  }
+  const previous=window.renderFechamento;
+  if(typeof previous==='function')window.renderFechamento=function(){
+    const result=previous.apply(this,arguments);
+    enhance();
+    return result;
+  };
+  const host=document.getElementById('fechamento');
+  if(host){
+    const observer=new MutationObserver(records=>{
+      if(!records.some(x=>x.type==='childList'))return;
+      if(host.querySelector('.heading'))enhance();
+    });
+    observer.observe(host,{childList:true,subtree:false});
+  }
+  window.addEventListener('load',()=>{if(host?.querySelector('.heading'))enhance()});
 })();
 </script>
 
