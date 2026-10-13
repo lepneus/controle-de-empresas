@@ -19050,29 +19050,26 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
   function findProductForDifference(d){
     const list=Array.isArray(data.products)?data.products:[];
     if(!d)return null;
-    let p=list.find(x=>T(x.id)===T(d.productId));
-    if(p)return p;
-
     const type=norm(d.type||d.sourceType);
-    const scoped=type?list.filter(x=>norm(x.sourceType)===type):list;
-    const sync=T(d.syncKey||d.excelSyncKey||d.sourceKey);
-    if(sync){
-      p=scoped.find(x=>T(x.excelSyncKey||x.sourceKey)===sync);
-      if(p)return p;
-    }
-
+    const scoped=list.filter(x=>!type||!T(x.sourceType)||norm(x.sourceType)===type);
     const codeKey=T(d.code).toLowerCase().replace(/[^a-z0-9]/g,'');
-    if(codeKey){
-      p=scoped.find(x=>T(x.code).toLowerCase().replace(/[^a-z0-9]/g,'')===codeKey);
-      if(p)return p;
-    }
-
     const nameKey=norm(d.name).replace(/[^a-z0-9]/g,'');
-    if(nameKey){
-      p=scoped.find(x=>norm(x.name).replace(/[^a-z0-9]/g,'')===nameKey);
-      if(p)return p;
+    // Mesmo ID não significa mesmo item se um importador reconstruir o cadastro.
+    const byId=scoped.find(x=>T(d.productId)&&T(x.id)===T(d.productId));
+    if(byId){
+      const code=T(byId.code).toLowerCase().replace(/[^a-z0-9]/g,'');
+      const name=norm(byId.name).replace(/[^a-z0-9]/g,'');
+      if((codeKey&&code===codeKey)||(nameKey&&name===nameKey)||(!codeKey&&!nameKey))return byId;
     }
-    return null;
+    const sync=T(d.syncKey||d.excelSyncKey||d.sourceKey);
+    const bySync=sync?scoped.filter(x=>T(x.excelSyncKey||x.sourceKey)===sync):[];
+    if(bySync.length===1)return bySync[0];
+    const byCode=codeKey?scoped.filter(x=>T(x.code).toLowerCase().replace(/[^a-z0-9]/g,'')===codeKey):[];
+    if(byCode.length===1)return byCode[0];
+    const byName=nameKey?scoped.filter(x=>norm(x.name).replace(/[^a-z0-9]/g,'')===nameKey):[];
+    // Se não houver correspondência ÚNICA, usa os dados históricos da pendência,
+    // e não um produto possivelmente errado do catálogo atual.
+    return byName.length===1?byName[0]:null;
   }
   function cloudDbForDifference(){
     try{if(window.lpDb)return window.lpDb}catch(e){}
@@ -21225,21 +21222,94 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
     data.finance=data.finance.filter(x=>String(x.id)!==String(id));if(f.cashId)data.cash=data.cash.filter(c=>String(c.id)!==String(f.cashId));saveSafe();try{renderAll()}catch(e){renderExpenses()}
   };
 
-  // Reforço da correção V103: se o ID do produto mudou após nova importação, reencontra por código/nome antes de confirmar venda/ajuste.
-  const oldResolveDiffV111=window.lpResolveDifference;
-  if(typeof oldResolveDiffV111==='function')window.lpResolveDifference=async function(id,action){
+  // V113: uma pendência de saída é um movimento histórico, NÃO depende do produto
+  // continuar no cadastro atual. A versão V96 já suporta snapshot + skipStock=true.
+  // V111 bloqueava essa via e gerava "Produto não encontrado no estoque atual".
+  // Identidade por código/nome serve para ENRIQUECER, nunca para bloquear a venda.
+  const oldResolveDiffV113=window.lpResolveDifference;
+  const salesInFlightV113=new Set();
+  const keyOf=v=>norm(v).replace(/[^a-z0-9]/g,'');
+  function findSafeProductV113(d){
+    const list=Array.isArray(data.products)?data.products:[];
+    const type=norm(d.type||d.sourceType);
+    const scoped=list.filter(p=>!type||!T(p.sourceType)||norm(p.sourceType)===type);
+    const idMatch=scoped.find(p=>T(p.id)===T(d.productId) && T(d.productId));
+    if(idMatch){
+      const codeA=keyOf(d.code),codeB=keyOf(idMatch.code);
+      const nameA=keyOf(d.name),nameB=keyOf(idMatch.name);
+      if((codeA&&codeA===codeB)||(nameA&&nameA===nameB)||(!codeA&&!nameA))return idMatch;
+    }
+    const sync=T(d.syncKey||d.excelSyncKey||d.sourceKey);
+    const matchesBySync=sync?scoped.filter(p=>T(p.excelSyncKey||p.sourceKey)===sync):[];
+    if(matchesBySync.length===1)return matchesBySync[0];
+    const code=keyOf(d.code);
+    const matchesByCode=code?scoped.filter(p=>keyOf(p.code)===code):[];
+    if(matchesByCode.length===1)return matchesByCode[0];
+    const name=keyOf(d.name);
+    const matchesByName=name?scoped.filter(p=>keyOf(p.name)===name):[];
+    return matchesByName.length===1?matchesByName[0]:null;
+  }
+  function saleForDifferenceV113(d){
+    if(!d)return null;
+    return (data.sales||[]).find(s=>
+      (T(d.saleId)&&T(s.id)===T(d.saleId)) ||
+      (T(s.importDifferenceId)&&T(s.importDifferenceId)===T(d.id)) ||
+      (T(d.cloudMovementId)&&T(s.importCloudMovementIdV113)===T(d.cloudMovementId)) ||
+      (T(d.eventKey)&&T(s.importEventKeyV113)===T(d.eventKey)) ||
+      T(s.origin)==='PLANILHA-'+T(d.id)
+    )||null;
+  }
+  async function markExistingMovementV113(d){
+    if(!T(d.cloudMovementId))return;
     try{
-      const d=(data.pendingImportDifferences||[]).find(x=>String(x.id)===String(id));
-      if(d&&!data.products?.some(p=>String(p.id)===String(d.productId))){
-        const code=norm(d.code||d.sourceCode),name=norm(d.name);
-        let p=(data.products||[]).find(x=>code&&[x.code,x.sourceCode,x.sku].some(v=>norm(v)===code));
-        if(!p&&name)p=(data.products||[]).find(x=>norm(x.name)===name);
-        if(!p&&name){const candidates=(data.products||[]).filter(x=>norm(x.name).includes(name)||name.includes(norm(x.name)));if(candidates.length===1)p=candidates[0]}
-        if(p){d.productId=p.id;if(!N(d.price)&&N(p.price))d.price=N(p.price);if(!N(d.cost)&&N(p.cost))d.cost=N(p.cost);try{saveSafe()}catch(e){}}
-        else if(action==='venda'||action==='ajuste')return alert(`Produto não encontrado no estoque atual: ${T(d.name||d.code||'item')}. Importe a planilha de estoque novamente e tente de novo.`);
+      const db=window.lpDb||(typeof lpDb!=='undefined'?lpDb:null);
+      if(!db)return;
+      const value={processed:true,resolution:'venda',processedAtText:new Date().toLocaleString('pt-BR')};
+      if(window.firebase?.firestore?.FieldValue)value.processedAt=firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('controleMovimentosV2').doc(T(d.cloudMovementId)).set(value,{merge:true});
+    }catch(e){console.warn('V113: baixa remota da movimentação não confirmada:',e)}
+  }
+  if(typeof oldResolveDiffV113==='function')window.lpResolveDifference=async function(id,action){
+    if(action!=='venda')return oldResolveDiffV113.apply(this,arguments);
+    const d=(data.pendingImportDifferences||[]).find(x=>T(x.id)===T(id));
+    if(!d)return alert('Essa movimentação não está mais pendente. Atualize a tela.');
+    const lock=T(d.cloudMovementId)||T(d.eventKey)||T(d.id);
+    if(salesInFlightV113.has(lock))return;
+    salesInFlightV113.add(lock);
+    try{
+      let sale=saleForDifferenceV113(d);
+      if(sale){
+        d.saleId=sale.id;
+        d.status='Venda confirmada';
+        d.resolvedAt=d.resolvedAt||new Date().toLocaleString('pt-BR');
+        try{if(typeof save==='function')save()}catch(e){console.warn('V113 salvar situação:',e)}
+        await markExistingMovementV113(d);
+        try{closeModal()}catch(e){}
+        try{window.renderVendas?.()}catch(e){}
+        alert(`A venda #${sale.id} já estava registrada. Não foi criada outra venda.`);
+        return;
       }
-    }catch(e){console.warn('V111 localizar produto',e)}
-    return oldResolveDiffV111.apply(this,arguments);
+      if(d.status!=='Pendente')return alert('Movimentação já processada. Nenhuma venda duplicada foi criada.');
+      if(!(N(d.diff)<0))return alert('Esta movimentação não é uma saída de estoque.');
+      if(!T(d.name)&&!T(d.code))return alert('Esta movimentação não contém a identificação do pneu. Confira os dados antes de registrar a venda.');
+      if(!T(d.name))d.name=T(d.code);
+      const p=findSafeProductV113(d);
+      if(p){
+        d.productId=p.id;
+        if(!N(d.price)&&N(p.price))d.price=N(p.price);
+        if(!N(d.cost)&&N(p.cost))d.cost=N(p.cost);
+      }
+      // Sem p: V96 usa d.name/d.code/preço/custo do movimento histórico,
+      // e skipStock impede a segunda baixa do estoque.
+      const result=await oldResolveDiffV113.apply(this,arguments);
+      sale=saleForDifferenceV113(d);
+      if(sale&&d.status==='Venda confirmada'){
+        if(T(d.cloudMovementId))sale.importCloudMovementIdV113=T(d.cloudMovementId);
+        if(T(d.eventKey))sale.importEventKeyV113=T(d.eventKey);
+        try{if(typeof save==='function')save()}catch(e){console.warn('V113 salvar referência da venda:',e)}
+      }
+      return result;
+    }finally{salesInFlightV113.delete(lock)}
   };
 
   // Regra final do Dashboard: somente despesas efetivamente pagas no mês, sem taxa da maquininha e sem contas ainda abertas.
@@ -21284,7 +21354,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
 <script id="lp-v112-stability-marker">
 (function(){
   if(window.__lpV112)return; window.__lpV112=true;
-  window.lpV112={version:'112',stabilizedAt:'2026-10-07',mainDuplicatesRemoved:37};
+  window.lpV112={version:'113',stabilizedAt:'2026-10-13',mainDuplicatesRemoved:37,saleSnapshotFix:true};
 })();
 </script>
 
