@@ -17754,6 +17754,44 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     return {key:'',label:'Data não informada',time:-1,show:'',valid:false};
   }
 
+  /* V115: exibe o nome do cliente em recebimentos de OS, sem alterar dados financeiros.
+     O vínculo é resolvido a partir da venda/financeiro ou da referência histórica da OS. */
+  function lpServiceCashLabelV115(c){
+    if(!c||T(c.type)!=='Entrada')return null;
+    const osList=data.serviceOrders||[],sales=data.sales||[],finances=data.finance||[];
+    const finance=finances.find(f=>String(f.cashId||'')&&String(f.cashId)===String(c.id));
+    const saleId=finance?.originType==='Venda'?finance.originId:(c.originType==='Venda'?c.originId:'');
+    const sale=sales.find(s=>String(s.id)===String(saleId)&&s.originType==='OS');
+    let os=sale?osList.find(o=>String(o.id)===String(sale.originId)):null;
+    if(!os){
+      const refs=[c.originNumber,c.desc,finance?.originNumber,finance?.desc,sale?.origin].map(v=>T(v)).filter(Boolean);
+      const matches=osList.filter(o=>{
+        const number=T(o.number).toLowerCase();if(!number)return false;
+        return refs.some(ref=>{
+          const txt=ref.toLowerCase();let pos=txt.indexOf(number);
+          while(pos>=0){
+            const before=pos?txt[pos-1]:'';
+            const after=txt[pos+number.length]||'';
+            if(!/[a-z0-9]/i.test(before)&&!/[a-z0-9]/i.test(after))return true;
+            pos=txt.indexOf(number,pos+1);
+          }
+          return false;
+        });
+      });
+      if(matches.length===1)os=matches[0];
+    }
+    // Não atribuir recebimentos de outras vendas a clientes de serviços por coincidência.
+    if(!os)return null;
+    const customerId=os.customerId||sale?.customerId||finance?.customerId||'';
+    const registered=(data.customers||[]).find(x=>String(x.id)===String(customerId));
+    const name=T(registered?.name||os.customerName||sale?.customer||finance?.customerName);
+    if(!name||/^(consumidor|n[aã]o informado|cliente n[aã]o informado)$/i.test(name))return null;
+    const isCardCredit=/^cr[eé]dito autom[aá]tico cart[aã]o/i.test(T(c.desc));
+    const title=`${isCardCredit?'Crédito cartão':'Recebimento'} • ${name}`;
+    const detail=[T(os.number),T(os.service)].filter(Boolean).join(' • ');
+    return {title,detail};
+  }
+
   window.renderCaixa=function(){
     ensure();
     const b=balances(),snap=latestSnapshot();
@@ -17768,13 +17806,14 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     let lastDay=null;
     const rows=latestCash.map(({c,day})=>{
       const acc=accountDef(c.accountId);
+      const serviceLabel=lpServiceCashLabelV115(c);
       const heading=lastDay!==day.key
         ?`<tr class="lp-cash-day-v114"><td colspan="6"><strong>${E(day.label)}</strong><span>${counts.get(day.key)} movimentação(ões)</span></td></tr>`:'';
       lastDay=day.key;
       return heading+`<tr>
         <td>${E(day.valid?day.label+(day.show?' · '+day.show:''):(c.date||'-'))}</td>
         <td>${typeof statusBadge==='function'?statusBadge(c.type):E(c.type)}</td>
-        <td><b>${E(c.desc||'')}</b>${c.internalTransferV82?'<small class="cell-sub">Transferência interna</small>':''}</td>
+        <td><b>${E(serviceLabel?.title||c.desc||'')}</b>${serviceLabel?`<small class="cell-sub">${E(serviceLabel.detail)}</small>`:(c.internalTransferV82?'<small class="cell-sub">Transferência interna</small>':'')}</td>
         <td>${E(acc?.name||c.accountName||'-')}</td>
         <td>${E(c.payment||'-')}</td>
         <td><b>${M(c.value)}</b></td>
@@ -20082,7 +20121,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
   function watchHtml(){
     const s=ensure(),a=latestOpenAlert(),status=s.connected?'Vinculado':s.permissionNeeded?'Permissão necessária':s.enabled?'Aguardando arquivo':'Não vinculado';
     const cls=s.connected?'ok':s.permissionNeeded?'warn':'err';
-    return `<section class="card lp-v104-watch"><div class="lp-v104-watch-grid"><div><div class="panel-head"><div><h3 class="section-title" style="margin:0">Acompanhamento diário do Movimento de Caixa</h3><small class="cell-sub">Verifica o Excel local a cada 60 segundos com a página aberta, compara com a última importação e avisa as diferenças. Para atualizar os saldos, confirme a importação.</small></div></div><div class="lp-v104-status"><span class="soft-chip ${cls}">${E(status)}</span>${s.fileName?`<span class="soft-chip">${E(s.fileName)}</span>`:''}${s.lastCheckedAtIso?`<small class="cell-sub">Última conferência: ${E(new Date(s.lastCheckedAtIso).toLocaleString('pt-BR'))}</small>`:''}</div><small class="cell-sub">Acompanhamento local no Chrome: não funciona com o site fechado e não faz parte do sincronizador do GitHub. O Excel continua no computador, com permissão de leitura.</small></div><div class="actions"><button class="btn ghost" onclick="lpCashWatchConnectV104()">${s.enabled?'Trocar arquivo':'Vincular arquivo'}</button><button class="btn ghost" onclick="lpCashWatchCheckV104()">Conferir agora</button></div></div>${a?diffRows(a):(!importedDaily(s.lastMonth||new Date().toISOString().slice(0,7)).length&&s.enabled?'<div class="notice" style="margin-top:12px">Faça uma importação normal primeiro para criar a base de comparação. Depois disso, qualquer alteração diária será relacionada automaticamente.</div>':'')}</section>`;
+    return `<section class="card lp-v104-watch"><div class="lp-v104-watch-grid"><div><div class="panel-head"><div><h3 class="section-title" style="margin:0">Acompanhamento diário do Movimento de Caixa</h3><small class="cell-sub">Detecta alterações no arquivo, compara com a última importação e avisa o que está faltando.</small></div></div><div class="lp-v104-status"><span class="soft-chip ${cls}">${E(status)}</span>${s.fileName?`<span class="soft-chip">${E(s.fileName)}</span>`:''}${s.lastCheckedAtIso?`<small class="cell-sub">Última conferência: ${E(new Date(s.lastCheckedAtIso).toLocaleString('pt-BR'))}</small>`:''}</div><small class="cell-sub">O acompanhamento automático funciona enquanto o Controle estiver aberto neste computador. O arquivo continua no seu computador; o navegador recebe apenas permissão de leitura.</small></div><div class="actions"><button class="btn ghost" onclick="lpCashWatchConnectV104()">${s.enabled?'Trocar arquivo':'Vincular arquivo'}</button><button class="btn ghost" onclick="lpCashWatchCheckV104()">Conferir agora</button></div></div>${a?diffRows(a):(!importedDaily(s.lastMonth||new Date().toISOString().slice(0,7)).length&&s.enabled?'<div class="notice" style="margin-top:12px">Faça uma importação normal primeiro para criar a base de comparação. Depois disso, qualquer alteração diária será relacionada automaticamente.</div>':'')}</section>`;
   }
   function refreshWatchCard(){
     const host=document.getElementById('caixa');if(!host)return;
