@@ -886,6 +886,13 @@ body:not(.lp-v88-firebase-ok) .lp-user-login-v88{display:none!important}
 @media(max-width:650px){.lp-v96-card-kpis,.lp-v96-card-settings{grid-template-columns:1fr}}
 </style>
 
+
+<style id="lp-cash-daily-v114-css">
+#caixa .lp-cash-day-v114 td{background:var(--panel2,#f3f6fa);border-top:1px solid var(--line,#e2e8f0);border-bottom:1px solid var(--line,#e2e8f0);padding:10px 12px;color:var(--text,#172033)}
+#caixa .lp-cash-day-v114 strong{font-size:12px;font-weight:850}
+#caixa .lp-cash-day-v114 span{font-size:11px;font-weight:650;margin-left:12px;color:var(--muted,#667085)}
+</style>
+<!-- V114: caixa em ordem diária decrescente, sem modificar movimentações ou saldos. -->
 </head>
 <body class="lp-auth-required-v45">
 <div id="login" class="login">
@@ -17712,17 +17719,60 @@ body.lp-test-mode-v77 .profile-copy strong{color:#d97706}
     saveCompat();closeModal();window.renderCaixa();
   };
 
+  // V114: ordem cronológica REAL da movimentação, nunca a posição na matriz/Firebase.
+  // Aceita datas pt-BR, ISO, Date e os timestamps antigos para não perder histórico.
+  function lpCashDateInfoV114(c){
+    const values=[c?.date,c?.movementDate,c?.transactionDate,c?.createdAtIso,c?.createdAt,c?.timestamp];
+    for(const raw of values){
+      if(raw===null||raw===undefined||raw==='')continue;
+      let y,mo,d,h=0,mi=0,sec=0,hasClock=false;
+      if(raw instanceof Date && !isNaN(raw.getTime())){
+        y=raw.getFullYear();mo=raw.getMonth()+1;d=raw.getDate();
+        h=raw.getHours();mi=raw.getMinutes();sec=raw.getSeconds();hasClock=true;
+      }else if(typeof raw?.toDate==='function'){
+        const dt=raw.toDate();if(!(dt instanceof Date)||isNaN(dt.getTime()))continue;
+        y=dt.getFullYear();mo=dt.getMonth()+1;d=dt.getDate();
+        h=dt.getHours();mi=dt.getMinutes();sec=dt.getSeconds();hasClock=true;
+      }else{
+        const v=T(raw);
+        let m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+        if(m){d=+m[1];mo=+m[2];y=+m[3];h=+(m[4]||0);mi=+(m[5]||0);sec=+(m[6]||0);hasClock=!!m[4]}
+        else {
+          m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+          if(m){y=+m[1];mo=+m[2];d=+m[3];h=+(m[4]||0);mi=+(m[5]||0);sec=+(m[6]||0);hasClock=!!m[4]}
+          else {const dt=new Date(v);if(isNaN(dt.getTime()))continue;y=dt.getFullYear();mo=dt.getMonth()+1;d=dt.getDate();h=dt.getHours();mi=dt.getMinutes();sec=dt.getSeconds();hasClock=true}
+        }
+      }
+      if(y<2000||y>2200||mo<1||mo>12||d<1||d>31||h>23||mi>59||sec>59)continue;
+      if(new Date(y,mo-1,d).getDate()!==d)continue;
+      const key=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      return {key,label:`${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}/${y}`,
+        time:hasClock?(h*3600+mi*60+sec):-1,
+        show:hasClock?`${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`:'',
+        valid:true};
+    }
+    return {key:'',label:'Data não informada',time:-1,show:'',valid:false};
+  }
+
   window.renderCaixa=function(){
     ensure();
     const b=balances(),snap=latestSnapshot();
     const month=new Date().toISOString().slice(0,7);
     const latestCash=(data.cash||[])
       .filter(c=>!c.cashMovementImportV82 && T(c.accountId)!=='zerofuro')
+      .map((c,index)=>({c,index,day:lpCashDateInfoV114(c)}))
+      .sort((a,b)=> b.day.key.localeCompare(a.day.key)||b.day.time-a.day.time||a.index-b.index)
       .slice(0,120);
-    const rows=latestCash.map(c=>{
+    const counts=new Map();
+    latestCash.forEach(x=>counts.set(x.day.key,(counts.get(x.day.key)||0)+1));
+    let lastDay=null;
+    const rows=latestCash.map(({c,day})=>{
       const acc=accountDef(c.accountId);
-      return `<tr>
-        <td>${E(c.date||'-')}</td>
+      const heading=lastDay!==day.key
+        ?`<tr class="lp-cash-day-v114"><td colspan="6"><strong>${E(day.label)}</strong><span>${counts.get(day.key)} movimentação(ões)</span></td></tr>`:'';
+      lastDay=day.key;
+      return heading+`<tr>
+        <td>${E(day.valid?day.label+(day.show?' · '+day.show:''):(c.date||'-'))}</td>
         <td>${typeof statusBadge==='function'?statusBadge(c.type):E(c.type)}</td>
         <td><b>${E(c.desc||'')}</b>${c.internalTransferV82?'<small class="cell-sub">Transferência interna</small>':''}</td>
         <td>${E(acc?.name||c.accountName||'-')}</td>
@@ -20032,7 +20082,7 @@ body.dark .lp-v100-close-overall.ok{background:#10291d;border-color:#1c5a39;colo
   function watchHtml(){
     const s=ensure(),a=latestOpenAlert(),status=s.connected?'Vinculado':s.permissionNeeded?'Permissão necessária':s.enabled?'Aguardando arquivo':'Não vinculado';
     const cls=s.connected?'ok':s.permissionNeeded?'warn':'err';
-    return `<section class="card lp-v104-watch"><div class="lp-v104-watch-grid"><div><div class="panel-head"><div><h3 class="section-title" style="margin:0">Acompanhamento diário do Movimento de Caixa</h3><small class="cell-sub">Detecta alterações no arquivo, compara com a última importação e avisa o que está faltando.</small></div></div><div class="lp-v104-status"><span class="soft-chip ${cls}">${E(status)}</span>${s.fileName?`<span class="soft-chip">${E(s.fileName)}</span>`:''}${s.lastCheckedAtIso?`<small class="cell-sub">Última conferência: ${E(new Date(s.lastCheckedAtIso).toLocaleString('pt-BR'))}</small>`:''}</div><small class="cell-sub">O acompanhamento automático funciona enquanto o Controle estiver aberto neste computador. O arquivo continua no seu computador; o navegador recebe apenas permissão de leitura.</small></div><div class="actions"><button class="btn ghost" onclick="lpCashWatchConnectV104()">${s.enabled?'Trocar arquivo':'Vincular arquivo'}</button><button class="btn ghost" onclick="lpCashWatchCheckV104()">Conferir agora</button></div></div>${a?diffRows(a):(!importedDaily(s.lastMonth||new Date().toISOString().slice(0,7)).length&&s.enabled?'<div class="notice" style="margin-top:12px">Faça uma importação normal primeiro para criar a base de comparação. Depois disso, qualquer alteração diária será relacionada automaticamente.</div>':'')}</section>`;
+    return `<section class="card lp-v104-watch"><div class="lp-v104-watch-grid"><div><div class="panel-head"><div><h3 class="section-title" style="margin:0">Acompanhamento diário do Movimento de Caixa</h3><small class="cell-sub">Verifica o Excel local a cada 60 segundos com a página aberta, compara com a última importação e avisa as diferenças. Para atualizar os saldos, confirme a importação.</small></div></div><div class="lp-v104-status"><span class="soft-chip ${cls}">${E(status)}</span>${s.fileName?`<span class="soft-chip">${E(s.fileName)}</span>`:''}${s.lastCheckedAtIso?`<small class="cell-sub">Última conferência: ${E(new Date(s.lastCheckedAtIso).toLocaleString('pt-BR'))}</small>`:''}</div><small class="cell-sub">Acompanhamento local no Chrome: não funciona com o site fechado e não faz parte do sincronizador do GitHub. O Excel continua no computador, com permissão de leitura.</small></div><div class="actions"><button class="btn ghost" onclick="lpCashWatchConnectV104()">${s.enabled?'Trocar arquivo':'Vincular arquivo'}</button><button class="btn ghost" onclick="lpCashWatchCheckV104()">Conferir agora</button></div></div>${a?diffRows(a):(!importedDaily(s.lastMonth||new Date().toISOString().slice(0,7)).length&&s.enabled?'<div class="notice" style="margin-top:12px">Faça uma importação normal primeiro para criar a base de comparação. Depois disso, qualquer alteração diária será relacionada automaticamente.</div>':'')}</section>`;
   }
   function refreshWatchCard(){
     const host=document.getElementById('caixa');if(!host)return;
